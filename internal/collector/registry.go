@@ -77,23 +77,28 @@ func (r *Registry) EnabledCollectors() []Collector {
 
 	var result []Collector
 	for _, c := range r.collectors {
-		// Check if collector has Enabled method via BaseCollector
-		if bc, ok := c.(*CPUCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else if bc, ok := c.(*MemoryCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else if bc, ok := c.(*DiskCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else if bc, ok := c.(*NetworkCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else if bc, ok := c.(*TemperatureCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else if bc, ok := c.(*CPUProcessCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else if bc, ok := c.(*MemoryProcessCollector); ok && bc.Enabled() {
-			result = append(result, c)
-		} else {
-			// Default: assume enabled if not determinable
+		var enabled bool
+
+		switch bc := c.(type) {
+		case *CPUCollector:
+			enabled = bc.Enabled()
+		case *MemoryCollector:
+			enabled = bc.Enabled()
+		case *DiskCollector:
+			enabled = bc.Enabled()
+		case *NetworkCollector:
+			enabled = bc.Enabled()
+		case *TemperatureCollector:
+			enabled = bc.Enabled()
+		case *CPUProcessCollector:
+			enabled = bc.Enabled()
+		case *MemoryProcessCollector:
+			enabled = bc.Enabled()
+		default:
+			enabled = true // Default: assume enabled if not determinable
+		}
+
+		if enabled {
 			result = append(result, c)
 		}
 	}

@@ -41,31 +41,31 @@
       "interval": "5s"
     },
     "memory": {
-      "enabled": true,
+      "enabled": false,
       "interval": "5s"
     },
     "disk": {
-      "enabled": true,
+      "enabled": false,
       "interval": "10s",
       "disks": []
     },
     "network": {
-      "enabled": true,
+      "enabled": false,
       "interval": "5s",
       "interfaces": []
     },
     "temperature": {
-      "enabled": true,
+      "enabled": false,
       "interval": "10s",
       "include_zones": []
     },
     "cpu_process": {
-      "enabled": true,
+      "enabled": false,
       "interval": "10s",
       "top_n": 5
     },
     "memory_process": {
-      "enabled": true,
+      "enabled": false,
       "interval": "10s",
       "top_n": 5
     }

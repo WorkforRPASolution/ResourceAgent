@@ -54,7 +54,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	// Start a goroutine for each enabled collector
 	collectors := s.registry.EnabledCollectors()
+	log.Info().Int("enabled_count", len(collectors)).Msg("Enabled collectors count")
 	for _, c := range collectors {
+		log.Info().Str("collector", c.Name()).Msg("Collector is enabled")
 		s.wg.Add(1)
 		go s.runCollector(ctx, c)
 	}
