@@ -36,17 +36,24 @@ func (c *CPUProcessCollector) Configure(cfg config.CollectorConfig) error {
 	return nil
 }
 
-// Collect gathers per-process CPU metrics.
+// Collect gathers per-process CPU metrics using a 2-pass approach for performance.
+// 1st pass: collect only CPU% and name for all processes (minimal syscalls)
+// 2nd pass: collect detailed info (username, createTime) only for top N processes
 func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) {
 	procs, err := process.ProcessesWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var processList []ProcessCPU
+	// 1st Pass: CPU% + Name only (2 syscalls per process)
+	type quickInfo struct {
+		proc       *process.Process
+		cpuPercent float64
+		name       string
+	}
+	quickList := make([]quickInfo, 0, len(procs))
 
 	for _, p := range procs {
-		// Check context cancellation
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -63,30 +70,36 @@ func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) 
 			continue
 		}
 
-		numThreads, _ := p.NumThreadsWithContext(ctx)
-		username, _ := p.UsernameWithContext(ctx)
-		createTime, _ := p.CreateTimeWithContext(ctx)
-
-		proc := ProcessCPU{
-			PID:        p.Pid,
-			Name:       name,
-			CPUPercent: cpuPercent,
-			NumThreads: numThreads,
-			Username:   username,
-			CreateTime: createTime,
-		}
-
-		processList = append(processList, proc)
+		quickList = append(quickList, quickInfo{
+			proc:       p,
+			cpuPercent: cpuPercent,
+			name:       name,
+		})
 	}
 
 	// Sort by CPU usage descending
-	sort.Slice(processList, func(i, j int) bool {
-		return processList[i].CPUPercent > processList[j].CPUPercent
+	sort.Slice(quickList, func(i, j int) bool {
+		return quickList[i].cpuPercent > quickList[j].cpuPercent
 	})
 
 	// Keep only top N
-	if len(processList) > c.topN {
-		processList = processList[:c.topN]
+	if len(quickList) > c.topN {
+		quickList = quickList[:c.topN]
+	}
+
+	// 2nd Pass: detailed info only for top N (2 syscalls per process)
+	processList := make([]ProcessCPU, 0, len(quickList))
+	for _, q := range quickList {
+		username, _ := q.proc.UsernameWithContext(ctx)
+		createTime, _ := q.proc.CreateTimeWithContext(ctx)
+
+		processList = append(processList, ProcessCPU{
+			PID:        q.proc.Pid,
+			Name:       q.name,
+			CPUPercent: q.cpuPercent,
+			Username:   username,
+			CreateTime: createTime,
+		})
 	}
 
 	return &MetricData{

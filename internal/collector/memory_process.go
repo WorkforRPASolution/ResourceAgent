@@ -36,17 +36,27 @@ func (c *MemoryProcessCollector) Configure(cfg config.CollectorConfig) error {
 	return nil
 }
 
-// Collect gathers per-process memory metrics.
+// Collect gathers per-process memory metrics using a 2-pass approach for performance.
+// 1st pass: collect only memory info and name for all processes (minimal syscalls)
+// 2nd pass: collect detailed info (username, createTime) only for top N processes
 func (c *MemoryProcessCollector) Collect(ctx context.Context) (*MetricData, error) {
 	procs, err := process.ProcessesWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var processList []ProcessMemory
+	// 1st Pass: Memory% + Name + MemInfo only (3 syscalls per process)
+	type quickInfo struct {
+		proc          *process.Process
+		memoryPercent float32
+		name          string
+		rss           uint64
+		vms           uint64
+		swap          uint64
+	}
+	quickList := make([]quickInfo, 0, len(procs))
 
 	for _, p := range procs {
-		// Check context cancellation
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -68,31 +78,42 @@ func (c *MemoryProcessCollector) Collect(ctx context.Context) (*MetricData, erro
 			continue
 		}
 
-		username, _ := p.UsernameWithContext(ctx)
-		createTime, _ := p.CreateTimeWithContext(ctx)
-
-		proc := ProcessMemory{
-			PID:           p.Pid,
-			Name:          name,
-			MemoryPercent: float64(memPercent),
-			RSS:           memInfo.RSS,
-			VMS:           memInfo.VMS,
-			Swap:          memInfo.Swap,
-			Username:      username,
-			CreateTime:    createTime,
-		}
-
-		processList = append(processList, proc)
+		quickList = append(quickList, quickInfo{
+			proc:          p,
+			memoryPercent: memPercent,
+			name:          name,
+			rss:           memInfo.RSS,
+			vms:           memInfo.VMS,
+			swap:          memInfo.Swap,
+		})
 	}
 
 	// Sort by memory usage descending
-	sort.Slice(processList, func(i, j int) bool {
-		return processList[i].MemoryPercent > processList[j].MemoryPercent
+	sort.Slice(quickList, func(i, j int) bool {
+		return quickList[i].memoryPercent > quickList[j].memoryPercent
 	})
 
 	// Keep only top N
-	if len(processList) > c.topN {
-		processList = processList[:c.topN]
+	if len(quickList) > c.topN {
+		quickList = quickList[:c.topN]
+	}
+
+	// 2nd Pass: detailed info only for top N (2 syscalls per process)
+	processList := make([]ProcessMemory, 0, len(quickList))
+	for _, q := range quickList {
+		username, _ := q.proc.UsernameWithContext(ctx)
+		createTime, _ := q.proc.CreateTimeWithContext(ctx)
+
+		processList = append(processList, ProcessMemory{
+			PID:           q.proc.Pid,
+			Name:          q.name,
+			MemoryPercent: float64(q.memoryPercent),
+			RSS:           q.rss,
+			VMS:           q.vms,
+			Swap:          q.swap,
+			Username:      username,
+			CreateTime:    createTime,
+		})
 	}
 
 	return &MetricData{

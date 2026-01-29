@@ -107,13 +107,11 @@ type ProcessCPUData struct {
 
 // ProcessCPU contains CPU metrics for a single process.
 type ProcessCPU struct {
-	PID          int32   `json:"pid"`
-	Name         string  `json:"name"`
-	Username     string  `json:"username,omitempty"`
-	CPUPercent   float64 `json:"cpu_percent"`
-	NumThreads   int32   `json:"num_threads"`
-	CreateTime   int64   `json:"create_time,omitempty"`
-	Cmdline      string  `json:"cmdline,omitempty"`
+	PID        int32   `json:"pid"`
+	Name       string  `json:"name"`
+	Username   string  `json:"username,omitempty"`
+	CPUPercent float64 `json:"cpu_percent"`
+	CreateTime int64   `json:"create_time,omitempty"`
 }
 
 // ProcessMemoryData contains per-process memory usage metrics.
@@ -131,5 +129,4 @@ type ProcessMemory struct {
 	VMS           uint64  `json:"vms_bytes"`
 	Swap          uint64  `json:"swap_bytes,omitempty"`
 	CreateTime    int64   `json:"create_time,omitempty"`
-	Cmdline       string  `json:"cmdline,omitempty"`
 }
