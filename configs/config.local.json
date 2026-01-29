@@ -1,0 +1,82 @@
+{
+  "agent": {
+    "id": "",
+    "hostname": "",
+    "tags": {
+      "environment": "development",
+      "location": "local"
+    }
+  },
+  "sender_type": "file",
+  "file": {
+    "file_path": "logs/metrics.jsonl",
+    "max_size_mb": 50,
+    "max_backups": 3,
+    "console": true,
+    "pretty": false
+  },
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topic": "factory-metrics",
+    "compression": "snappy",
+    "required_acks": 1,
+    "max_retries": 3,
+    "retry_backoff": "100ms",
+    "flush_frequency": "500ms",
+    "flush_messages": 100,
+    "batch_size": 16384,
+    "timeout": "10s",
+    "enable_tls": false,
+    "tls_cert_file": "",
+    "tls_key_file": "",
+    "tls_ca_file": "",
+    "sasl_enabled": false,
+    "sasl_mechanism": "PLAIN",
+    "sasl_user": "",
+    "sasl_password": ""
+  },
+  "collectors": {
+    "cpu": {
+      "enabled": true,
+      "interval": "5s"
+    },
+    "memory": {
+      "enabled": true,
+      "interval": "5s"
+    },
+    "disk": {
+      "enabled": true,
+      "interval": "10s",
+      "disks": []
+    },
+    "network": {
+      "enabled": true,
+      "interval": "5s",
+      "interfaces": []
+    },
+    "temperature": {
+      "enabled": true,
+      "interval": "10s",
+      "include_zones": []
+    },
+    "cpu_process": {
+      "enabled": true,
+      "interval": "10s",
+      "top_n": 5
+    },
+    "memory_process": {
+      "enabled": true,
+      "interval": "10s",
+      "top_n": 5
+    }
+  },
+  "logging": {
+    "level": "debug",
+    "file_path": "logs/agent.log",
+    "max_size_mb": 10,
+    "max_backups": 5,
+    "max_age_days": 30,
+    "compress": true,
+    "console": true
+  }
+}
