@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/host"
-
 	"resourceagent/internal/config"
 )
 
@@ -33,11 +31,12 @@ func (c *TemperatureCollector) Configure(cfg config.CollectorConfig) error {
 }
 
 // Collect gathers temperature metrics.
+// Platform-specific implementation is in temperature_windows.go and temperature_linux.go.
 func (c *TemperatureCollector) Collect(ctx context.Context) (*MetricData, error) {
-	temps, err := host.SensorsTemperaturesWithContext(ctx)
+	sensors, err := c.collectTemperatures(ctx)
 	if err != nil {
+		// Log error but return empty data rather than failing
 		// Temperature sensors may not be available on all systems
-		// Return empty data rather than error
 		return &MetricData{
 			Type:      c.Name(),
 			Timestamp: time.Now().UTC(),
@@ -45,27 +44,8 @@ func (c *TemperatureCollector) Collect(ctx context.Context) (*MetricData, error)
 		}, nil
 	}
 
-	var sensors []TemperatureSensor
-
-	for _, temp := range temps {
-		// Skip if specific zones are configured and this one isn't in the list
-		if len(c.includeZones) > 0 && !c.shouldInclude(temp.SensorKey) {
-			continue
-		}
-
-		// Skip sensors with zero or invalid readings
-		if temp.Temperature <= 0 || temp.Temperature > 200 {
-			continue
-		}
-
-		sensor := TemperatureSensor{
-			Name:        temp.SensorKey,
-			Temperature: temp.Temperature,
-			High:        temp.High,
-			Critical:    temp.Critical,
-		}
-
-		sensors = append(sensors, sensor)
+	if sensors == nil {
+		sensors = []TemperatureSensor{}
 	}
 
 	return &MetricData{

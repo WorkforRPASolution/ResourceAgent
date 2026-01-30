@@ -52,13 +52,18 @@ resourceagent/
 │   ├── collector/                  # Collector 구현체
 │   │   ├── collector.go           # 인터페이스 정의
 │   │   ├── registry.go            # Collector 등록/관리
-│   │   ├── cpu.go, memory.go, disk.go, network.go, temperature.go
+│   │   ├── cpu.go, memory.go, disk.go, network.go
+│   │   ├── temperature.go         # 공통 인터페이스
+│   │   ├── temperature_windows.go # Windows LHM 연동
+│   │   ├── temperature_linux.go   # Linux gopsutil
 │   │   └── cpu_process.go, memory_process.go
 │   ├── config/                     # 설정 관리
 │   ├── sender/                     # Kafka Sender 구현
 │   ├── scheduler/                  # 수집 스케줄링
 │   ├── logger/                     # 구조화된 로깅
 │   └── service/                    # Windows/Linux 서비스 통합
+├── tools/
+│   └── lhm-helper/                 # C# LibreHardwareMonitor 헬퍼
 ├── configs/config.json             # 설정 파일 샘플
 └── scripts/                        # 설치 스크립트
 ```
@@ -89,8 +94,32 @@ resourceagent/
 ### 플랫폼별 참고사항
 
 **CPU 온도 수집**:
-- Windows: WMI (MSAcpi_ThermalZoneTemperature) 또는 Open Hardware Monitor
-- Linux: `/sys/class/thermal/thermal_zone*/temp` 또는 lm-sensors
+- Windows: LibreHardwareMonitor (LhmHelper.exe) - PawnIO 드라이버 사용
+- Linux: `/sys/class/thermal/thermal_zone*/temp` 또는 lm-sensors (gopsutil)
+
+#### Windows 온도 수집 구조
+
+```
+ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → PawnIO Driver → MSR
+```
+
+**LhmHelper 빌드**:
+```bash
+cd tools/lhm-helper
+dotnet publish -c Release -r win-x64 --self-contained
+# 출력: bin/Release/net8.0/win-x64/publish/LhmHelper.exe
+```
+
+**PawnIO 드라이버**:
+- LibreHardwareMonitor의 하드웨어 접근 드라이버 (WinRing0 대체)
+- 설치: `PawnIO_setup.exe /S` (사일런트 설치)
+- 재부팅 불필요
+- Microsoft 서명 버전 제공
+
+**배포 시 포함 파일**:
+- `resourceagent.exe` (Go 바이너리)
+- `LhmHelper.exe` (C# 헬퍼, ~60-80MB self-contained)
+- PawnIO 드라이버 설치 스크립트
 
 ### 데이터 흐름
 
