@@ -39,12 +39,13 @@ type rawKafkaConfig struct {
 }
 
 type rawCollectorConfig struct {
-	Enabled      bool     `json:"enabled"`
-	Interval     string   `json:"interval"`
-	TopN         int      `json:"top_n,omitempty"`
-	Disks        []string `json:"disks,omitempty"`
-	Interfaces   []string `json:"interfaces,omitempty"`
-	IncludeZones []string `json:"include_zones,omitempty"`
+	Enabled        bool     `json:"enabled"`
+	Interval       string   `json:"interval"`
+	TopN           int      `json:"top_n,omitempty"`
+	Disks          []string `json:"disks,omitempty"`
+	Interfaces     []string `json:"interfaces,omitempty"`
+	IncludeZones   []string `json:"include_zones,omitempty"`
+	WatchProcesses []string `json:"watch_processes,omitempty"`
 }
 
 type rawLoggingConfig struct {
@@ -140,11 +141,12 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	// Convert Collector configs
 	for name, rawColl := range raw.Collectors {
 		coll := CollectorConfig{
-			Enabled:      rawColl.Enabled,
-			TopN:         rawColl.TopN,
-			Disks:        rawColl.Disks,
-			Interfaces:   rawColl.Interfaces,
-			IncludeZones: rawColl.IncludeZones,
+			Enabled:        rawColl.Enabled,
+			TopN:           rawColl.TopN,
+			Disks:          rawColl.Disks,
+			Interfaces:     rawColl.Interfaces,
+			IncludeZones:   rawColl.IncludeZones,
+			WatchProcesses: rawColl.WatchProcesses,
 		}
 
 		if rawColl.Interval != "" {

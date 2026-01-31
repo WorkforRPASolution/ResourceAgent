@@ -28,41 +28,42 @@ type FileConfig struct {
 
 // AgentConfig contains general agent settings.
 type AgentConfig struct {
-	ID       string `json:"id"`
-	Hostname string `json:"hostname"`
+	ID       string            `json:"id"`
+	Hostname string            `json:"hostname"`
 	Tags     map[string]string `json:"tags"`
 }
 
 // KafkaConfig contains Kafka connection settings.
 type KafkaConfig struct {
-	Brokers         []string      `json:"brokers"`
-	Topic           string        `json:"topic"`
-	Compression     string        `json:"compression"`
-	RequiredAcks    int           `json:"required_acks"`
-	MaxRetries      int           `json:"max_retries"`
-	RetryBackoff    time.Duration `json:"retry_backoff"`
-	FlushFrequency  time.Duration `json:"flush_frequency"`
-	FlushMessages   int           `json:"flush_messages"`
-	BatchSize       int           `json:"batch_size"`
-	Timeout         time.Duration `json:"timeout"`
-	EnableTLS       bool          `json:"enable_tls"`
-	TLSCertFile     string        `json:"tls_cert_file"`
-	TLSKeyFile      string        `json:"tls_key_file"`
-	TLSCAFile       string        `json:"tls_ca_file"`
-	SASLEnabled     bool          `json:"sasl_enabled"`
-	SASLMechanism   string        `json:"sasl_mechanism"`
-	SASLUser        string        `json:"sasl_user"`
-	SASLPassword    string        `json:"sasl_password"`
+	Brokers        []string      `json:"brokers"`
+	Topic          string        `json:"topic"`
+	Compression    string        `json:"compression"`
+	RequiredAcks   int           `json:"required_acks"`
+	MaxRetries     int           `json:"max_retries"`
+	RetryBackoff   time.Duration `json:"retry_backoff"`
+	FlushFrequency time.Duration `json:"flush_frequency"`
+	FlushMessages  int           `json:"flush_messages"`
+	BatchSize      int           `json:"batch_size"`
+	Timeout        time.Duration `json:"timeout"`
+	EnableTLS      bool          `json:"enable_tls"`
+	TLSCertFile    string        `json:"tls_cert_file"`
+	TLSKeyFile     string        `json:"tls_key_file"`
+	TLSCAFile      string        `json:"tls_ca_file"`
+	SASLEnabled    bool          `json:"sasl_enabled"`
+	SASLMechanism  string        `json:"sasl_mechanism"`
+	SASLUser       string        `json:"sasl_user"`
+	SASLPassword   string        `json:"sasl_password"`
 }
 
 // CollectorConfig contains settings for individual collectors.
 type CollectorConfig struct {
-	Enabled       bool          `json:"enabled"`
-	Interval      time.Duration `json:"interval"`
-	TopN          int           `json:"top_n,omitempty"`
-	Disks         []string      `json:"disks,omitempty"`
-	Interfaces    []string      `json:"interfaces,omitempty"`
-	IncludeZones  []string      `json:"include_zones,omitempty"`
+	Enabled        bool          `json:"enabled"`
+	Interval       time.Duration `json:"interval"`
+	TopN           int           `json:"top_n,omitempty"`
+	Disks          []string      `json:"disks,omitempty"`
+	Interfaces     []string      `json:"interfaces,omitempty"`
+	IncludeZones   []string      `json:"include_zones,omitempty"`
+	WatchProcesses []string      `json:"watch_processes,omitempty"`
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -233,6 +234,9 @@ func (c *Config) Merge(other *Config) {
 			}
 			if len(collectorCfg.IncludeZones) > 0 {
 				existing.IncludeZones = collectorCfg.IncludeZones
+			}
+			if len(collectorCfg.WatchProcesses) > 0 {
+				existing.WatchProcesses = collectorCfg.WatchProcesses
 			}
 			c.Collectors[name] = existing
 		} else {
