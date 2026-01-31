@@ -62,12 +62,14 @@
     "cpu_process": {
       "enabled": true,
       "interval": "30s",
-      "top_n": 10
+      "top_n": 10,
+      "watch_processes": []
     },
     "memory_process": {
       "enabled": true,
       "interval": "30s",
-      "top_n": 10
+      "top_n": 10,
+      "watch_processes": []
     }
   },
   "logging": {
