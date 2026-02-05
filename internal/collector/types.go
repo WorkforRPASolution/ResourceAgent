@@ -100,6 +100,17 @@ type TemperatureSensor struct {
 	Critical    float64 `json:"critical_celsius,omitempty"`
 }
 
+// FanData contains system fan speed metrics.
+type FanData struct {
+	Sensors []FanSensor `json:"sensors"`
+}
+
+// FanSensor contains metrics from a single fan sensor.
+type FanSensor struct {
+	Name string  `json:"name"`
+	RPM  float64 `json:"rpm"`
+}
+
 // ProcessCPUData contains per-process CPU usage metrics.
 type ProcessCPUData struct {
 	Processes []ProcessCPU `json:"processes"`
@@ -131,4 +142,61 @@ type ProcessMemory struct {
 	Swap          uint64  `json:"swap_bytes,omitempty"`
 	CreateTime    int64   `json:"create_time,omitempty"`
 	Watched       bool    `json:"watched,omitempty"`
+}
+
+// GpuData contains GPU metrics.
+type GpuData struct {
+	Gpus []GpuSensor `json:"gpus"`
+}
+
+// GpuSensor contains metrics from a single GPU.
+type GpuSensor struct {
+	Name        string   `json:"name"`
+	Temperature *float64 `json:"temperature_celsius,omitempty"`
+	CoreLoad    *float64 `json:"core_load_percent,omitempty"`
+	MemoryLoad  *float64 `json:"memory_load_percent,omitempty"`
+	FanSpeed    *float64 `json:"fan_speed_rpm,omitempty"`
+	Power       *float64 `json:"power_watts,omitempty"`
+	CoreClock   *float64 `json:"core_clock_mhz,omitempty"`
+	MemoryClock *float64 `json:"memory_clock_mhz,omitempty"`
+}
+
+// StorageSmartData contains S.M.A.R.T metrics for storage devices.
+type StorageSmartData struct {
+	Storages []StorageSmartSensor `json:"storages"`
+}
+
+// StorageSmartSensor contains S.M.A.R.T metrics from a single storage device.
+type StorageSmartSensor struct {
+	Name              string   `json:"name"`
+	Type              string   `json:"type"` // NVMe, SSD, HDD
+	Temperature       *float64 `json:"temperature_celsius,omitempty"`
+	RemainingLife     *float64 `json:"remaining_life_percent,omitempty"`
+	MediaErrors       *int64   `json:"media_errors,omitempty"`
+	PowerCycles       *int64   `json:"power_cycles,omitempty"`
+	UnsafeShutdowns   *int64   `json:"unsafe_shutdowns,omitempty"`
+	PowerOnHours      *int64   `json:"power_on_hours,omitempty"`
+	TotalBytesWritten *int64   `json:"total_bytes_written,omitempty"`
+}
+
+// VoltageData contains voltage sensor metrics.
+type VoltageData struct {
+	Sensors []VoltageSensor `json:"sensors"`
+}
+
+// VoltageSensor contains metrics from a single voltage sensor.
+type VoltageSensor struct {
+	Name    string  `json:"name"`
+	Voltage float64 `json:"voltage"`
+}
+
+// MotherboardTempData contains motherboard temperature metrics.
+type MotherboardTempData struct {
+	Sensors []MotherboardTempSensor `json:"sensors"`
+}
+
+// MotherboardTempSensor contains metrics from a single motherboard temperature sensor.
+type MotherboardTempSensor struct {
+	Name        string  `json:"name"`
+	Temperature float64 `json:"temperature_celsius"`
 }

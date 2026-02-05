@@ -32,7 +32,7 @@ func (c *MemoryProcessCollector) Configure(cfg config.CollectorConfig) error {
 	if cfg.Interval > 0 {
 		c.SetInterval(cfg.Interval)
 	}
-	if cfg.TopN > 0 {
+	if cfg.TopN >= 0 {
 		c.topN = cfg.TopN
 	}
 	c.watchProcesses = cfg.WatchProcesses

@@ -1,10 +1,11 @@
 {
+  "_comment": "Production config for factory PC monitoring (10,000+ PCs)",
   "agent": {
     "id": "",
     "hostname": "",
     "tags": {
       "environment": "production",
-      "location": "factory-1"
+      "location": ""
     }
   },
   "sender_type": "kafka",
@@ -12,11 +13,11 @@
     "file_path": "logs/metrics.jsonl",
     "max_size_mb": 50,
     "max_backups": 3,
-    "console": true,
+    "console": false,
     "pretty": false
   },
   "kafka": {
-    "brokers": ["localhost:9092"],
+    "brokers": ["kafka.example.com:9092"],
     "topic": "factory-metrics",
     "compression": "snappy",
     "required_acks": 1,
@@ -37,63 +38,75 @@
   },
   "collectors": {
     "cpu": {
+      "_comment": "CPU usage changes rapidly, 10s for quick anomaly detection",
       "enabled": true,
       "interval": "10s"
     },
     "memory": {
+      "_comment": "Memory leaks need early detection, 10s interval",
       "enabled": true,
       "interval": "10s"
     },
     "disk": {
+      "_comment": "Disk I/O patterns, 30s is sufficient for trend analysis",
       "enabled": true,
       "interval": "30s",
       "disks": []
     },
     "network": {
+      "_comment": "Network traffic patterns change quickly, 10s for monitoring",
       "enabled": true,
       "interval": "10s",
       "interfaces": []
     },
     "temperature": {
+      "_comment": "CPU temp changes but thermal events take seconds, 30s is safe",
       "enabled": true,
       "interval": "30s",
       "include_zones": []
     },
     "cpu_process": {
+      "_comment": "Track top CPU consumers and specific processes, 30s for patterns",
       "enabled": true,
       "interval": "30s",
       "top_n": 10,
       "watch_processes": []
     },
     "memory_process": {
+      "_comment": "Track memory hogs and specific processes, 30s for leak detection",
       "enabled": true,
       "interval": "30s",
       "top_n": 10,
       "watch_processes": []
     },
     "fan": {
+      "_comment": "Fan speed follows temperature, 30s matches temperature interval",
       "enabled": true,
       "interval": "30s",
       "include_zones": []
     },
     "gpu": {
+      "_comment": "GPU metrics for workload monitoring, 30s is sufficient",
       "enabled": true,
       "interval": "30s",
       "include_zones": []
     },
     "storage_smart": {
+      "_comment": "S.M.A.R.T values change over hours/days, 5min reduces I/O overhead",
       "enabled": true,
-      "interval": "60s",
+      "interval": "300s",
       "disks": []
     },
     "voltage": {
+      "_comment": "PSU voltage is very stable, 60s is plenty for anomaly detection",
       "enabled": true,
-      "interval": "30s",
+      "interval": "60s",
       "include_zones": []
     },
     "motherboard_temp": {
+      "_comment": "Ambient temp changes slowly, 60s is sufficient",
       "enabled": true,
-      "interval": "30s",
+      "interval": "60s",
       "include_zones": []
     }
   },

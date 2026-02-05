@@ -191,6 +191,8 @@ func (s *Scheduler) UpdateCollectorInterval(name string, interval time.Duration)
 		base.SetInterval(interval)
 	} else if base, ok := c.(*collector.MemoryProcessCollector); ok {
 		base.SetInterval(interval)
+	} else if base, ok := c.(*collector.FanCollector); ok {
+		base.SetInterval(interval)
 	}
 
 	return nil

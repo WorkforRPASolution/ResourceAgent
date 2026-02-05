@@ -124,6 +124,26 @@ func DefaultConfig() *Config {
 				Interval: 30 * time.Second,
 				TopN:     10,
 			},
+			"fan": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"gpu": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"storage_smart": {
+				Enabled:  true,
+				Interval: 60 * time.Second,
+			},
+			"voltage": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"motherboard_temp": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
 		},
 		Logging: logger.DefaultConfig(),
 	}

@@ -94,6 +94,16 @@ func (r *Registry) EnabledCollectors() []Collector {
 			enabled = bc.Enabled()
 		case *MemoryProcessCollector:
 			enabled = bc.Enabled()
+		case *FanCollector:
+			enabled = bc.Enabled()
+		case *GpuCollector:
+			enabled = bc.Enabled()
+		case *StorageSmartCollector:
+			enabled = bc.Enabled()
+		case *VoltageCollector:
+			enabled = bc.Enabled()
+		case *MotherboardTempCollector:
+			enabled = bc.Enabled()
 		default:
 			enabled = true // Default: assume enabled if not determinable
 		}
@@ -117,6 +127,11 @@ func DefaultRegistry() *Registry {
 	_ = r.Register(NewTemperatureCollector())
 	_ = r.Register(NewCPUProcessCollector())
 	_ = r.Register(NewMemoryProcessCollector())
+	_ = r.Register(NewFanCollector())
+	_ = r.Register(NewGpuCollector())
+	_ = r.Register(NewStorageSmartCollector())
+	_ = r.Register(NewVoltageCollector())
+	_ = r.Register(NewMotherboardTempCollector())
 
 	return r
 }
