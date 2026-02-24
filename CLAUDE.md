@@ -131,10 +131,14 @@ dotnet publish -c Release -r win-x64 --self-contained
 ### 데이터 흐름
 
 1. ConfigManager가 JSON 설정 로드 및 변경 감시
-2. Scheduler가 설정된 주기로 Collector 등록
-3. Collector가 스케줄에 따라 메트릭 수집
-4. Sender가 JSON을 Kafka로 전송 (Snappy 압축, 재시도 설정 가능)
-5. 로컬 버퍼링 없음 - 네트워크 단절 시 데이터 유실 허용
+2. sender_type != "file" 이면: IP 감지 → Redis EQP_INFO 조회 → ServiceDiscovery → KafkaRest/Topic 결정
+3. Scheduler가 설정된 주기로 Collector 등록
+4. Collector가 스케줄에 따라 메트릭 수집
+5. Sender가 메트릭 전송:
+   - **kafkarest**: MetricData → EARSRow[] → 평문 raw (Grok 호환) → HTTP POST (`KafkaMessageWrapper2`)
+   - **kafka**: MetricData → EARSRow[] → JSON raw (ParsedDataList) → sarama produce (`KafkaValue`)
+   - **file**: MetricData JSON 그대로 파일에 기록
+6. 로컬 버퍼링 없음 - 네트워크 단절 시 데이터 유실 허용
 
 ## 서비스 설치
 

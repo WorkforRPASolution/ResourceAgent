@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,6 +36,16 @@ func newTestKafkaRestSender(t *testing.T, handler http.HandlerFunc) (*KafkaRestS
 	return s, server
 }
 
+func newCPUData() *collector.MetricData {
+	return &collector.MetricData{
+		Type:      "cpu",
+		Timestamp: time.Now(),
+		AgentID:   "test-agent",
+		Hostname:  "test-host",
+		Data:      collector.CPUData{UsagePercent: 50.0, CoreCount: 4},
+	}
+}
+
 func TestKafkaRestSender_Send_Success(t *testing.T) {
 	var receivedBody []byte
 	var receivedContentType string
@@ -47,15 +58,7 @@ func TestKafkaRestSender_Send_Success(t *testing.T) {
 	defer server.Close()
 	defer s.Close()
 
-	data := &collector.MetricData{
-		Type:      "cpu",
-		Timestamp: time.Now(),
-		AgentID:   "test-agent",
-		Hostname:  "test-host",
-		Data:      map[string]interface{}{"usage": 50.0},
-	}
-
-	err := s.Send(context.Background(), data)
+	err := s.Send(context.Background(), newCPUData())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,15 +94,7 @@ func TestKafkaRestSender_Send_TopicInURL(t *testing.T) {
 	defer server.Close()
 	defer s.Close()
 
-	data := &collector.MetricData{
-		Type:      "cpu",
-		Timestamp: time.Now(),
-		AgentID:   "test-agent",
-		Hostname:  "test-host",
-		Data:      map[string]interface{}{"usage": 50.0},
-	}
-
-	s.Send(context.Background(), data)
+	s.Send(context.Background(), newCPUData())
 
 	if receivedPath != "/topics/tp_all_all_resource" {
 		t.Errorf("expected path=/topics/tp_all_all_resource, got %s", receivedPath)
@@ -120,15 +115,7 @@ func TestKafkaRestSender_Send_RetryOnFailure(t *testing.T) {
 	defer server.Close()
 	defer s.Close()
 
-	data := &collector.MetricData{
-		Type:      "cpu",
-		Timestamp: time.Now(),
-		AgentID:   "test-agent",
-		Hostname:  "test-host",
-		Data:      map[string]interface{}{"usage": 50.0},
-	}
-
-	err := s.Send(context.Background(), data)
+	err := s.Send(context.Background(), newCPUData())
 	if err != nil {
 		t.Fatalf("expected success after retry, got error: %v", err)
 	}
@@ -148,15 +135,7 @@ func TestKafkaRestSender_Send_MaxRetriesExhausted(t *testing.T) {
 	defer server.Close()
 	defer s.Close()
 
-	data := &collector.MetricData{
-		Type:      "cpu",
-		Timestamp: time.Now(),
-		AgentID:   "test-agent",
-		Hostname:  "test-host",
-		Data:      map[string]interface{}{"usage": 50.0},
-	}
-
-	err := s.Send(context.Background(), data)
+	err := s.Send(context.Background(), newCPUData())
 	if err == nil {
 		t.Fatal("expected error after max retries, got nil")
 	}
@@ -178,9 +157,12 @@ func TestKafkaRestSender_SendBatch(t *testing.T) {
 	defer s.Close()
 
 	batch := []*collector.MetricData{
-		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h", Data: map[string]interface{}{"usage": 1.0}},
-		{Type: "memory", Timestamp: time.Now(), AgentID: "a", Hostname: "h", Data: map[string]interface{}{"usage": 2.0}},
-		{Type: "disk", Timestamp: time.Now(), AgentID: "a", Hostname: "h", Data: map[string]interface{}{"usage": 3.0}},
+		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
+			Data: collector.CPUData{UsagePercent: 50.0, CoreCount: 4}},
+		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
+			Data: collector.CPUData{UsagePercent: 60.0, CoreCount: 4}},
+		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
+			Data: collector.CPUData{UsagePercent: 70.0, CoreCount: 4}},
 	}
 
 	err := s.SendBatch(context.Background(), batch)
@@ -205,14 +187,7 @@ func TestKafkaRestSender_Close(t *testing.T) {
 	}
 
 	// Send after close should fail
-	data := &collector.MetricData{
-		Type:      "cpu",
-		Timestamp: time.Now(),
-		AgentID:   "test-agent",
-		Hostname:  "test-host",
-		Data:      map[string]interface{}{"usage": 50.0},
-	}
-	err = s.Send(context.Background(), data)
+	err = s.Send(context.Background(), newCPUData())
 	if err == nil {
 		t.Fatal("expected error when sending after Close, got nil")
 	}
@@ -229,16 +204,92 @@ func TestKafkaRestSender_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
+	err := s.Send(ctx, newCPUData())
+	if err == nil {
+		t.Fatal("expected error on context cancellation, got nil")
+	}
+}
+
+// --- Legacy format verification tests ---
+
+func TestKafkaRestSender_Send_LegacyPlainTextRaw(t *testing.T) {
+	var receivedBody []byte
+
+	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	})
+	defer server.Close()
+	defer s.Close()
+
 	data := &collector.MetricData{
 		Type:      "cpu",
+		Timestamp: time.Date(2026, 2, 24, 10, 30, 45, 123000000, time.UTC),
+		AgentID:   "test-agent",
+		Hostname:  "test-host",
+		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
+	}
+
+	s.Send(context.Background(), data)
+
+	var wrapper KafkaMessageWrapper2
+	json.Unmarshal(receivedBody, &wrapper)
+
+	raw := wrapper.Records[0].Value.Raw
+	// raw must be plain text (Grok format), not JSON
+	if strings.HasPrefix(raw, "{") {
+		t.Errorf("raw should be plain text, not JSON: %q", raw)
+	}
+	expected := "2026-02-24 10:30:45,123 category:cpu,pid:0,proc:@system,metric:total_used_pct,value:45.5"
+	if raw != expected {
+		t.Errorf("raw mismatch:\n  expected: %s\n  got:      %s", expected, raw)
+	}
+
+	// diff should be 0
+	if wrapper.Records[0].Value.Diff != 0 {
+		t.Errorf("diff should be 0, got %d", wrapper.Records[0].Value.Diff)
+	}
+}
+
+func TestKafkaRestSender_Send_MemoryMultipleRecords(t *testing.T) {
+	var receivedBody []byte
+
+	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	})
+	defer server.Close()
+	defer s.Close()
+
+	data := &collector.MetricData{
+		Type:      "memory",
 		Timestamp: time.Now(),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
-		Data:      map[string]interface{}{"usage": 50.0},
+		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000},
 	}
 
-	err := s.Send(ctx, data)
-	if err == nil {
-		t.Fatal("expected error on context cancellation, got nil")
+	s.Send(context.Background(), data)
+
+	var wrapper KafkaMessageWrapper2
+	json.Unmarshal(receivedBody, &wrapper)
+
+	// Memory should produce 3 records
+	if len(wrapper.Records) != 3 {
+		t.Fatalf("expected 3 records for memory, got %d", len(wrapper.Records))
+	}
+
+	// All records should have the same key and process
+	for i, rec := range wrapper.Records {
+		if rec.Key != "EQP001" {
+			t.Errorf("record[%d] key: expected EQP001, got %s", i, rec.Key)
+		}
+		if rec.Value.Process != "PROCESS1" {
+			t.Errorf("record[%d] process: expected PROCESS1, got %s", i, rec.Value.Process)
+		}
+		// Each raw should be plain text
+		if strings.HasPrefix(rec.Value.Raw, "{") {
+			t.Errorf("record[%d] raw should be plain text: %q", i, rec.Value.Raw)
+		}
 	}
 }

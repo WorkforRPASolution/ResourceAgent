@@ -72,7 +72,7 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 	}
 	s.mu.RUnlock()
 
-	body, err := WrapMetricData(data, s.eqpInfo)
+	body, err := WrapMetricDataLegacy(data, s.eqpInfo)
 	if err != nil {
 		return fmt.Errorf("failed to wrap metric data: %w", err)
 	}

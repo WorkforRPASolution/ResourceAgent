@@ -182,16 +182,30 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 	}
 	s.mu.RUnlock()
 
-	var jsonData []byte
-	var err error
-
 	if s.eqpInfo != nil {
-		// Wrap in KafkaMessageWrapper2 format
-		jsonData, err = WrapMetricData(data, s.eqpInfo)
-	} else {
-		// Legacy format: raw MetricData
-		jsonData, err = json.Marshal(data)
+		// JSON mapper format: multiple KafkaValue messages per MetricData
+		key, values, err := WrapMetricDataJSON(data, s.eqpInfo)
+		if err != nil {
+			return fmt.Errorf("failed to wrap metric data as JSON: %w", err)
+		}
+		for _, v := range values {
+			msg := &sarama.ProducerMessage{
+				Topic:     s.topic,
+				Key:       sarama.StringEncoder(key),
+				Value:     sarama.ByteEncoder(v),
+				Timestamp: data.Timestamp,
+			}
+			select {
+			case s.producer.Input() <- msg:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
 	}
+
+	// Legacy format: raw MetricData (no eqpInfo)
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metric data: %w", err)
 	}
@@ -201,11 +215,7 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 		Value:     sarama.ByteEncoder(jsonData),
 		Timestamp: data.Timestamp,
 	}
-
-	// Use agent ID or eqpId as key for partitioning
-	if s.eqpInfo != nil {
-		msg.Key = sarama.StringEncoder(s.eqpInfo.EqpID)
-	} else if data.AgentID != "" {
+	if data.AgentID != "" {
 		msg.Key = sarama.StringEncoder(data.AgentID)
 	}
 
