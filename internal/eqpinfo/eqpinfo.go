@@ -48,10 +48,6 @@ func FetchEqpInfo(ctx context.Context, redisAddress string, redisCfg config.Redi
 	dialFunc func(network, addr string) (net.Conn, error),
 	ipAddr, ipAddrLocal string) (*EqpInfo, error) {
 
-	if !redisCfg.Enabled {
-		return nil, nil
-	}
-
 	// Create Redis client
 	client, err := createRedisClient(redisAddress, redisCfg, dialFunc)
 	if err != nil {

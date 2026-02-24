@@ -118,22 +118,6 @@ func TestParseEqpInfoValue_FiveSegments(t *testing.T) {
 
 // --- FetchEqpInfo tests (using miniredis) ---
 
-func TestFetchEqpInfo_DisabledRedis(t *testing.T) {
-	cfg := config.RedisConfig{
-		Enabled: false,
-		Port:    6379,
-		DB:      10,
-	}
-
-	info, err := FetchEqpInfo(context.Background(), "localhost:6379", cfg, nil, "192.168.1.1", "10.0.0.1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if info != nil {
-		t.Fatalf("expected nil info when Redis disabled, got %+v", info)
-	}
-}
-
 func TestFetchEqpInfo_Success(t *testing.T) {
 	mr := miniredis.RunT(t)
 
@@ -142,7 +126,6 @@ func TestFetchEqpInfo_Success(t *testing.T) {
 	mr.HSet("EQP_INFO", "192.168.1.100:10.0.0.1", "PROCESS:MODEL:EQP001:LINE1:Desc:42")
 
 	cfg := config.RedisConfig{
-		Enabled: true,
 		Port:    6379,
 		DB:      10,
 	}
@@ -179,7 +162,6 @@ func TestFetchEqpInfo_KeyNotFound(t *testing.T) {
 
 	// No data seeded - Redis is running but key doesn't exist
 	cfg := config.RedisConfig{
-		Enabled: true,
 		Port:    6379,
 		DB:      10,
 	}
@@ -201,7 +183,6 @@ func TestFetchEqpInfo_InvalidValue(t *testing.T) {
 	mr.HSet("EQP_INFO", "192.168.1.100:10.0.0.1", "bad:data")
 
 	cfg := config.RedisConfig{
-		Enabled: true,
 		Port:    6379,
 		DB:      10,
 	}
@@ -220,7 +201,6 @@ func TestFetchEqpInfo_WithUnderscoreIPAddrLocal(t *testing.T) {
 	mr.HSet("EQP_INFO", "192.168.1.1:_", "PROC:MDL:EQP999:LN:DESC:0")
 
 	cfg := config.RedisConfig{
-		Enabled: true,
 		Port:    6379,
 		DB:      10,
 	}

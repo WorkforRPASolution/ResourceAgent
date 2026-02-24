@@ -19,6 +19,8 @@ type rawConfig struct {
 	Redis                   RedisConfig                   `json:"redis"`
 	PrivateIPAddressPattern string                        `json:"private_ip_address_pattern"`
 	SOCKSProxy              SOCKSConfig                   `json:"socks_proxy"`
+	ServiceDiscoveryPort    int                           `json:"service_discovery_port"`
+	ResourceMonitorTopic    string                        `json:"resource_monitor_topic"`
 }
 
 type rawKafkaConfig struct {
@@ -178,6 +180,8 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg.Redis = raw.Redis
 	cfg.PrivateIPAddressPattern = raw.PrivateIPAddressPattern
 	cfg.SOCKSProxy = raw.SOCKSProxy
+	cfg.ServiceDiscoveryPort = raw.ServiceDiscoveryPort
+	cfg.ResourceMonitorTopic = raw.ResourceMonitorTopic
 
 	return cfg, nil
 }

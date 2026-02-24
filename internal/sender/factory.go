@@ -9,7 +9,6 @@ import (
 )
 
 // NewSender creates a Sender based on the configuration.
-// It returns a KafkaSender by default, or a FileSender if sender_type is "file".
 func NewSender(cfg *config.Config) (Sender, error) {
 	log := logger.WithComponent("sender-factory")
 
@@ -23,11 +22,18 @@ func NewSender(cfg *config.Config) (Sender, error) {
 		Msg("Creating sender")
 
 	switch senderType {
+	case "kafkarest":
+		topic := config.ResolveTopic(cfg.ResourceMonitorTopic, cfg.EqpInfo)
+		log.Info().
+			Str("kafkarest_addr", cfg.KafkaRestAddress).
+			Str("topic", topic).
+			Msg("Creating KafkaRest sender")
+		return NewKafkaRestSender(cfg.KafkaRestAddress, topic, cfg.EqpInfo, cfg.SOCKSProxy)
 	case "kafka":
 		return NewKafkaSender(cfg.Kafka, cfg.SOCKSProxy, cfg.EqpInfo)
 	case "file":
 		return NewFileSender(cfg.File)
 	default:
-		return nil, fmt.Errorf("unknown sender type: %s (supported: kafka, file)", senderType)
+		return nil, fmt.Errorf("unknown sender type: %s (supported: kafkarest, kafka, file)", senderType)
 	}
 }

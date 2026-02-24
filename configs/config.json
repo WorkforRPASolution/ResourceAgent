@@ -36,8 +36,9 @@
     "sasl_password": ""
   },
   "virtual_ip_list": "",
+  "service_discovery_port": 50009,
+  "resource_monitor_topic": "all",
   "redis": {
-    "enabled": false,
     "port": 6379,
     "password": "",
     "db": 10

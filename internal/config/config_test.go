@@ -10,9 +10,6 @@ import (
 func TestDefaultConfig_HasRedisDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Redis.Enabled != false {
-		t.Errorf("expected Redis.Enabled=false, got %v", cfg.Redis.Enabled)
-	}
 	if cfg.Redis.DB != 10 {
 		t.Errorf("expected Redis.DB=10, got %d", cfg.Redis.DB)
 	}
@@ -21,6 +18,20 @@ func TestDefaultConfig_HasRedisDefaults(t *testing.T) {
 	}
 	if cfg.Redis.Password != "" {
 		t.Errorf("expected Redis.Password='', got %q", cfg.Redis.Password)
+	}
+}
+
+func TestDefaultConfig_HasServiceDiscoveryDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.ServiceDiscoveryPort != 50009 {
+		t.Errorf("expected ServiceDiscoveryPort=50009, got %d", cfg.ServiceDiscoveryPort)
+	}
+	if cfg.ResourceMonitorTopic != "all" {
+		t.Errorf("expected ResourceMonitorTopic='all', got %q", cfg.ResourceMonitorTopic)
+	}
+	if cfg.KafkaRestAddress != "" {
+		t.Errorf("expected KafkaRestAddress='', got %q", cfg.KafkaRestAddress)
 	}
 }
 
@@ -57,7 +68,6 @@ func TestParse_WithRedisConfig(t *testing.T) {
 	input := `{
 		"virtual_ip_list": "10.20.30.40",
 		"redis": {
-			"enabled": true,
 			"port": 26379,
 			"password": "secret",
 			"db": 5
@@ -72,9 +82,6 @@ func TestParse_WithRedisConfig(t *testing.T) {
 	if cfg.VirtualIPList != "10.20.30.40" {
 		t.Errorf("expected VirtualIPList='10.20.30.40', got %q", cfg.VirtualIPList)
 	}
-	if cfg.Redis.Enabled != true {
-		t.Errorf("expected Redis.Enabled=true, got %v", cfg.Redis.Enabled)
-	}
 	if cfg.Redis.Port != 26379 {
 		t.Errorf("expected Redis.Port=26379, got %d", cfg.Redis.Port)
 	}
@@ -83,6 +90,25 @@ func TestParse_WithRedisConfig(t *testing.T) {
 	}
 	if cfg.Redis.DB != 5 {
 		t.Errorf("expected Redis.DB=5, got %d", cfg.Redis.DB)
+	}
+}
+
+func TestParse_WithServiceDiscoveryConfig(t *testing.T) {
+	input := `{
+		"service_discovery_port": 60009,
+		"resource_monitor_topic": "model"
+	}`
+
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if cfg.ServiceDiscoveryPort != 60009 {
+		t.Errorf("expected ServiceDiscoveryPort=60009, got %d", cfg.ServiceDiscoveryPort)
+	}
+	if cfg.ResourceMonitorTopic != "model" {
+		t.Errorf("expected ResourceMonitorTopic='model', got %q", cfg.ResourceMonitorTopic)
 	}
 }
 
@@ -141,8 +167,11 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	}
 
 	// New fields should have defaults
-	if cfg.Redis.Enabled != false {
-		t.Errorf("expected Redis.Enabled=false for backward compat, got %v", cfg.Redis.Enabled)
+	if cfg.ServiceDiscoveryPort != 50009 {
+		t.Errorf("expected ServiceDiscoveryPort=50009 for backward compat, got %d", cfg.ServiceDiscoveryPort)
+	}
+	if cfg.ResourceMonitorTopic != "all" {
+		t.Errorf("expected ResourceMonitorTopic='all' for backward compat, got %q", cfg.ResourceMonitorTopic)
 	}
 	if cfg.Redis.DB != 10 {
 		t.Errorf("expected Redis.DB=10 (default), got %d", cfg.Redis.DB)
@@ -170,7 +199,6 @@ func TestMerge_RedisConfig(t *testing.T) {
 	other := &Config{
 		VirtualIPList: "10.20.30.40,10.20.30.41",
 		Redis: RedisConfig{
-			Enabled:  true,
 			Port:     26379,
 			Password: "pass123",
 			DB:       3,
@@ -181,9 +209,6 @@ func TestMerge_RedisConfig(t *testing.T) {
 
 	if base.VirtualIPList != "10.20.30.40,10.20.30.41" {
 		t.Errorf("expected VirtualIPList='10.20.30.40,10.20.30.41', got %q", base.VirtualIPList)
-	}
-	if base.Redis.Enabled != true {
-		t.Errorf("expected Redis.Enabled=true after merge, got %v", base.Redis.Enabled)
 	}
 	if base.Redis.Port != 26379 {
 		t.Errorf("expected Redis.Port=26379, got %d", base.Redis.Port)
@@ -287,14 +312,74 @@ func TestEqpInfoConfig_NotSerialized(t *testing.T) {
 	}
 }
 
+func TestMerge_ServiceDiscoveryConfig(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{
+		ServiceDiscoveryPort: 60009,
+		ResourceMonitorTopic: "model",
+	}
+
+	base.Merge(other)
+
+	if base.ServiceDiscoveryPort != 60009 {
+		t.Errorf("expected ServiceDiscoveryPort=60009, got %d", base.ServiceDiscoveryPort)
+	}
+	if base.ResourceMonitorTopic != "model" {
+		t.Errorf("expected ResourceMonitorTopic='model', got %q", base.ResourceMonitorTopic)
+	}
+}
+
+// --- ResolveTopic Tests ---
+
+func TestResolveTopic_AllMode(t *testing.T) {
+	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
+	topic := ResolveTopic("all", eqpInfo)
+	if topic != "tp_all_all_resource" {
+		t.Errorf("expected 'tp_all_all_resource', got %q", topic)
+	}
+}
+
+func TestResolveTopic_ModelMode(t *testing.T) {
+	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
+	topic := ResolveTopic("model", eqpInfo)
+	if topic != "tp_ETCH_LAM_4520XLE_resource" {
+		t.Errorf("expected 'tp_ETCH_LAM_4520XLE_resource', got %q", topic)
+	}
+}
+
+func TestResolveTopic_ProcessMode(t *testing.T) {
+	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
+	topic := ResolveTopic("process", eqpInfo)
+	if topic != "tp_ETCH_all_resource" {
+		t.Errorf("expected 'tp_ETCH_all_resource', got %q", topic)
+	}
+}
+
+func TestResolveTopic_DefaultMode(t *testing.T) {
+	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
+	topic := ResolveTopic("unknown", eqpInfo)
+	if topic != "tp_all_all_resource" {
+		t.Errorf("expected 'tp_all_all_resource' for unknown mode, got %q", topic)
+	}
+}
+
+func TestResolveTopic_EmptyMode(t *testing.T) {
+	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
+	topic := ResolveTopic("", eqpInfo)
+	if topic != "tp_all_all_resource" {
+		t.Errorf("expected 'tp_all_all_resource' for empty mode, got %q", topic)
+	}
+}
+
 func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	input := `{
 		"agent": {
 			"id": "full-test"
 		},
 		"virtual_ip_list": "10.0.0.1,10.0.0.2",
+		"service_discovery_port": 60009,
+		"resource_monitor_topic": "model",
 		"redis": {
-			"enabled": true,
 			"port": 26379,
 			"password": "pw",
 			"db": 7
@@ -318,8 +403,11 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	if cfg.VirtualIPList != "10.0.0.1,10.0.0.2" {
 		t.Errorf("VirtualIPList: got %q", cfg.VirtualIPList)
 	}
-	if cfg.Redis.Enabled != true {
-		t.Errorf("Redis.Enabled: got %v", cfg.Redis.Enabled)
+	if cfg.ServiceDiscoveryPort != 60009 {
+		t.Errorf("ServiceDiscoveryPort: got %d", cfg.ServiceDiscoveryPort)
+	}
+	if cfg.ResourceMonitorTopic != "model" {
+		t.Errorf("ResourceMonitorTopic: got %q", cfg.ResourceMonitorTopic)
 	}
 	if cfg.Redis.Port != 26379 {
 		t.Errorf("Redis.Port: got %d", cfg.Redis.Port)

@@ -12,6 +12,7 @@ import (
 
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
+	"resourceagent/internal/discovery"
 	"resourceagent/internal/eqpinfo"
 	"resourceagent/internal/logger"
 	"resourceagent/internal/network"
@@ -80,30 +81,23 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 		Str("hostname", hostname).
 		Msg("Agent initialized")
 
-	// --- IP detection and Redis EQP_INFO enrichment ---
-	if cfg.Redis.Enabled {
-		// Resolve VirtualIPList → first IP for Redis address
+	// --- Redis EQP_INFO + ServiceDiscovery (sender_type != "file" 일 때 필수) ---
+	if strings.ToLower(cfg.SenderType) != "file" {
+		// 1. VirtualIPList 검증
 		if cfg.VirtualIPList == "" {
-			return fmt.Errorf("redis enabled but virtual_ip_list is empty")
+			return fmt.Errorf("sender_type=%q requires virtual_ip_list", cfg.SenderType)
 		}
 		virtualIPs := strings.Split(cfg.VirtualIPList, ",")
 		virtualIP := strings.TrimSpace(virtualIPs[0])
 		if virtualIP == "" {
-			return fmt.Errorf("redis enabled but first virtual IP is empty")
+			return fmt.Errorf("sender_type=%q but first virtual IP is empty", cfg.SenderType)
 		}
-		redisAddress := fmt.Sprintf("%s:%d", virtualIP, cfg.Redis.Port)
 
-		log.Info().
-			Str("virtual_ip", virtualIP).
-			Str("redis_address", redisAddress).
-			Msg("Redis address resolved from VirtualIPList")
-
-		// Detect IP addresses
+		// 2. IP 감지
 		ipInfo, ipErr := network.DetectIPs(cfg.PrivateIPAddressPattern, "")
 		if ipErr != nil {
-			return fmt.Errorf("redis enabled but failed to detect IP addresses: %w", ipErr)
+			return fmt.Errorf("failed to detect IP addresses: %w", ipErr)
 		}
-
 		log.Info().
 			Str("ip_addr", ipInfo.IPAddr).
 			Str("ip_addr_local", ipInfo.IPAddrLocal).
@@ -117,16 +111,22 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 			log.Info().
 				Str("socks_host", cfg.SOCKSProxy.Host).
 				Int("socks_port", cfg.SOCKSProxy.Port).
-				Msg("SOCKS proxy configured for Redis")
+				Msg("SOCKS proxy configured")
 		}
 
-		// Fetch EQP_INFO from Redis
+		// 3. Redis EQP_INFO 취득 (필수)
+		redisAddress := fmt.Sprintf("%s:%d", virtualIP, cfg.Redis.Port)
+		log.Info().
+			Str("virtual_ip", virtualIP).
+			Str("redis_address", redisAddress).
+			Msg("Redis address resolved from VirtualIPList")
+
 		info, fetchErr := eqpinfo.FetchEqpInfo(ctx, redisAddress, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
 		if fetchErr != nil {
-			return fmt.Errorf("redis enabled but failed to fetch EQP_INFO: %w", fetchErr)
+			return fmt.Errorf("failed to fetch EQP_INFO from Redis: %w", fetchErr)
 		}
 		if info == nil {
-			return fmt.Errorf("redis enabled but EQP_INFO not found for %s:%s", ipInfo.IPAddr, ipInfo.IPAddrLocal)
+			return fmt.Errorf("EQP_INFO not found for %s:%s", ipInfo.IPAddr, ipInfo.IPAddrLocal)
 		}
 
 		cfg.EqpInfo = &config.EqpInfoConfig{
@@ -146,8 +146,24 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 			Str("line_desc", info.LineDesc).
 			Str("index", info.Index).
 			Msg("EQP_INFO loaded from Redis")
+
+		// 4. ServiceDiscovery 호출 (필수)
+		services, sdErr := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, dialFunc)
+		if sdErr != nil {
+			return fmt.Errorf("ServiceDiscovery failed: %w", sdErr)
+		}
+
+		// 5. KafkaRest 주소 추출
+		kafkaRestAddr, krErr := discovery.GetKafkaRestAddress(services)
+		if krErr != nil {
+			return fmt.Errorf("failed to get KafkaRest address: %w", krErr)
+		}
+		cfg.KafkaRestAddress = kafkaRestAddr
+		log.Info().
+			Str("kafkarest_addr", kafkaRestAddr).
+			Msg("KafkaRest address resolved from ServiceDiscovery")
 	}
-	// --- END IP detection and Redis EQP_INFO enrichment ---
+	// --- END Redis EQP_INFO + ServiceDiscovery ---
 
 	// Create collector registry with default collectors
 	registry := collector.DefaultRegistry()
@@ -170,12 +186,19 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 	}()
 
 	// Log sender-specific information
-	if cfg.SenderType == "file" {
+	switch strings.ToLower(cfg.SenderType) {
+	case "file":
 		log.Info().
 			Str("file_path", cfg.File.FilePath).
 			Bool("console", cfg.File.Console).
 			Msg("Using file sender")
-	} else {
+	case "kafkarest":
+		topic := config.ResolveTopic(cfg.ResourceMonitorTopic, cfg.EqpInfo)
+		log.Info().
+			Str("kafkarest_addr", cfg.KafkaRestAddress).
+			Str("topic", topic).
+			Msg("Using KafkaRest sender")
+	default:
 		log.Info().
 			Strs("brokers", cfg.Kafka.Brokers).
 			Str("topic", cfg.Kafka.Topic).

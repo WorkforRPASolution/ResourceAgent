@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"resourceagent/internal/logger"
@@ -10,7 +11,7 @@ import (
 // Config is the root configuration structure.
 type Config struct {
 	Agent      AgentConfig                `json:"agent"`
-	SenderType string                     `json:"sender_type"` // "kafka" or "file"
+	SenderType string                     `json:"sender_type"` // "kafka", "kafkarest", or "file"
 	Kafka      KafkaConfig                `json:"kafka"`
 	File       FileConfig                 `json:"file"`
 	Collectors map[string]CollectorConfig `json:"collectors"`
@@ -19,6 +20,9 @@ type Config struct {
 	Redis                   RedisConfig                `json:"redis"`
 	PrivateIPAddressPattern string                     `json:"private_ip_address_pattern"`
 	SOCKSProxy              SOCKSConfig                `json:"socks_proxy"`
+	ServiceDiscoveryPort    int                        `json:"service_discovery_port"`
+	ResourceMonitorTopic    string                     `json:"resource_monitor_topic"`
+	KafkaRestAddress        string                     `json:"-"` // runtime only, from ServiceDiscovery
 	EqpInfo                 *EqpInfoConfig             `json:"-"` // runtime only, not serialized
 }
 
@@ -73,7 +77,6 @@ type CollectorConfig struct {
 
 // RedisConfig contains Redis connection settings.
 type RedisConfig struct {
-	Enabled  bool   `json:"enabled"`
 	Port     int    `json:"port"`
 	Password string `json:"password"`
 	DB       int    `json:"db"`
@@ -176,10 +179,11 @@ func DefaultConfig() *Config {
 		},
 		Logging: logger.DefaultConfig(),
 		Redis: RedisConfig{
-			Enabled: false,
-			Port:    6379,
-			DB:      10,
+			Port: 6379,
+			DB:   10,
 		},
+		ServiceDiscoveryPort: 50009,
+		ResourceMonitorTopic: "all",
 	}
 }
 
@@ -332,7 +336,6 @@ func (c *Config) Merge(other *Config) {
 	if other.Redis.DB != 0 {
 		c.Redis.DB = other.Redis.DB
 	}
-	c.Redis.Enabled = other.Redis.Enabled
 
 	// Merge SOCKS proxy config
 	if other.SOCKSProxy.Host != "" {
@@ -345,5 +348,25 @@ func (c *Config) Merge(other *Config) {
 	// Merge PrivateIPAddressPattern
 	if other.PrivateIPAddressPattern != "" {
 		c.PrivateIPAddressPattern = other.PrivateIPAddressPattern
+	}
+
+	// Merge ServiceDiscovery config
+	if other.ServiceDiscoveryPort != 0 {
+		c.ServiceDiscoveryPort = other.ServiceDiscoveryPort
+	}
+	if other.ResourceMonitorTopic != "" {
+		c.ResourceMonitorTopic = other.ResourceMonitorTopic
+	}
+}
+
+// ResolveTopic determines the Kafka topic name based on the topic mode and EQP_INFO.
+func ResolveTopic(mode string, eqpInfo *EqpInfoConfig) string {
+	switch mode {
+	case "model":
+		return fmt.Sprintf("tp_%s_%s_resource", eqpInfo.Process, eqpInfo.EqpModel)
+	case "process":
+		return fmt.Sprintf("tp_%s_all_resource", eqpInfo.Process)
+	default: // "all" or any other value
+		return "tp_all_all_resource"
 	}
 }
