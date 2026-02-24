@@ -5,12 +5,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
+	"resourceagent/internal/eqpinfo"
 	"resourceagent/internal/logger"
+	"resourceagent/internal/network"
 	"resourceagent/internal/scheduler"
 	"resourceagent/internal/sender"
 	"resourceagent/internal/service"
@@ -75,6 +78,59 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 		Str("agent_id", agentID).
 		Str("hostname", hostname).
 		Msg("Agent initialized")
+
+	// --- IP detection and Redis EQP_INFO enrichment ---
+	if cfg.Redis.Enabled {
+		// Detect IP addresses
+		ipInfo, ipErr := network.DetectIPs(cfg.PrivateIPAddressPattern, "")
+		if ipErr != nil {
+			return fmt.Errorf("redis enabled but failed to detect IP addresses: %w", ipErr)
+		}
+
+		log.Info().
+			Str("ip_addr", ipInfo.IPAddr).
+			Str("ip_addr_local", ipInfo.IPAddrLocal).
+			Strs("all_ips", ipInfo.AllIPs).
+			Msg("IP addresses detected")
+
+		// Create SOCKS dialer if configured
+		var dialFunc func(string, string) (net.Conn, error)
+		if cfg.SOCKSProxy.Host != "" && cfg.SOCKSProxy.Port > 0 {
+			dialFunc = network.DialerFunc(cfg.SOCKSProxy.Host, cfg.SOCKSProxy.Port)
+			log.Info().
+				Str("socks_host", cfg.SOCKSProxy.Host).
+				Int("socks_port", cfg.SOCKSProxy.Port).
+				Msg("SOCKS proxy configured for Redis")
+		}
+
+		// Fetch EQP_INFO from Redis
+		info, fetchErr := eqpinfo.FetchEqpInfo(ctx, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
+		if fetchErr != nil {
+			return fmt.Errorf("redis enabled but failed to fetch EQP_INFO: %w", fetchErr)
+		}
+		if info == nil {
+			return fmt.Errorf("redis enabled but EQP_INFO not found for %s:%s", ipInfo.IPAddr, ipInfo.IPAddrLocal)
+		}
+
+		cfg.EqpInfo = &config.EqpInfoConfig{
+			Process:  info.Process,
+			EqpModel: info.EqpModel,
+			EqpID:    info.EqpID,
+			Line:     info.Line,
+			LineDesc: info.LineDesc,
+			Index:    info.Index,
+		}
+		agentID = info.EqpID
+		log.Info().
+			Str("eqp_id", info.EqpID).
+			Str("process", info.Process).
+			Str("eqp_model", info.EqpModel).
+			Str("line", info.Line).
+			Str("line_desc", info.LineDesc).
+			Str("index", info.Index).
+			Msg("EQP_INFO loaded from Redis")
+	}
+	// --- END IP detection and Redis EQP_INFO enrichment ---
 
 	// Create collector registry with default collectors
 	registry := collector.DefaultRegistry()

@@ -14,7 +14,10 @@ type rawConfig struct {
 	File       FileConfig                    `json:"file"`
 	Kafka      rawKafkaConfig                `json:"kafka"`
 	Collectors map[string]rawCollectorConfig `json:"collectors"`
-	Logging    rawLoggingConfig              `json:"logging"`
+	Logging                 rawLoggingConfig              `json:"logging"`
+	Redis                   RedisConfig                   `json:"redis"`
+	PrivateIPAddressPattern string                        `json:"private_ip_address_pattern"`
+	SOCKSProxy              SOCKSConfig                   `json:"socks_proxy"`
 }
 
 type rawKafkaConfig struct {
@@ -169,6 +172,11 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg.Logging.Compress = raw.Logging.Compress
 	cfg.Logging.Console = raw.Logging.Console
 
+	// Convert new config sections (no duration fields, used directly)
+	cfg.Redis = raw.Redis
+	cfg.PrivateIPAddressPattern = raw.PrivateIPAddressPattern
+	cfg.SOCKSProxy = raw.SOCKSProxy
+
 	return cfg, nil
 }
 
@@ -184,8 +192,11 @@ func GetHostname(cfg *Config) string {
 	return hostname
 }
 
-// GetAgentID returns the configured agent ID or generates one from hostname.
+// GetAgentID returns the agent ID with priority: EqpInfo.EqpID > Agent.ID > hostname.
 func GetAgentID(cfg *Config) string {
+	if cfg.EqpInfo != nil && cfg.EqpInfo.EqpID != "" {
+		return cfg.EqpInfo.EqpID
+	}
 	if cfg.Agent.ID != "" {
 		return cfg.Agent.ID
 	}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/xdg-go/scram"
+	"golang.org/x/net/proxy"
 
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
@@ -61,10 +62,11 @@ type KafkaSender struct {
 	topic    string
 	mu       sync.RWMutex
 	closed   bool
+	eqpInfo  *config.EqpInfoConfig // nil if Redis not configured
 }
 
 // NewKafkaSender creates a new Kafka sender with the given configuration.
-func NewKafkaSender(cfg config.KafkaConfig) (*KafkaSender, error) {
+func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo *config.EqpInfoConfig) (*KafkaSender, error) {
 	saramaConfig := sarama.NewConfig()
 
 	// Producer settings
@@ -143,6 +145,17 @@ func NewKafkaSender(cfg config.KafkaConfig) (*KafkaSender, error) {
 		}
 	}
 
+	// SOCKS5 proxy support
+	if socksCfg.Host != "" && socksCfg.Port > 0 {
+		proxyAddr := fmt.Sprintf("%s:%d", socksCfg.Host, socksCfg.Port)
+		socksDialer, proxyErr := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
+		if proxyErr != nil {
+			return nil, fmt.Errorf("failed to create SOCKS5 dialer for Kafka: %w", proxyErr)
+		}
+		saramaConfig.Net.Proxy.Enable = true
+		saramaConfig.Net.Proxy.Dialer = socksDialer
+	}
+
 	producer, err := sarama.NewAsyncProducer(cfg.Brokers, saramaConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
@@ -151,6 +164,7 @@ func NewKafkaSender(cfg config.KafkaConfig) (*KafkaSender, error) {
 	sender := &KafkaSender{
 		producer: producer,
 		topic:    cfg.Topic,
+		eqpInfo:  eqpInfo,
 	}
 
 	// Start error handler goroutine
@@ -168,7 +182,16 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 	}
 	s.mu.RUnlock()
 
-	jsonData, err := json.Marshal(data)
+	var jsonData []byte
+	var err error
+
+	if s.eqpInfo != nil {
+		// Wrap in KafkaMessageWrapper2 format
+		jsonData, err = WrapMetricData(data, s.eqpInfo)
+	} else {
+		// Legacy format: raw MetricData
+		jsonData, err = json.Marshal(data)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to marshal metric data: %w", err)
 	}
@@ -179,8 +202,10 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 		Timestamp: data.Timestamp,
 	}
 
-	// Use agent ID as key for partitioning
-	if data.AgentID != "" {
+	// Use agent ID or eqpId as key for partitioning
+	if s.eqpInfo != nil {
+		msg.Key = sarama.StringEncoder(s.eqpInfo.EqpID)
+	} else if data.AgentID != "" {
 		msg.Key = sarama.StringEncoder(data.AgentID)
 	}
 

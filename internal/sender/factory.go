@@ -24,7 +24,7 @@ func NewSender(cfg *config.Config) (Sender, error) {
 
 	switch senderType {
 	case "kafka":
-		return NewKafkaSender(cfg.Kafka)
+		return NewKafkaSender(cfg.Kafka, cfg.SOCKSProxy, cfg.EqpInfo)
 	case "file":
 		return NewFileSender(cfg.File)
 	default:

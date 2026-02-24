@@ -35,6 +35,18 @@
     "sasl_user": "",
     "sasl_password": ""
   },
+  "redis": {
+    "enabled": false,
+    "address": "",
+    "password": "",
+    "db": 10,
+    "sentinel_name": ""
+  },
+  "private_ip_address_pattern": "",
+  "socks_proxy": {
+    "host": "",
+    "port": 0
+  },
   "collectors": {
     "cpu": {
       "enabled": true,

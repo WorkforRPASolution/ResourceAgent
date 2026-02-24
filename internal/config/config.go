@@ -14,7 +14,11 @@ type Config struct {
 	Kafka      KafkaConfig                `json:"kafka"`
 	File       FileConfig                 `json:"file"`
 	Collectors map[string]CollectorConfig `json:"collectors"`
-	Logging    logger.Config              `json:"logging"`
+	Logging                 logger.Config              `json:"logging"`
+	Redis                   RedisConfig                `json:"redis"`
+	PrivateIPAddressPattern string                     `json:"private_ip_address_pattern"`
+	SOCKSProxy              SOCKSConfig                `json:"socks_proxy"`
+	EqpInfo                 *EqpInfoConfig             `json:"-"` // runtime only, not serialized
 }
 
 // FileConfig contains settings for the file sender.
@@ -64,6 +68,31 @@ type CollectorConfig struct {
 	Interfaces     []string      `json:"interfaces,omitempty"`
 	IncludeZones   []string      `json:"include_zones,omitempty"`
 	WatchProcesses []string      `json:"watch_processes,omitempty"`
+}
+
+// RedisConfig contains Redis connection settings.
+type RedisConfig struct {
+	Enabled      bool   `json:"enabled"`
+	Address      string `json:"address"`
+	Password     string `json:"password"`
+	DB           int    `json:"db"`
+	SentinelName string `json:"sentinel_name"`
+}
+
+// SOCKSConfig contains SOCKS5 proxy settings.
+type SOCKSConfig struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
+// EqpInfoConfig contains equipment information from Redis (runtime only).
+type EqpInfoConfig struct {
+	Process  string
+	EqpModel string
+	EqpID    string
+	Line     string
+	LineDesc string
+	Index    string
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -146,6 +175,10 @@ func DefaultConfig() *Config {
 			},
 		},
 		Logging: logger.DefaultConfig(),
+		Redis: RedisConfig{
+			Enabled: false,
+			DB:      10,
+		},
 	}
 }
 
@@ -282,4 +315,32 @@ func (c *Config) Merge(other *Config) {
 	}
 	c.Logging.Compress = other.Logging.Compress
 	c.Logging.Console = other.Logging.Console
+
+	// Merge Redis config
+	if other.Redis.Address != "" {
+		c.Redis.Address = other.Redis.Address
+	}
+	if other.Redis.Password != "" {
+		c.Redis.Password = other.Redis.Password
+	}
+	if other.Redis.DB != 0 {
+		c.Redis.DB = other.Redis.DB
+	}
+	if other.Redis.SentinelName != "" {
+		c.Redis.SentinelName = other.Redis.SentinelName
+	}
+	c.Redis.Enabled = other.Redis.Enabled
+
+	// Merge SOCKS proxy config
+	if other.SOCKSProxy.Host != "" {
+		c.SOCKSProxy.Host = other.SOCKSProxy.Host
+	}
+	if other.SOCKSProxy.Port != 0 {
+		c.SOCKSProxy.Port = other.SOCKSProxy.Port
+	}
+
+	// Merge PrivateIPAddressPattern
+	if other.PrivateIPAddressPattern != "" {
+		c.PrivateIPAddressPattern = other.PrivateIPAddressPattern
+	}
 }
