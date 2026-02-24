@@ -13,8 +13,8 @@ import (
 
 func TestFetchServices_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("expected POST method, got %s", r.Method)
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET method, got %s", r.Method)
 		}
 		if !strings.Contains(r.URL.String(), "/EARS/Service/Multi") {
 			t.Errorf("unexpected URL path: %s", r.URL.String())
@@ -24,7 +24,7 @@ func TestFetchServices_Success(t *testing.T) {
 		}
 
 		resp := map[string]string{
-			"kafkaRest":            "192.168.0.100",
+			"KafkaRest":            "192.168.0.100",
 			"EARSInterfaceServer":  "192.168.0.200",
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -46,8 +46,8 @@ func TestFetchServices_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if services["kafkaRest"] != "192.168.0.100" {
-		t.Errorf("expected kafkaRest=192.168.0.100, got %q", services["kafkaRest"])
+	if services["KafkaRest"] != "192.168.0.100" {
+		t.Errorf("expected kafkaRest=192.168.0.100, got %q", services["KafkaRest"])
 	}
 	if services["EARSInterfaceServer"] != "192.168.0.200" {
 		t.Errorf("expected EARSInterfaceServer=192.168.0.200, got %q", services["EARSInterfaceServer"])
@@ -127,7 +127,7 @@ func TestFetchServices_ConnectionRefused(t *testing.T) {
 
 func TestGetKafkaRestAddress_Success(t *testing.T) {
 	services := map[string]string{
-		"kafkaRest":            "192.168.0.100",
+		"KafkaRest":            "192.168.0.100",
 		"EARSInterfaceServer":  "192.168.0.200",
 	}
 
@@ -153,7 +153,7 @@ func TestGetKafkaRestAddress_MissingKey(t *testing.T) {
 
 func TestGetKafkaRestAddress_EmptyValue(t *testing.T) {
 	services := map[string]string{
-		"kafkaRest": "",
+		"KafkaRest": "",
 	}
 
 	_, err := GetKafkaRestAddress(services)

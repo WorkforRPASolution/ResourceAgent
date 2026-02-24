@@ -183,7 +183,7 @@ func DefaultConfig() *Config {
 			DB:   10,
 		},
 		ServiceDiscoveryPort: 50009,
-		ResourceMonitorTopic: "all",
+		ResourceMonitorTopic: "process",
 	}
 }
 
@@ -362,11 +362,11 @@ func (c *Config) Merge(other *Config) {
 // ResolveTopic determines the Kafka topic name based on the topic mode and EQP_INFO.
 func ResolveTopic(mode string, eqpInfo *EqpInfoConfig) string {
 	switch mode {
+	case "all":
+		return "tp_all_all_resource"
 	case "model":
 		return fmt.Sprintf("tp_%s_%s_resource", eqpInfo.Process, eqpInfo.EqpModel)
-	case "process":
+	default: // "process" or any other value
 		return fmt.Sprintf("tp_%s_all_resource", eqpInfo.Process)
-	default: // "all" or any other value
-		return "tp_all_all_resource"
 	}
 }

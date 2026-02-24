@@ -32,7 +32,7 @@ func FetchServices(ctx context.Context, virtualIP string, port int, eqpIndex str
 		Timeout:   httpTimeout,
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ServiceDiscovery request: %w", err)
 	}
@@ -58,7 +58,7 @@ func FetchServices(ctx context.Context, virtualIP string, port int, eqpIndex str
 
 // GetKafkaRestAddress extracts the "kafkaRest" address from the services map.
 func GetKafkaRestAddress(services map[string]string) (string, error) {
-	addr, ok := services["kafkaRest"]
+	addr, ok := services["KafkaRest"]
 	if !ok || addr == "" {
 		return "", fmt.Errorf("ServiceDiscovery response does not contain 'kafkaRest' key")
 	}

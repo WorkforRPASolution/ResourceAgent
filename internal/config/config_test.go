@@ -27,8 +27,8 @@ func TestDefaultConfig_HasServiceDiscoveryDefaults(t *testing.T) {
 	if cfg.ServiceDiscoveryPort != 50009 {
 		t.Errorf("expected ServiceDiscoveryPort=50009, got %d", cfg.ServiceDiscoveryPort)
 	}
-	if cfg.ResourceMonitorTopic != "all" {
-		t.Errorf("expected ResourceMonitorTopic='all', got %q", cfg.ResourceMonitorTopic)
+	if cfg.ResourceMonitorTopic != "process" {
+		t.Errorf("expected ResourceMonitorTopic='process', got %q", cfg.ResourceMonitorTopic)
 	}
 	if cfg.KafkaRestAddress != "" {
 		t.Errorf("expected KafkaRestAddress='', got %q", cfg.KafkaRestAddress)
@@ -170,8 +170,8 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	if cfg.ServiceDiscoveryPort != 50009 {
 		t.Errorf("expected ServiceDiscoveryPort=50009 for backward compat, got %d", cfg.ServiceDiscoveryPort)
 	}
-	if cfg.ResourceMonitorTopic != "all" {
-		t.Errorf("expected ResourceMonitorTopic='all' for backward compat, got %q", cfg.ResourceMonitorTopic)
+	if cfg.ResourceMonitorTopic != "process" {
+		t.Errorf("expected ResourceMonitorTopic='process' for backward compat, got %q", cfg.ResourceMonitorTopic)
 	}
 	if cfg.Redis.DB != 10 {
 		t.Errorf("expected Redis.DB=10 (default), got %d", cfg.Redis.DB)
@@ -358,16 +358,16 @@ func TestResolveTopic_ProcessMode(t *testing.T) {
 func TestResolveTopic_DefaultMode(t *testing.T) {
 	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
 	topic := ResolveTopic("unknown", eqpInfo)
-	if topic != "tp_all_all_resource" {
-		t.Errorf("expected 'tp_all_all_resource' for unknown mode, got %q", topic)
+	if topic != "tp_ETCH_all_resource" {
+		t.Errorf("expected 'tp_ETCH_all_resource' for unknown mode, got %q", topic)
 	}
 }
 
 func TestResolveTopic_EmptyMode(t *testing.T) {
 	eqpInfo := &EqpInfoConfig{Process: "ETCH", EqpModel: "LAM_4520XLE"}
 	topic := ResolveTopic("", eqpInfo)
-	if topic != "tp_all_all_resource" {
-		t.Errorf("expected 'tp_all_all_resource' for empty mode, got %q", topic)
+	if topic != "tp_ETCH_all_resource" {
+		t.Errorf("expected 'tp_ETCH_all_resource' for empty mode, got %q", topic)
 	}
 }
 

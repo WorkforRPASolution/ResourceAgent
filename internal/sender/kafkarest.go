@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,7 +58,7 @@ func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConf
 
 	return &KafkaRestSender{
 		client:  client,
-		baseURL: kafkaRestAddr,
+		baseURL: ensureHTTPScheme(kafkaRestAddr),
 		topic:   topic,
 		eqpInfo: eqpInfo,
 	}, nil
@@ -141,4 +142,11 @@ func (s *KafkaRestSender) doPost(ctx context.Context, url string, body []byte) e
 	}
 
 	return nil
+}
+
+func ensureHTTPScheme(addr string) string {
+	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+		return addr
+	}
+	return "http://" + addr
 }
