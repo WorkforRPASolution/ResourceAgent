@@ -15,6 +15,7 @@ type Config struct {
 	File       FileConfig                 `json:"file"`
 	Collectors map[string]CollectorConfig `json:"collectors"`
 	Logging                 logger.Config              `json:"logging"`
+	VirtualIPList           string                     `json:"virtual_ip_list"`
 	Redis                   RedisConfig                `json:"redis"`
 	PrivateIPAddressPattern string                     `json:"private_ip_address_pattern"`
 	SOCKSProxy              SOCKSConfig                `json:"socks_proxy"`
@@ -72,11 +73,10 @@ type CollectorConfig struct {
 
 // RedisConfig contains Redis connection settings.
 type RedisConfig struct {
-	Enabled      bool   `json:"enabled"`
-	Address      string `json:"address"`
-	Password     string `json:"password"`
-	DB           int    `json:"db"`
-	SentinelName string `json:"sentinel_name"`
+	Enabled  bool   `json:"enabled"`
+	Port     int    `json:"port"`
+	Password string `json:"password"`
+	DB       int    `json:"db"`
 }
 
 // SOCKSConfig contains SOCKS5 proxy settings.
@@ -177,6 +177,7 @@ func DefaultConfig() *Config {
 		Logging: logger.DefaultConfig(),
 		Redis: RedisConfig{
 			Enabled: false,
+			Port:    6379,
 			DB:      10,
 		},
 	}
@@ -316,18 +317,20 @@ func (c *Config) Merge(other *Config) {
 	c.Logging.Compress = other.Logging.Compress
 	c.Logging.Console = other.Logging.Console
 
+	// Merge VirtualIPList
+	if other.VirtualIPList != "" {
+		c.VirtualIPList = other.VirtualIPList
+	}
+
 	// Merge Redis config
-	if other.Redis.Address != "" {
-		c.Redis.Address = other.Redis.Address
+	if other.Redis.Port != 0 {
+		c.Redis.Port = other.Redis.Port
 	}
 	if other.Redis.Password != "" {
 		c.Redis.Password = other.Redis.Password
 	}
 	if other.Redis.DB != 0 {
 		c.Redis.DB = other.Redis.DB
-	}
-	if other.Redis.SentinelName != "" {
-		c.Redis.SentinelName = other.Redis.SentinelName
 	}
 	c.Redis.Enabled = other.Redis.Enabled
 

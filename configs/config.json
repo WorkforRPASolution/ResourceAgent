@@ -35,12 +35,12 @@
     "sasl_user": "",
     "sasl_password": ""
   },
+  "virtual_ip_list": "",
   "redis": {
     "enabled": false,
-    "address": "",
+    "port": 6379,
     "password": "",
-    "db": 10,
-    "sentinel_name": ""
+    "db": 10
   },
   "private_ip_address_pattern": "",
   "socks_proxy": {

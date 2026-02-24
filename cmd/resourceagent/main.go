@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"resourceagent/internal/collector"
@@ -81,6 +82,22 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 
 	// --- IP detection and Redis EQP_INFO enrichment ---
 	if cfg.Redis.Enabled {
+		// Resolve VirtualIPList → first IP for Redis address
+		if cfg.VirtualIPList == "" {
+			return fmt.Errorf("redis enabled but virtual_ip_list is empty")
+		}
+		virtualIPs := strings.Split(cfg.VirtualIPList, ",")
+		virtualIP := strings.TrimSpace(virtualIPs[0])
+		if virtualIP == "" {
+			return fmt.Errorf("redis enabled but first virtual IP is empty")
+		}
+		redisAddress := fmt.Sprintf("%s:%d", virtualIP, cfg.Redis.Port)
+
+		log.Info().
+			Str("virtual_ip", virtualIP).
+			Str("redis_address", redisAddress).
+			Msg("Redis address resolved from VirtualIPList")
+
 		// Detect IP addresses
 		ipInfo, ipErr := network.DetectIPs(cfg.PrivateIPAddressPattern, "")
 		if ipErr != nil {
@@ -104,7 +121,7 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 		}
 
 		// Fetch EQP_INFO from Redis
-		info, fetchErr := eqpinfo.FetchEqpInfo(ctx, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
+		info, fetchErr := eqpinfo.FetchEqpInfo(ctx, redisAddress, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
 		if fetchErr != nil {
 			return fmt.Errorf("redis enabled but failed to fetch EQP_INFO: %w", fetchErr)
 		}

@@ -15,6 +15,7 @@ type rawConfig struct {
 	Kafka      rawKafkaConfig                `json:"kafka"`
 	Collectors map[string]rawCollectorConfig `json:"collectors"`
 	Logging                 rawLoggingConfig              `json:"logging"`
+	VirtualIPList           string                        `json:"virtual_ip_list"`
 	Redis                   RedisConfig                   `json:"redis"`
 	PrivateIPAddressPattern string                        `json:"private_ip_address_pattern"`
 	SOCKSProxy              SOCKSConfig                   `json:"socks_proxy"`
@@ -173,6 +174,7 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg.Logging.Console = raw.Logging.Console
 
 	// Convert new config sections (no duration fields, used directly)
+	cfg.VirtualIPList = raw.VirtualIPList
 	cfg.Redis = raw.Redis
 	cfg.PrivateIPAddressPattern = raw.PrivateIPAddressPattern
 	cfg.SOCKSProxy = raw.SOCKSProxy

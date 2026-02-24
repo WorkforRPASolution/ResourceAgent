@@ -121,11 +121,11 @@ func TestParseEqpInfoValue_FiveSegments(t *testing.T) {
 func TestFetchEqpInfo_DisabledRedis(t *testing.T) {
 	cfg := config.RedisConfig{
 		Enabled: false,
-		Address: "localhost:6379",
+		Port:    6379,
 		DB:      10,
 	}
 
-	info, err := FetchEqpInfo(context.Background(), cfg, nil, "192.168.1.1", "10.0.0.1")
+	info, err := FetchEqpInfo(context.Background(), "localhost:6379", cfg, nil, "192.168.1.1", "10.0.0.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,11 +143,11 @@ func TestFetchEqpInfo_Success(t *testing.T) {
 
 	cfg := config.RedisConfig{
 		Enabled: true,
-		Address: mr.Addr(),
+		Port:    6379,
 		DB:      10,
 	}
 
-	info, err := FetchEqpInfo(context.Background(), cfg, nil, "192.168.1.100", "10.0.0.1")
+	info, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.100", "10.0.0.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -180,11 +180,11 @@ func TestFetchEqpInfo_KeyNotFound(t *testing.T) {
 	// No data seeded - Redis is running but key doesn't exist
 	cfg := config.RedisConfig{
 		Enabled: true,
-		Address: mr.Addr(),
+		Port:    6379,
 		DB:      10,
 	}
 
-	info, err := FetchEqpInfo(context.Background(), cfg, nil, "192.168.1.100", "10.0.0.1")
+	info, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.100", "10.0.0.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -202,11 +202,11 @@ func TestFetchEqpInfo_InvalidValue(t *testing.T) {
 
 	cfg := config.RedisConfig{
 		Enabled: true,
-		Address: mr.Addr(),
+		Port:    6379,
 		DB:      10,
 	}
 
-	_, err := FetchEqpInfo(context.Background(), cfg, nil, "192.168.1.100", "10.0.0.1")
+	_, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.100", "10.0.0.1")
 	if err == nil {
 		t.Fatal("expected error for malformed value, got nil")
 	}
@@ -221,11 +221,11 @@ func TestFetchEqpInfo_WithUnderscoreIPAddrLocal(t *testing.T) {
 
 	cfg := config.RedisConfig{
 		Enabled: true,
-		Address: mr.Addr(),
+		Port:    6379,
 		DB:      10,
 	}
 
-	info, err := FetchEqpInfo(context.Background(), cfg, nil, "192.168.1.1", "_")
+	info, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.1", "_")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

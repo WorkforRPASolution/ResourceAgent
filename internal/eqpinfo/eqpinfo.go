@@ -41,9 +41,10 @@ func ParseEqpInfoValue(value string) (*EqpInfo, error) {
 }
 
 // FetchEqpInfo retrieves equipment info from Redis.
+// redisAddress is the resolved address (e.g., "virtualIP:port").
 // dialFunc is optional - if non-nil, used as custom dialer (e.g., SOCKS proxy).
 // Returns nil (not error) if key is not found - this is expected for new/unknown machines.
-func FetchEqpInfo(ctx context.Context, redisCfg config.RedisConfig,
+func FetchEqpInfo(ctx context.Context, redisAddress string, redisCfg config.RedisConfig,
 	dialFunc func(network, addr string) (net.Conn, error),
 	ipAddr, ipAddrLocal string) (*EqpInfo, error) {
 
@@ -52,7 +53,7 @@ func FetchEqpInfo(ctx context.Context, redisCfg config.RedisConfig,
 	}
 
 	// Create Redis client
-	client, err := createRedisClient(redisCfg, dialFunc)
+	client, err := createRedisClient(redisAddress, redisCfg, dialFunc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Redis client: %w", err)
 	}
@@ -79,9 +80,10 @@ func FetchEqpInfo(ctx context.Context, redisCfg config.RedisConfig,
 }
 
 // createRedisClient creates a Redis client with optional custom dialer.
-func createRedisClient(cfg config.RedisConfig, dialFunc func(network, addr string) (net.Conn, error)) (*redis.Client, error) {
+// redisAddress is the resolved address (e.g., "virtualIP:port").
+func createRedisClient(redisAddress string, cfg config.RedisConfig, dialFunc func(network, addr string) (net.Conn, error)) (*redis.Client, error) {
 	opts := &redis.Options{
-		Addr:     cfg.Address,
+		Addr:     redisAddress,
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	}

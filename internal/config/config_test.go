@@ -16,14 +16,11 @@ func TestDefaultConfig_HasRedisDefaults(t *testing.T) {
 	if cfg.Redis.DB != 10 {
 		t.Errorf("expected Redis.DB=10, got %d", cfg.Redis.DB)
 	}
-	if cfg.Redis.Address != "" {
-		t.Errorf("expected Redis.Address='', got %q", cfg.Redis.Address)
+	if cfg.Redis.Port != 6379 {
+		t.Errorf("expected Redis.Port=6379, got %d", cfg.Redis.Port)
 	}
 	if cfg.Redis.Password != "" {
 		t.Errorf("expected Redis.Password='', got %q", cfg.Redis.Password)
-	}
-	if cfg.Redis.SentinelName != "" {
-		t.Errorf("expected Redis.SentinelName='', got %q", cfg.Redis.SentinelName)
 	}
 }
 
@@ -58,12 +55,12 @@ func TestDefaultConfig_EqpInfoNil(t *testing.T) {
 
 func TestParse_WithRedisConfig(t *testing.T) {
 	input := `{
+		"virtual_ip_list": "10.20.30.40",
 		"redis": {
 			"enabled": true,
-			"address": "redis.example.com:6379",
+			"port": 26379,
 			"password": "secret",
-			"db": 5,
-			"sentinel_name": "mymaster"
+			"db": 5
 		}
 	}`
 
@@ -72,20 +69,20 @@ func TestParse_WithRedisConfig(t *testing.T) {
 		t.Fatalf("Parse failed: %v", err)
 	}
 
+	if cfg.VirtualIPList != "10.20.30.40" {
+		t.Errorf("expected VirtualIPList='10.20.30.40', got %q", cfg.VirtualIPList)
+	}
 	if cfg.Redis.Enabled != true {
 		t.Errorf("expected Redis.Enabled=true, got %v", cfg.Redis.Enabled)
 	}
-	if cfg.Redis.Address != "redis.example.com:6379" {
-		t.Errorf("expected Redis.Address='redis.example.com:6379', got %q", cfg.Redis.Address)
+	if cfg.Redis.Port != 26379 {
+		t.Errorf("expected Redis.Port=26379, got %d", cfg.Redis.Port)
 	}
 	if cfg.Redis.Password != "secret" {
 		t.Errorf("expected Redis.Password='secret', got %q", cfg.Redis.Password)
 	}
 	if cfg.Redis.DB != 5 {
 		t.Errorf("expected Redis.DB=5, got %d", cfg.Redis.DB)
-	}
-	if cfg.Redis.SentinelName != "mymaster" {
-		t.Errorf("expected Redis.SentinelName='mymaster', got %q", cfg.Redis.SentinelName)
 	}
 }
 
@@ -171,31 +168,31 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 func TestMerge_RedisConfig(t *testing.T) {
 	base := DefaultConfig()
 	other := &Config{
+		VirtualIPList: "10.20.30.40,10.20.30.41",
 		Redis: RedisConfig{
-			Enabled:      true,
-			Address:      "redis.local:6379",
-			Password:     "pass123",
-			DB:           3,
-			SentinelName: "sentinel1",
+			Enabled:  true,
+			Port:     26379,
+			Password: "pass123",
+			DB:       3,
 		},
 	}
 
 	base.Merge(other)
 
+	if base.VirtualIPList != "10.20.30.40,10.20.30.41" {
+		t.Errorf("expected VirtualIPList='10.20.30.40,10.20.30.41', got %q", base.VirtualIPList)
+	}
 	if base.Redis.Enabled != true {
 		t.Errorf("expected Redis.Enabled=true after merge, got %v", base.Redis.Enabled)
 	}
-	if base.Redis.Address != "redis.local:6379" {
-		t.Errorf("expected Redis.Address='redis.local:6379', got %q", base.Redis.Address)
+	if base.Redis.Port != 26379 {
+		t.Errorf("expected Redis.Port=26379, got %d", base.Redis.Port)
 	}
 	if base.Redis.Password != "pass123" {
 		t.Errorf("expected Redis.Password='pass123', got %q", base.Redis.Password)
 	}
 	if base.Redis.DB != 3 {
 		t.Errorf("expected Redis.DB=3, got %d", base.Redis.DB)
-	}
-	if base.Redis.SentinelName != "sentinel1" {
-		t.Errorf("expected Redis.SentinelName='sentinel1', got %q", base.Redis.SentinelName)
 	}
 }
 
@@ -233,7 +230,7 @@ func TestMerge_PrivateIPAddressPattern(t *testing.T) {
 
 func TestMerge_EmptyValuesDoNotOverwrite(t *testing.T) {
 	base := DefaultConfig()
-	base.Redis.Address = "existing.redis:6379"
+	base.Redis.Port = 26379
 	base.Redis.DB = 5
 	base.SOCKSProxy.Host = "existing.socks"
 	base.SOCKSProxy.Port = 9999
@@ -244,10 +241,9 @@ func TestMerge_EmptyValuesDoNotOverwrite(t *testing.T) {
 
 	base.Merge(other)
 
-	if base.Redis.Address != "existing.redis:6379" {
-		t.Errorf("expected Redis.Address preserved, got %q", base.Redis.Address)
+	if base.Redis.Port != 26379 {
+		t.Errorf("expected Redis.Port preserved, got %d", base.Redis.Port)
 	}
-	// Note: DB=0 will overwrite since 0 is the zero value check
 	if base.SOCKSProxy.Host != "existing.socks" {
 		t.Errorf("expected SOCKSProxy.Host preserved, got %q", base.SOCKSProxy.Host)
 	}
@@ -296,12 +292,12 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 		"agent": {
 			"id": "full-test"
 		},
+		"virtual_ip_list": "10.0.0.1,10.0.0.2",
 		"redis": {
 			"enabled": true,
-			"address": "redis:6379",
+			"port": 26379,
 			"password": "pw",
-			"db": 7,
-			"sentinel_name": "master"
+			"db": 7
 		},
 		"private_ip_address_pattern": "^172\\.16\\..*",
 		"socks_proxy": {
@@ -319,20 +315,20 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	}
 
 	// Verify all new fields
+	if cfg.VirtualIPList != "10.0.0.1,10.0.0.2" {
+		t.Errorf("VirtualIPList: got %q", cfg.VirtualIPList)
+	}
 	if cfg.Redis.Enabled != true {
 		t.Errorf("Redis.Enabled: got %v", cfg.Redis.Enabled)
 	}
-	if cfg.Redis.Address != "redis:6379" {
-		t.Errorf("Redis.Address: got %q", cfg.Redis.Address)
+	if cfg.Redis.Port != 26379 {
+		t.Errorf("Redis.Port: got %d", cfg.Redis.Port)
 	}
 	if cfg.Redis.Password != "pw" {
 		t.Errorf("Redis.Password: got %q", cfg.Redis.Password)
 	}
 	if cfg.Redis.DB != 7 {
 		t.Errorf("Redis.DB: got %d", cfg.Redis.DB)
-	}
-	if cfg.Redis.SentinelName != "master" {
-		t.Errorf("Redis.SentinelName: got %q", cfg.Redis.SentinelName)
 	}
 	if cfg.PrivateIPAddressPattern != "^172\\.16\\..*" {
 		t.Errorf("PrivateIPAddressPattern: got %q", cfg.PrivateIPAddressPattern)
