@@ -1,10 +1,14 @@
+## 상위 계획 참조
+
+세션 중 "상위 플랜 체크해" 요청 시: `/Users/hyunkyungmin/Developer/ARS/.claude/PLANNING.md` 읽기
+
 # CLAUDE.md
 
 이 파일은 Claude Code (claude.ai/code)가 이 저장소에서 작업할 때 참고하는 가이드입니다.
 
 ## 프로젝트 개요
 
-ResourceAgent는 공장 내 PC(10,000대 이상)의 하드웨어 자원 사용률을 수집하는 Go 기반 경량 모니터링 에이전트입니다. CPU, Memory, Disk, Network, 온도 메트릭을 수집하여 Kafka로 전송합니다.
+ResourceAgent는 공장 내 PC(10,000대 이상)의 하드웨어 자원 사용률을 수집하는 Go 기반 경량 모니터링 에이전트입니다. CPU, Memory, Disk, Network, 온도 메트릭을 수집하여 Kafka 또는 KafkaRest Proxy로 전송합니다.
 
 **지원 플랫폼**: Windows 10+, Windows Server 2016+, Ubuntu 18.04+, CentOS 7+
 
@@ -58,7 +62,10 @@ resourceagent/
 │   │   ├── temperature_linux.go   # Linux gopsutil
 │   │   └── cpu_process.go, memory_process.go
 │   ├── config/                     # 설정 관리
-│   ├── sender/                     # Kafka Sender 구현
+│   ├── discovery/                  # ServiceDiscovery HTTP 클라이언트
+│   ├── eqpinfo/                    # Redis EQP_INFO 조회
+│   ├── network/                    # IP 감지 + SOCKS5 dialer
+│   ├── sender/                     # Kafka/KafkaRest/File Sender 구현
 │   ├── scheduler/                  # 수집 스케줄링
 │   ├── logger/                     # 구조화된 로깅
 │   └── service/                    # Windows/Linux 서비스 통합
