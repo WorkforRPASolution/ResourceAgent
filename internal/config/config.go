@@ -72,11 +72,22 @@ type CollectorConfig struct {
 	WatchProcesses []string      `json:"WatchProcesses,omitempty"`
 }
 
+// DefaultRedisPassword is used when Password is empty in config.
+const DefaultRedisPassword = "visuallove"
+
 // RedisConfig contains Redis connection settings.
 type RedisConfig struct {
 	Port     int    `json:"Port"`
 	Password string `json:"Password"`
 	DB       int    `json:"DB"`
+}
+
+// ResolvePassword returns the configured password, or DefaultRedisPassword if empty.
+func (r RedisConfig) ResolvePassword() string {
+	if r.Password == "" {
+		return DefaultRedisPassword
+	}
+	return r.Password
 }
 
 // SOCKSConfig contains SOCKS5 proxy settings.

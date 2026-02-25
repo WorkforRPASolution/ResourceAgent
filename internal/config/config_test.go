@@ -277,6 +277,22 @@ func TestMerge_EmptyValuesDoNotOverwrite(t *testing.T) {
 	}
 }
 
+// --- RedisConfig.ResolvePassword Tests ---
+
+func TestRedisConfig_ResolvePassword_EmptyUsesDefault(t *testing.T) {
+	cfg := RedisConfig{Password: ""}
+	if cfg.ResolvePassword() != DefaultRedisPassword {
+		t.Errorf("expected default password %q, got %q", DefaultRedisPassword, cfg.ResolvePassword())
+	}
+}
+
+func TestRedisConfig_ResolvePassword_ExplicitValue(t *testing.T) {
+	cfg := RedisConfig{Password: "custom123"}
+	if cfg.ResolvePassword() != "custom123" {
+		t.Errorf("expected 'custom123', got %q", cfg.ResolvePassword())
+	}
+}
+
 // --- EqpInfoConfig Tests ---
 
 func TestEqpInfoConfig_NotSerialized(t *testing.T) {

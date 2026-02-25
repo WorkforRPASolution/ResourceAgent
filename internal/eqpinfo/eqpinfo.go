@@ -80,7 +80,7 @@ func FetchEqpInfo(ctx context.Context, redisAddress string, redisCfg config.Redi
 func createRedisClient(redisAddress string, cfg config.RedisConfig, dialFunc func(network, addr string) (net.Conn, error)) (*redis.Client, error) {
 	opts := &redis.Options{
 		Addr:     redisAddress,
-		Password: cfg.Password,
+		Password: cfg.ResolvePassword(),
 		DB:       cfg.DB,
 	}
 

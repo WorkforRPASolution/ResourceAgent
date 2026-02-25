@@ -169,6 +169,7 @@ go test ./internal/sender/...
 | `SenderType` | 전송 방식 (`file`, `kafka`, `kafkarest`) | `kafka` |
 | `File.Format` | 파일 출력 형식 (`json`, `legacy`) | `legacy` |
 | `File.Console` | 콘솔에도 메트릭 출력 | `true` |
+| `Redis.Password` | Redis 접속 암호 (비어있으면 기본 암호 사용) | `visuallove` |
 | `Collectors.*.Enabled` | Collector 활성화 여부 | `true` |
 | `Collectors.*.Interval` | 수집 주기 | 10s~60s |
 | `Collectors.*.TopN` | 프로세스 모니터링 상위 N개 | `10` |
@@ -263,6 +264,83 @@ sc.exe query ResourceAgent
 .\scripts\install.ps1
 ```
 
+## 제거 (Uninstall)
+
+### Linux
+
+```bash
+# 서비스 중지 및 제거
+sudo systemctl stop resourceagent
+sudo systemctl disable resourceagent
+sudo rm /etc/systemd/system/resourceagent.service
+sudo systemctl daemon-reload
+
+# 설치 디렉토리 삭제
+sudo rm -rf /opt/resourceagent
+
+# 서비스 사용자 삭제 (선택)
+sudo userdel resourceagent
+```
+
+또는 설치 스크립트 사용:
+
+```bash
+sudo ./scripts/install.sh --uninstall
+```
+
+### Windows
+
+```powershell
+# 1. 서비스 중지 및 제거
+sc.exe stop ResourceAgent
+sc.exe delete ResourceAgent
+
+# 2. 설치 디렉토리 삭제
+Remove-Item -Path "C:\Program Files\ResourceAgent" -Recurse -Force
+
+# 3. PawnIO 드라이버 제거 (LhmHelper 사용 시)
+# 제어판 → 프로그램 추가/제거 → "PawnIO" 제거
+# 또는 사일런트 제거:
+PawnIO_setup.exe /S /uninstall
+```
+
+또는 설치 스크립트 사용 (관리자 권한):
+
+```powershell
+.\scripts\install.ps1 -Uninstall
+```
+
+> 단독 실행(서비스 미등록)의 경우 설치 디렉토리만 삭제하면 됩니다.
+
+## 단독 실행 (서비스 등록 없이)
+
+서비스로 등록하지 않고 단독 실행할 수 있습니다. exe 파일과 설정 파일을 아래 구조로 배치합니다:
+
+```
+C:\ResourceAgent\
+├── resourceagent.exe
+├── LhmHelper.exe          (선택 - 하드웨어 센서 수집 시 필요)
+└── configs\
+    ├── ResourceAgent.json
+    ├── Monitor.json
+    └── Logging.json
+```
+
+설정 파일 기본 경로가 `configs/ResourceAgent.json` 등 상대 경로이므로, exe가 있는 폴더에서 실행하면 플래그 없이 바로 동작합니다:
+
+```cmd
+cd C:\ResourceAgent
+resourceagent.exe
+```
+
+경로를 직접 지정하려면:
+
+```cmd
+resourceagent.exe -config configs\ResourceAgent.json -monitor configs\Monitor.json -logging configs\Logging.json
+```
+
+> 상대 경로는 작업 디렉토리(cwd) 기준입니다. 다른 경로에서 실행할 경우 절대 경로를 지정하세요.
+
 ## 로컬 테스트 (Kafka 없이)
 
 Kafka/인프라 연결 없이 로컬에서 테스트하려면 `SenderType`을 `file`로 설정합니다.
@@ -290,7 +368,7 @@ Kafka/인프라 연결 없이 로컬에서 테스트하려면 `SenderType`을 `f
 ### 실행
 
 ```bash
-# 기본 경로 사용
+# 기본 경로 사용 (Linux/macOS)
 ./resourceagent
 
 # 설정 파일 경로 지정
