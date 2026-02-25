@@ -61,6 +61,11 @@ func (c *DiskCollector) Collect(ctx context.Context) (*MetricData, error) {
 			continue // Skip partitions we can't read
 		}
 
+		// Skip partitions with zero total bytes (e.g., empty CD-ROM drives)
+		if c.shouldSkipPartition(usage.Total) {
+			continue
+		}
+
 		partition := DiskPartition{
 			Device:        p.Device,
 			Mountpoint:    p.Mountpoint,
@@ -113,6 +118,7 @@ func (c *DiskCollector) isPseudoFS(fstype string) bool {
 		"cgroup", "cgroup2", "pstore", "debugfs", "hugetlbfs", "mqueue",
 		"fusectl", "configfs", "autofs", "binfmt_misc", "fuse.gvfsd-fuse",
 		"overlay", "squashfs",
+		"cdfs", "udf", // CD-ROM / DVD
 	}
 	fsLower := strings.ToLower(fstype)
 	for _, pfs := range pseudoFS {
@@ -121,6 +127,11 @@ func (c *DiskCollector) isPseudoFS(fstype string) bool {
 		}
 	}
 	return false
+}
+
+// shouldSkipPartition returns true for partitions with zero total bytes (e.g., empty CD-ROM drives).
+func (c *DiskCollector) shouldSkipPartition(totalBytes uint64) bool {
+	return totalBytes == 0
 }
 
 func (c *DiskCollector) getDeviceName(device string) string {

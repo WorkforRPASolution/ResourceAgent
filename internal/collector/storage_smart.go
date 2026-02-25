@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"resourceagent/internal/config"
+	"resourceagent/internal/logger"
 )
 
 // StorageSmartCollector collects S.M.A.R.T metrics from storage devices.
@@ -35,8 +36,8 @@ func (c *StorageSmartCollector) Configure(cfg config.CollectorConfig) error {
 func (c *StorageSmartCollector) Collect(ctx context.Context) (*MetricData, error) {
 	storages, err := c.collectStorageMetrics(ctx)
 	if err != nil {
-		// Log error but return empty data rather than failing
-		// S.M.A.R.T data may not be available on all systems
+		log := logger.WithComponent("collector")
+		log.Warn().Str("collector", c.Name()).Err(err).Msg("Failed to collect, returning empty data")
 		return &MetricData{
 			Type:      c.Name(),
 			Timestamp: time.Now(),

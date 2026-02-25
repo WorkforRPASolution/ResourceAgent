@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"resourceagent/internal/config"
+	"resourceagent/internal/logger"
 )
 
 // GpuCollector collects GPU metrics.
@@ -35,8 +36,8 @@ func (c *GpuCollector) Configure(cfg config.CollectorConfig) error {
 func (c *GpuCollector) Collect(ctx context.Context) (*MetricData, error) {
 	gpus, err := c.collectGpuMetrics(ctx)
 	if err != nil {
-		// Log error but return empty data rather than failing
-		// GPU sensors may not be available on all systems
+		log := logger.WithComponent("collector")
+		log.Warn().Str("collector", c.Name()).Err(err).Msg("Failed to collect, returning empty data")
 		return &MetricData{
 			Type:      c.Name(),
 			Timestamp: time.Now(),
