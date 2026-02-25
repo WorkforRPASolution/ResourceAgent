@@ -11,23 +11,29 @@ import (
 	"resourceagent/internal/sender"
 )
 
+// CollectorSource provides access to enabled collectors.
+type CollectorSource interface {
+	EnabledCollectors() []collector.Collector
+}
+
 // Scheduler manages the periodic collection of metrics.
 type Scheduler struct {
-	registry *collector.Registry
+	registry CollectorSource
 	sender   sender.Sender
 	agentID  string
 	hostname string
 	tags     map[string]string
 
-	mu      sync.Mutex
-	running bool
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
-	log     logger.Config
+	mu        sync.Mutex
+	running   bool
+	cancel    context.CancelFunc
+	parentCtx context.Context
+	wg        sync.WaitGroup
+	log       logger.Config
 }
 
 // New creates a new scheduler with the given components.
-func New(registry *collector.Registry, s sender.Sender, agentID, hostname string, tags map[string]string) *Scheduler {
+func New(registry CollectorSource, s sender.Sender, agentID, hostname string, tags map[string]string) *Scheduler {
 	return &Scheduler{
 		registry: registry,
 		sender:   s,
@@ -45,6 +51,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		return nil
 	}
 	s.running = true
+	s.parentCtx = ctx
 
 	ctx, s.cancel = context.WithCancel(ctx)
 	s.mu.Unlock()
@@ -169,31 +176,19 @@ func (s *Scheduler) collect(ctx context.Context, c collector.Collector) {
 		Msg("Collection completed")
 }
 
-// UpdateCollectorInterval updates the interval for a specific collector.
-func (s *Scheduler) UpdateCollectorInterval(name string, interval time.Duration) error {
-	c, ok := s.registry.Get(name)
-	if !ok {
-		return nil
+// Reconfigure stops all collector goroutines and restarts them with current settings.
+func (s *Scheduler) Reconfigure() {
+	s.mu.Lock()
+	if !s.running {
+		s.mu.Unlock()
+		return
 	}
+	s.cancel()
+	parentCtx := s.parentCtx
+	s.running = false
+	s.mu.Unlock()
 
-	// This will take effect on the next collection cycle
-	if base, ok := c.(*collector.CPUCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.MemoryCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.DiskCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.NetworkCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.TemperatureCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.CPUProcessCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.MemoryProcessCollector); ok {
-		base.SetInterval(interval)
-	} else if base, ok := c.(*collector.FanCollector); ok {
-		base.SetInterval(interval)
-	}
-
-	return nil
+	s.wg.Wait()
+	s.Start(parentCtx)
 }
+

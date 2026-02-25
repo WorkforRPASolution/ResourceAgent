@@ -5,63 +5,63 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"resourceagent/internal/logger"
 )
 
 // rawConfig is used for JSON unmarshaling with duration strings.
 type rawConfig struct {
-	Agent      AgentConfig                   `json:"agent"`
-	SenderType string                        `json:"sender_type"`
-	File       FileConfig                    `json:"file"`
-	Kafka      rawKafkaConfig                `json:"kafka"`
-	Collectors map[string]rawCollectorConfig `json:"collectors"`
-	Logging                 rawLoggingConfig              `json:"logging"`
-	VirtualIPList           string                        `json:"virtual_ip_list"`
-	Redis                   RedisConfig                   `json:"redis"`
-	PrivateIPAddressPattern string                        `json:"private_ip_address_pattern"`
-	SOCKSProxy              SOCKSConfig                   `json:"socks_proxy"`
-	ServiceDiscoveryPort    int                           `json:"service_discovery_port"`
-	ResourceMonitorTopic    string                        `json:"resource_monitor_topic"`
+	Agent      AgentConfig    `json:"Agent"`
+	SenderType string         `json:"SenderType"`
+	File       FileConfig     `json:"File"`
+	Kafka      rawKafkaConfig `json:"Kafka"`
+	VirtualAddressList      string                        `json:"VirtualAddressList"`
+	Redis                   RedisConfig                   `json:"Redis"`
+	PrivateIPAddressPattern string                        `json:"PrivateIPAddressPattern"`
+	SOCKSProxy              SOCKSConfig                   `json:"SocksProxy"`
+	ServiceDiscoveryPort    int                           `json:"ServiceDiscoveryPort"`
+	ResourceMonitorTopic    string                        `json:"ResourceMonitorTopic"`
 }
 
 type rawKafkaConfig struct {
-	Brokers        []string `json:"brokers"`
-	Topic          string   `json:"topic"`
-	Compression    string   `json:"compression"`
-	RequiredAcks   int      `json:"required_acks"`
-	MaxRetries     int      `json:"max_retries"`
-	RetryBackoff   string   `json:"retry_backoff"`
-	FlushFrequency string   `json:"flush_frequency"`
-	FlushMessages  int      `json:"flush_messages"`
-	BatchSize      int      `json:"batch_size"`
-	Timeout        string   `json:"timeout"`
-	EnableTLS      bool     `json:"enable_tls"`
-	TLSCertFile    string   `json:"tls_cert_file"`
-	TLSKeyFile     string   `json:"tls_key_file"`
-	TLSCAFile      string   `json:"tls_ca_file"`
-	SASLEnabled    bool     `json:"sasl_enabled"`
-	SASLMechanism  string   `json:"sasl_mechanism"`
-	SASLUser       string   `json:"sasl_user"`
-	SASLPassword   string   `json:"sasl_password"`
+	Brokers        []string `json:"Brokers"`
+	Topic          string   `json:"Topic"`
+	Compression    string   `json:"Compression"`
+	RequiredAcks   int      `json:"RequiredAcks"`
+	MaxRetries     int      `json:"MaxRetries"`
+	RetryBackoff   string   `json:"RetryBackoff"`
+	FlushFrequency string   `json:"FlushFrequency"`
+	FlushMessages  int      `json:"FlushMessages"`
+	BatchSize      int      `json:"BatchSize"`
+	Timeout        string   `json:"Timeout"`
+	EnableTLS      bool     `json:"EnableTLS"`
+	TLSCertFile    string   `json:"TLSCertFile"`
+	TLSKeyFile     string   `json:"TLSKeyFile"`
+	TLSCAFile      string   `json:"TLSCAFile"`
+	SASLEnabled    bool     `json:"SASLEnabled"`
+	SASLMechanism  string   `json:"SASLMechanism"`
+	SASLUser       string   `json:"SASLUser"`
+	SASLPassword   string   `json:"SASLPassword"`
 }
 
 type rawCollectorConfig struct {
-	Enabled        bool     `json:"enabled"`
-	Interval       string   `json:"interval"`
-	TopN           int      `json:"top_n,omitempty"`
-	Disks          []string `json:"disks,omitempty"`
-	Interfaces     []string `json:"interfaces,omitempty"`
-	IncludeZones   []string `json:"include_zones,omitempty"`
-	WatchProcesses []string `json:"watch_processes,omitempty"`
+	Enabled        bool     `json:"Enabled"`
+	Interval       string   `json:"Interval"`
+	TopN           int      `json:"TopN,omitempty"`
+	Disks          []string `json:"Disks,omitempty"`
+	Interfaces     []string `json:"Interfaces,omitempty"`
+	IncludeZones   []string `json:"IncludeZones,omitempty"`
+	WatchProcesses []string `json:"WatchProcesses,omitempty"`
 }
 
 type rawLoggingConfig struct {
-	Level      string `json:"level"`
-	FilePath   string `json:"file_path"`
-	MaxSizeMB  int    `json:"max_size_mb"`
-	MaxBackups int    `json:"max_backups"`
-	MaxAgeDays int    `json:"max_age_days"`
-	Compress   bool   `json:"compress"`
-	Console    bool   `json:"console"`
+	Level      string `json:"Level"`
+	FilePath   string `json:"FilePath"`
+	MaxSizeMB  int    `json:"MaxSizeMB"`
+	MaxBackups int    `json:"MaxBackups"`
+	MaxAgeDays int    `json:"MaxAgeDays"`
+	Compress   bool   `json:"Compress"`
+	Console    bool   `json:"Console"`
 }
 
 // Load reads configuration from the specified file path.
@@ -96,87 +96,17 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 		Agent:      raw.Agent,
 		SenderType: raw.SenderType,
 		File:       raw.File,
-		Collectors: make(map[string]CollectorConfig),
 	}
 
 	// Convert Kafka config
-	kafka := KafkaConfig{
-		Brokers:       raw.Kafka.Brokers,
-		Topic:         raw.Kafka.Topic,
-		Compression:   raw.Kafka.Compression,
-		RequiredAcks:  raw.Kafka.RequiredAcks,
-		MaxRetries:    raw.Kafka.MaxRetries,
-		FlushMessages: raw.Kafka.FlushMessages,
-		BatchSize:     raw.Kafka.BatchSize,
-		EnableTLS:     raw.Kafka.EnableTLS,
-		TLSCertFile:   raw.Kafka.TLSCertFile,
-		TLSKeyFile:    raw.Kafka.TLSKeyFile,
-		TLSCAFile:     raw.Kafka.TLSCAFile,
-		SASLEnabled:   raw.Kafka.SASLEnabled,
-		SASLMechanism: raw.Kafka.SASLMechanism,
-		SASLUser:      raw.Kafka.SASLUser,
-		SASLPassword:  raw.Kafka.SASLPassword,
+	kafka, err := convertRawKafka(&raw.Kafka)
+	if err != nil {
+		return nil, err
 	}
+	cfg.Kafka = *kafka
 
-	if raw.Kafka.RetryBackoff != "" {
-		d, err := time.ParseDuration(raw.Kafka.RetryBackoff)
-		if err != nil {
-			return nil, fmt.Errorf("invalid retry_backoff duration: %w", err)
-		}
-		kafka.RetryBackoff = d
-	}
-
-	if raw.Kafka.FlushFrequency != "" {
-		d, err := time.ParseDuration(raw.Kafka.FlushFrequency)
-		if err != nil {
-			return nil, fmt.Errorf("invalid flush_frequency duration: %w", err)
-		}
-		kafka.FlushFrequency = d
-	}
-
-	if raw.Kafka.Timeout != "" {
-		d, err := time.ParseDuration(raw.Kafka.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("invalid timeout duration: %w", err)
-		}
-		kafka.Timeout = d
-	}
-
-	cfg.Kafka = kafka
-
-	// Convert Collector configs
-	for name, rawColl := range raw.Collectors {
-		coll := CollectorConfig{
-			Enabled:        rawColl.Enabled,
-			TopN:           rawColl.TopN,
-			Disks:          rawColl.Disks,
-			Interfaces:     rawColl.Interfaces,
-			IncludeZones:   rawColl.IncludeZones,
-			WatchProcesses: rawColl.WatchProcesses,
-		}
-
-		if rawColl.Interval != "" {
-			d, err := time.ParseDuration(rawColl.Interval)
-			if err != nil {
-				return nil, fmt.Errorf("invalid interval for collector %s: %w", name, err)
-			}
-			coll.Interval = d
-		}
-
-		cfg.Collectors[name] = coll
-	}
-
-	// Convert Logging config
-	cfg.Logging.Level = raw.Logging.Level
-	cfg.Logging.FilePath = raw.Logging.FilePath
-	cfg.Logging.MaxSizeMB = raw.Logging.MaxSizeMB
-	cfg.Logging.MaxBackups = raw.Logging.MaxBackups
-	cfg.Logging.MaxAgeDays = raw.Logging.MaxAgeDays
-	cfg.Logging.Compress = raw.Logging.Compress
-	cfg.Logging.Console = raw.Logging.Console
-
-	// Convert new config sections (no duration fields, used directly)
-	cfg.VirtualIPList = raw.VirtualIPList
+	// Direct-mapped fields (no duration conversion needed)
+	cfg.VirtualAddressList = raw.VirtualAddressList
 	cfg.Redis = raw.Redis
 	cfg.PrivateIPAddressPattern = raw.PrivateIPAddressPattern
 	cfg.SOCKSProxy = raw.SOCKSProxy
@@ -184,6 +114,187 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg.ResourceMonitorTopic = raw.ResourceMonitorTopic
 
 	return cfg, nil
+}
+
+func convertRawKafka(raw *rawKafkaConfig) (*KafkaConfig, error) {
+	kafka := &KafkaConfig{
+		Brokers:       raw.Brokers,
+		Topic:         raw.Topic,
+		Compression:   raw.Compression,
+		RequiredAcks:  raw.RequiredAcks,
+		MaxRetries:    raw.MaxRetries,
+		FlushMessages: raw.FlushMessages,
+		BatchSize:     raw.BatchSize,
+		EnableTLS:     raw.EnableTLS,
+		TLSCertFile:   raw.TLSCertFile,
+		TLSKeyFile:    raw.TLSKeyFile,
+		TLSCAFile:     raw.TLSCAFile,
+		SASLEnabled:   raw.SASLEnabled,
+		SASLMechanism: raw.SASLMechanism,
+		SASLUser:      raw.SASLUser,
+		SASLPassword:  raw.SASLPassword,
+	}
+
+	if raw.RetryBackoff != "" {
+		d, err := time.ParseDuration(raw.RetryBackoff)
+		if err != nil {
+			return nil, fmt.Errorf("invalid RetryBackoff duration: %w", err)
+		}
+		kafka.RetryBackoff = d
+	}
+
+	if raw.FlushFrequency != "" {
+		d, err := time.ParseDuration(raw.FlushFrequency)
+		if err != nil {
+			return nil, fmt.Errorf("invalid FlushFrequency duration: %w", err)
+		}
+		kafka.FlushFrequency = d
+	}
+
+	if raw.Timeout != "" {
+		d, err := time.ParseDuration(raw.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Timeout duration: %w", err)
+		}
+		kafka.Timeout = d
+	}
+
+	return kafka, nil
+}
+
+func convertRawCollector(name string, raw *rawCollectorConfig) (*CollectorConfig, error) {
+	coll := &CollectorConfig{
+		Enabled:        raw.Enabled,
+		TopN:           raw.TopN,
+		Disks:          raw.Disks,
+		Interfaces:     raw.Interfaces,
+		IncludeZones:   raw.IncludeZones,
+		WatchProcesses: raw.WatchProcesses,
+	}
+
+	if raw.Interval != "" {
+		d, err := time.ParseDuration(raw.Interval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid interval for collector %s: %w", name, err)
+		}
+		coll.Interval = d
+	}
+
+	return coll, nil
+}
+
+func convertRawLogging(raw *rawLoggingConfig) logger.Config {
+	return logger.Config{
+		Level:      raw.Level,
+		FilePath:   raw.FilePath,
+		MaxSizeMB:  raw.MaxSizeMB,
+		MaxBackups: raw.MaxBackups,
+		MaxAgeDays: raw.MaxAgeDays,
+		Compress:   raw.Compress,
+		Console:    raw.Console,
+	}
+}
+
+// rawMonitorConfig is used for JSON unmarshaling of Monitor.json.
+type rawMonitorConfig struct {
+	Collectors map[string]rawCollectorConfig `json:"Collectors"`
+}
+
+// LoadMonitor reads monitor configuration from the specified file path.
+func LoadMonitor(path string) (*MonitorConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read monitor config file: %w", err)
+	}
+	return ParseMonitor(data)
+}
+
+// ParseMonitor parses monitor configuration from JSON bytes.
+func ParseMonitor(data []byte) (*MonitorConfig, error) {
+	var raw rawMonitorConfig
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse monitor config JSON: %w", err)
+	}
+
+	mc := DefaultMonitorConfig()
+
+	if len(raw.Collectors) > 0 {
+		parsed := &MonitorConfig{
+			Collectors: make(map[string]CollectorConfig),
+		}
+		for name, rawColl := range raw.Collectors {
+			coll, err := convertRawCollector(name, &rawColl)
+			if err != nil {
+				return nil, err
+			}
+			parsed.Collectors[name] = *coll
+		}
+		mc.Merge(parsed)
+	}
+
+	return mc, nil
+}
+
+// LoadLogging reads logging configuration from the specified file path.
+func LoadLogging(path string) (*logger.Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read logging config file: %w", err)
+	}
+	return ParseLogging(data)
+}
+
+// ParseLogging parses logging configuration from JSON bytes.
+func ParseLogging(data []byte) (*logger.Config, error) {
+	var raw rawLoggingConfig
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse logging config JSON: %w", err)
+	}
+
+	def := logger.DefaultConfig()
+	parsed := convertRawLogging(&raw)
+
+	// Merge: apply non-zero parsed values over defaults
+	if parsed.Level != "" {
+		def.Level = parsed.Level
+	}
+	if parsed.FilePath != "" {
+		def.FilePath = parsed.FilePath
+	}
+	if parsed.MaxSizeMB != 0 {
+		def.MaxSizeMB = parsed.MaxSizeMB
+	}
+	if parsed.MaxBackups != 0 {
+		def.MaxBackups = parsed.MaxBackups
+	}
+	if parsed.MaxAgeDays != 0 {
+		def.MaxAgeDays = parsed.MaxAgeDays
+	}
+	def.Compress = parsed.Compress
+	def.Console = parsed.Console
+
+	return &def, nil
+}
+
+// LoadSplit loads configuration from three separate files:
+// configPath (ResourceAgent.json), monitorPath (Monitor.json), loggingPath (Logging.json).
+func LoadSplit(configPath, monitorPath, loggingPath string) (*Config, *MonitorConfig, *logger.Config, error) {
+	cfg, err := Load(configPath)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	mc, err := LoadMonitor(monitorPath)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load monitor config: %w", err)
+	}
+
+	lc, err := LoadLogging(loggingPath)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load logging config: %w", err)
+	}
+
+	return cfg, mc, lc, nil
 }
 
 // GetHostname returns the configured hostname or the system hostname.

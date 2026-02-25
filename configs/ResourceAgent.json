@@ -1,0 +1,52 @@
+{
+  "Agent": {
+    "ID": "",
+    "Hostname": "",
+    "Tags": {
+      "environment": "production",
+      "location": "factory-1"
+    }
+  },
+  "SenderType": "kafka",
+  "File": {
+    "FilePath": "logs/metrics.jsonl",
+    "MaxSizeMB": 50,
+    "MaxBackups": 3,
+    "Console": true,
+    "Pretty": false,
+    "Format": "legacy"
+  },
+  "Kafka": {
+    "Brokers": ["localhost:9092"],
+    "Topic": "factory-metrics",
+    "Compression": "snappy",
+    "RequiredAcks": 1,
+    "MaxRetries": 3,
+    "RetryBackoff": "100ms",
+    "FlushFrequency": "500ms",
+    "FlushMessages": 100,
+    "BatchSize": 16384,
+    "Timeout": "10s",
+    "EnableTLS": false,
+    "TLSCertFile": "",
+    "TLSKeyFile": "",
+    "TLSCAFile": "",
+    "SASLEnabled": false,
+    "SASLMechanism": "PLAIN",
+    "SASLUser": "",
+    "SASLPassword": ""
+  },
+  "VirtualAddressList": "",
+  "ServiceDiscoveryPort": 50009,
+  "ResourceMonitorTopic": "all",
+  "Redis": {
+    "Port": 6379,
+    "Password": "",
+    "DB": 10
+  },
+  "PrivateIPAddressPattern": "",
+  "SocksProxy": {
+    "Host": "",
+    "Port": 0
+  }
+}

@@ -13,13 +13,13 @@ import (
 
 // Config holds the logger configuration.
 type Config struct {
-	Level      string `json:"level"`
-	FilePath   string `json:"file_path"`
-	MaxSizeMB  int    `json:"max_size_mb"`
-	MaxBackups int    `json:"max_backups"`
-	MaxAgeDays int    `json:"max_age_days"`
-	Compress   bool   `json:"compress"`
-	Console    bool   `json:"console"`
+	Level      string `json:"Level"`
+	FilePath   string `json:"FilePath"`
+	MaxSizeMB  int    `json:"MaxSizeMB"`
+	MaxBackups int    `json:"MaxBackups"`
+	MaxAgeDays int    `json:"MaxAgeDays"`
+	Compress   bool   `json:"Compress"`
+	Console    bool   `json:"Console"`
 }
 
 // DefaultConfig returns sensible defaults for logging.

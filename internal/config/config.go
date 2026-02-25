@@ -4,89 +4,85 @@ package config
 import (
 	"fmt"
 	"time"
-
-	"resourceagent/internal/logger"
 )
 
 // Config is the root configuration structure.
 type Config struct {
-	Agent      AgentConfig                `json:"agent"`
-	SenderType string                     `json:"sender_type"` // "kafka", "kafkarest", or "file"
-	Kafka      KafkaConfig                `json:"kafka"`
-	File       FileConfig                 `json:"file"`
-	Collectors map[string]CollectorConfig `json:"collectors"`
-	Logging                 logger.Config              `json:"logging"`
-	VirtualIPList           string                     `json:"virtual_ip_list"`
-	Redis                   RedisConfig                `json:"redis"`
-	PrivateIPAddressPattern string                     `json:"private_ip_address_pattern"`
-	SOCKSProxy              SOCKSConfig                `json:"socks_proxy"`
-	ServiceDiscoveryPort    int                        `json:"service_discovery_port"`
-	ResourceMonitorTopic    string                     `json:"resource_monitor_topic"`
+	Agent      AgentConfig                `json:"Agent"`
+	SenderType string                     `json:"SenderType"` // "kafka", "kafkarest", or "file"
+	Kafka      KafkaConfig                `json:"Kafka"`
+	File       FileConfig                 `json:"File"`
+	VirtualAddressList      string                     `json:"VirtualAddressList"`
+	Redis                   RedisConfig                `json:"Redis"`
+	PrivateIPAddressPattern string                     `json:"PrivateIPAddressPattern"`
+	SOCKSProxy              SOCKSConfig                `json:"SocksProxy"`
+	ServiceDiscoveryPort    int                        `json:"ServiceDiscoveryPort"`
+	ResourceMonitorTopic    string                     `json:"ResourceMonitorTopic"`
 	KafkaRestAddress        string                     `json:"-"` // runtime only, from ServiceDiscovery
 	EqpInfo                 *EqpInfoConfig             `json:"-"` // runtime only, not serialized
 }
 
 // FileConfig contains settings for the file sender.
 type FileConfig struct {
-	FilePath   string `json:"file_path"`   // Path to the metrics log file
-	MaxSizeMB  int    `json:"max_size_mb"` // Maximum file size in MB before rotation
-	MaxBackups int    `json:"max_backups"` // Number of backup files to keep
-	Console    bool   `json:"console"`     // Also output to console
-	Pretty     bool   `json:"pretty"`      // Pretty print JSON
-	Format     string `json:"format"`      // Output format: "json" or "legacy" (default: "legacy")
+	FilePath   string `json:"FilePath"`
+	MaxSizeMB  int    `json:"MaxSizeMB"`
+	MaxBackups int    `json:"MaxBackups"`
+	Console    bool   `json:"Console"`
+	Pretty     bool   `json:"Pretty"`
+	Format     string `json:"Format"` // Output format: "json" or "legacy" (default: "legacy")
 }
 
 // AgentConfig contains general agent settings.
 type AgentConfig struct {
-	ID       string            `json:"id"`
-	Hostname string            `json:"hostname"`
-	Tags     map[string]string `json:"tags"`
+	ID       string            `json:"ID"`
+	Hostname string            `json:"Hostname"`
+	Tags     map[string]string `json:"Tags"`
 }
 
 // KafkaConfig contains Kafka connection settings.
 type KafkaConfig struct {
-	Brokers        []string      `json:"brokers"`
-	Topic          string        `json:"topic"`
-	Compression    string        `json:"compression"`
-	RequiredAcks   int           `json:"required_acks"`
-	MaxRetries     int           `json:"max_retries"`
-	RetryBackoff   time.Duration `json:"retry_backoff"`
-	FlushFrequency time.Duration `json:"flush_frequency"`
-	FlushMessages  int           `json:"flush_messages"`
-	BatchSize      int           `json:"batch_size"`
-	Timeout        time.Duration `json:"timeout"`
-	EnableTLS      bool          `json:"enable_tls"`
-	TLSCertFile    string        `json:"tls_cert_file"`
-	TLSKeyFile     string        `json:"tls_key_file"`
-	TLSCAFile      string        `json:"tls_ca_file"`
-	SASLEnabled    bool          `json:"sasl_enabled"`
-	SASLMechanism  string        `json:"sasl_mechanism"`
-	SASLUser       string        `json:"sasl_user"`
-	SASLPassword   string        `json:"sasl_password"`
+	Brokers        []string      `json:"Brokers"`
+	Topic          string        `json:"Topic"`
+	Compression    string        `json:"Compression"`
+	RequiredAcks   int           `json:"RequiredAcks"`
+	MaxRetries     int           `json:"MaxRetries"`
+	RetryBackoff   time.Duration `json:"RetryBackoff"`
+	FlushFrequency time.Duration `json:"FlushFrequency"`
+	FlushMessages  int           `json:"FlushMessages"`
+	BatchSize      int           `json:"BatchSize"`
+	Timeout        time.Duration `json:"Timeout"`
+	EnableTLS      bool          `json:"EnableTLS"`
+	TLSCertFile    string        `json:"TLSCertFile"`
+	TLSKeyFile     string        `json:"TLSKeyFile"`
+	TLSCAFile      string        `json:"TLSCAFile"`
+	SASLEnabled    bool          `json:"SASLEnabled"`
+	SASLMechanism  string        `json:"SASLMechanism"`
+	SASLUser       string        `json:"SASLUser"`
+	SASLPassword   string        `json:"SASLPassword"`
 }
 
 // CollectorConfig contains settings for individual collectors.
 type CollectorConfig struct {
-	Enabled        bool          `json:"enabled"`
-	Interval       time.Duration `json:"interval"`
-	TopN           int           `json:"top_n,omitempty"`
-	Disks          []string      `json:"disks,omitempty"`
-	Interfaces     []string      `json:"interfaces,omitempty"`
-	IncludeZones   []string      `json:"include_zones,omitempty"`
-	WatchProcesses []string      `json:"watch_processes,omitempty"`
+	Enabled        bool          `json:"Enabled"`
+	Interval       time.Duration `json:"Interval"`
+	TopN           int           `json:"TopN,omitempty"`
+	Disks          []string      `json:"Disks,omitempty"`
+	Interfaces     []string      `json:"Interfaces,omitempty"`
+	IncludeZones   []string      `json:"IncludeZones,omitempty"`
+	WatchProcesses []string      `json:"WatchProcesses,omitempty"`
 }
 
 // RedisConfig contains Redis connection settings.
 type RedisConfig struct {
-	Port     int    `json:"port"`
-	Password string `json:"password"`
-	DB       int    `json:"db"`
+	Port     int    `json:"Port"`
+	Password string `json:"Password"`
+	DB       int    `json:"DB"`
 }
 
 // SOCKSConfig contains SOCKS5 proxy settings.
 type SOCKSConfig struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
+	Host string `json:"Host"`
+	Port int    `json:"Port"`
 }
 
 // EqpInfoConfig contains equipment information from Redis (runtime only).
@@ -126,59 +122,6 @@ func DefaultConfig() *Config {
 			BatchSize:      16384,
 			Timeout:        10 * time.Second,
 		},
-		Collectors: map[string]CollectorConfig{
-			"cpu": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"memory": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"disk": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"network": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"temperature": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"cpu_process": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-				TopN:     10,
-			},
-			"memory_process": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-				TopN:     10,
-			},
-			"fan": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"gpu": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"storage_smart": {
-				Enabled:  true,
-				Interval: 60 * time.Second,
-			},
-			"voltage": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"motherboard_temp": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-		},
-		Logging: logger.DefaultConfig(),
 		Redis: RedisConfig{
 			Port: 6379,
 			DB:   10,
@@ -278,56 +221,9 @@ func (c *Config) Merge(other *Config) {
 		c.Kafka.SASLPassword = other.Kafka.SASLPassword
 	}
 
-	// Merge Collector configs
-	for name, collectorCfg := range other.Collectors {
-		if existing, ok := c.Collectors[name]; ok {
-			existing.Enabled = collectorCfg.Enabled
-			if collectorCfg.Interval != 0 {
-				existing.Interval = collectorCfg.Interval
-			}
-			if collectorCfg.TopN != 0 {
-				existing.TopN = collectorCfg.TopN
-			}
-			if len(collectorCfg.Disks) > 0 {
-				existing.Disks = collectorCfg.Disks
-			}
-			if len(collectorCfg.Interfaces) > 0 {
-				existing.Interfaces = collectorCfg.Interfaces
-			}
-			if len(collectorCfg.IncludeZones) > 0 {
-				existing.IncludeZones = collectorCfg.IncludeZones
-			}
-			if len(collectorCfg.WatchProcesses) > 0 {
-				existing.WatchProcesses = collectorCfg.WatchProcesses
-			}
-			c.Collectors[name] = existing
-		} else {
-			c.Collectors[name] = collectorCfg
-		}
-	}
-
-	// Merge Logging config
-	if other.Logging.Level != "" {
-		c.Logging.Level = other.Logging.Level
-	}
-	if other.Logging.FilePath != "" {
-		c.Logging.FilePath = other.Logging.FilePath
-	}
-	if other.Logging.MaxSizeMB != 0 {
-		c.Logging.MaxSizeMB = other.Logging.MaxSizeMB
-	}
-	if other.Logging.MaxBackups != 0 {
-		c.Logging.MaxBackups = other.Logging.MaxBackups
-	}
-	if other.Logging.MaxAgeDays != 0 {
-		c.Logging.MaxAgeDays = other.Logging.MaxAgeDays
-	}
-	c.Logging.Compress = other.Logging.Compress
-	c.Logging.Console = other.Logging.Console
-
-	// Merge VirtualIPList
-	if other.VirtualIPList != "" {
-		c.VirtualIPList = other.VirtualIPList
+	// Merge VirtualAddressList
+	if other.VirtualAddressList != "" {
+		c.VirtualAddressList = other.VirtualAddressList
 	}
 
 	// Merge Redis config
@@ -360,6 +256,102 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.ResourceMonitorTopic != "" {
 		c.ResourceMonitorTopic = other.ResourceMonitorTopic
+	}
+}
+
+// MonitorConfig holds collectors-only configuration (for Monitor.json).
+type MonitorConfig struct {
+	Collectors map[string]CollectorConfig `json:"Collectors"`
+}
+
+// DefaultMonitorConfig returns a MonitorConfig with sensible defaults.
+func DefaultMonitorConfig() *MonitorConfig {
+	return &MonitorConfig{
+		Collectors: map[string]CollectorConfig{
+			"cpu": {
+				Enabled:  true,
+				Interval: 10 * time.Second,
+			},
+			"memory": {
+				Enabled:  true,
+				Interval: 10 * time.Second,
+			},
+			"disk": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"network": {
+				Enabled:  true,
+				Interval: 10 * time.Second,
+			},
+			"temperature": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"cpu_process": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+				TopN:     10,
+			},
+			"memory_process": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+				TopN:     10,
+			},
+			"fan": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"gpu": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"storage_smart": {
+				Enabled:  true,
+				Interval: 60 * time.Second,
+			},
+			"voltage": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+			"motherboard_temp": {
+				Enabled:  true,
+				Interval: 30 * time.Second,
+			},
+		},
+	}
+}
+
+// Merge applies non-zero values from other to this MonitorConfig.
+func (mc *MonitorConfig) Merge(other *MonitorConfig) {
+	if other == nil {
+		return
+	}
+	for name, collectorCfg := range other.Collectors {
+		if existing, ok := mc.Collectors[name]; ok {
+			existing.Enabled = collectorCfg.Enabled
+			if collectorCfg.Interval != 0 {
+				existing.Interval = collectorCfg.Interval
+			}
+			if collectorCfg.TopN != 0 {
+				existing.TopN = collectorCfg.TopN
+			}
+			if len(collectorCfg.Disks) > 0 {
+				existing.Disks = collectorCfg.Disks
+			}
+			if len(collectorCfg.Interfaces) > 0 {
+				existing.Interfaces = collectorCfg.Interfaces
+			}
+			if len(collectorCfg.IncludeZones) > 0 {
+				existing.IncludeZones = collectorCfg.IncludeZones
+			}
+			if len(collectorCfg.WatchProcesses) > 0 {
+				existing.WatchProcesses = collectorCfg.WatchProcesses
+			}
+			mc.Collectors[name] = existing
+		} else {
+			mc.Collectors[name] = collectorCfg
+		}
 	}
 }
 
