@@ -105,7 +105,7 @@ func (c *NetworkCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: now.UTC(),
+		Timestamp: now,
 		Data:      NetworkData{Interfaces: interfaces},
 	}, nil
 }
