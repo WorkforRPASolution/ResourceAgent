@@ -33,8 +33,8 @@ func (c *CPUCollector) Configure(cfg config.CollectorConfig) error {
 
 // Collect gathers CPU metrics.
 func (c *CPUCollector) Collect(ctx context.Context) (*MetricData, error) {
-	// Get overall CPU usage (blocking call for 200ms to measure)
-	percentages, err := cpu.PercentWithContext(ctx, 200*time.Millisecond, false)
+	// Get overall CPU usage (blocking call for 1s to match Task Manager accuracy)
+	percentages, err := cpu.PercentWithContext(ctx, 1*time.Second, false)
 	if err != nil {
 		return nil, err
 	}
