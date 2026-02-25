@@ -12,7 +12,6 @@
     "FilePath": "logs/metrics.jsonl",
     "MaxSizeMB": 50,
     "MaxBackups": 3,
-    "Console": true,
     "Pretty": false,
     "Format": "legacy"
   },
@@ -38,7 +37,7 @@
   },
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,
-  "ResourceMonitorTopic": "all",
+  "ResourceMonitorTopic": "",
   "Redis": {
     "Port": 6379,
     "Password": "",

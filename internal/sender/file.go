@@ -21,6 +21,8 @@ type FileSender struct {
 	writer      *lumberjack.Logger
 	prettyPrint bool
 	console     bool
+	consoleCh   chan string // Async console output channel
+	consoleDone chan struct{}
 	format      string
 	mu          sync.Mutex
 	closed      bool
@@ -62,13 +64,20 @@ func NewFileSender(cfg config.FileConfig) (*FileSender, error) {
 		Bool("pretty", cfg.Pretty).
 		Msg("FileSender initialized")
 
-	return &FileSender{
+	fs := &FileSender{
 		filePath:    cfg.FilePath,
 		writer:      writer,
 		prettyPrint: cfg.Pretty,
 		console:     cfg.Console,
 		format:      format,
-	}, nil
+		consoleCh:   make(chan string, 1000),
+		consoleDone: make(chan struct{}),
+	}
+
+	// Always start async console goroutine so SetConsole(true) can enable it later.
+	go fs.drainConsole()
+
+	return fs, nil
 }
 
 // Send writes a single metric data to the file and optionally to console.
@@ -105,7 +114,10 @@ func (s *FileSender) sendJSON(data *collector.MetricData) error {
 	}
 
 	if s.console {
-		fmt.Println(string(jsonData))
+		select {
+		case s.consoleCh <- string(jsonData):
+		default:
+		}
 	}
 
 	return nil
@@ -120,7 +132,10 @@ func (s *FileSender) sendLegacy(data *collector.MetricData) error {
 			return fmt.Errorf("failed to write to file: %w", err)
 		}
 		if s.console {
-			fmt.Println(line)
+			select {
+			case s.consoleCh <- line:
+			default:
+			}
 		}
 	}
 	return nil
@@ -136,6 +151,22 @@ func (s *FileSender) SendBatch(ctx context.Context, data []*collector.MetricData
 	return nil
 }
 
+// SetConsole enables or disables console output dynamically.
+func (s *FileSender) SetConsole(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.console = enabled
+}
+
+// drainConsole reads from consoleCh and prints to stdout in a separate goroutine.
+// This prevents stdout blocking (e.g., Windows cmd Quick Edit mode) from blocking file writes.
+func (s *FileSender) drainConsole() {
+	defer close(s.consoleDone)
+	for line := range s.consoleCh {
+		fmt.Println(line)
+	}
+}
+
 // Close releases resources held by the FileSender.
 func (s *FileSender) Close() error {
 	s.mu.Lock()
@@ -146,5 +177,7 @@ func (s *FileSender) Close() error {
 	}
 
 	s.closed = true
+	close(s.consoleCh)
+	<-s.consoleDone
 	return s.writer.Close()
 }

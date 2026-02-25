@@ -63,7 +63,7 @@ func main() {
 
 	// Create and run service
 	svc := service.NewService(func(ctx context.Context) error {
-		return run(ctx, cfg, mc, *monitorPath, *loggingPath)
+		return run(ctx, cfg, mc, lc, *monitorPath, *loggingPath)
 	})
 
 	if err := svc.Run(context.Background()); err != nil {
@@ -73,7 +73,7 @@ func main() {
 	log.Info().Msg("ResourceAgent stopped")
 }
 
-func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, monitorPath, loggingPath string) error {
+func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *logger.Config, monitorPath, loggingPath string) error {
 	log := logger.WithComponent("main")
 
 	// Get agent identification
@@ -177,6 +177,9 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, moni
 		return fmt.Errorf("failed to configure collectors: %w", err)
 	}
 
+	// Consolidate console setting: Logging.json Console is the master switch
+	cfg.File.Console = lc.Console
+
 	// Create sender based on configuration
 	snd, err := sender.NewSender(cfg)
 	if err != nil {
@@ -260,6 +263,12 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, moni
 		if err := logger.Init(*newLC); err != nil {
 			log.Error().Err(err).Msg("Failed to update logging configuration")
 			return
+		}
+
+		// Sync console setting to FileSender (Logging.json Console is the master switch)
+		if fs, ok := snd.(*sender.FileSender); ok {
+			fs.SetConsole(newLC.Console)
+			log.Info().Bool("console", newLC.Console).Msg("FileSender console updated")
 		}
 
 		log.Info().Msg("Logging configuration updated")

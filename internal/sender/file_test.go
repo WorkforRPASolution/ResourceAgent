@@ -548,6 +548,149 @@ func TestFileSender_Legacy_StorageSmart(t *testing.T) {
 	}
 }
 
+// --- SetConsole tests ---
+
+func TestFileSender_SetConsole_DisablesOutput(t *testing.T) {
+	// Capture stdout
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cfg := tempFileConfig(t, "legacy")
+	cfg.Console = true
+	s, err := NewFileSender(cfg)
+	if err != nil {
+		os.Stdout = origStdout
+		t.Fatalf("NewFileSender failed: %v", err)
+	}
+
+	// Disable console via SetConsole
+	s.SetConsole(false)
+
+	data := &collector.MetricData{
+		Type:      "cpu",
+		Timestamp: fileTestTimestamp,
+		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
+	}
+	s.Send(context.Background(), data)
+	time.Sleep(50 * time.Millisecond)
+
+	// Restore stdout and read captured output
+	os.Stdout = origStdout
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	r.Close()
+	s.Close()
+
+	if buf.Len() > 0 {
+		t.Errorf("expected no console output after SetConsole(false), got: %s", buf.String())
+	}
+}
+
+func TestFileSender_SetConsole_EnablesOutput(t *testing.T) {
+	// Start with Console: false
+	cfg := tempFileConfig(t, "legacy")
+	cfg.Console = false
+	s, err := NewFileSender(cfg)
+	if err != nil {
+		t.Fatalf("NewFileSender failed: %v", err)
+	}
+
+	// Enable console dynamically
+	s.SetConsole(true)
+
+	// Capture stdout
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	data := &collector.MetricData{
+		Type:      "cpu",
+		Timestamp: fileTestTimestamp,
+		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
+	}
+	s.Send(context.Background(), data)
+	time.Sleep(50 * time.Millisecond)
+
+	os.Stdout = origStdout
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	r.Close()
+	s.Close()
+
+	if !strings.Contains(buf.String(), "category:cpu") {
+		t.Errorf("expected console output after SetConsole(true), got: %q", buf.String())
+	}
+}
+
+// --- Console blocking test ---
+
+func TestFileSender_FileWriteNotBlockedByConsole(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.FileConfig{
+		FilePath:   filepath.Join(dir, "metrics.log"),
+		MaxSizeMB:  10,
+		MaxBackups: 1,
+		Console:    true, // Console enabled
+		Format:     "legacy",
+	}
+
+	// Replace stdout with a pipe nobody reads from → will block on write
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	s, err := NewFileSender(cfg)
+	if err != nil {
+		os.Stdout = origStdout
+		t.Fatalf("NewFileSender failed: %v", err)
+	}
+
+	// Send enough data to overflow any pipe buffer (~2MB >> 64KB pipe buffer).
+	// If fmt.Println is synchronous, this WILL block.
+	bigName := strings.Repeat("x", 10000)
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 200; i++ {
+			data := &collector.MetricData{
+				Type:      "temperature",
+				Timestamp: fileTestTimestamp,
+				Data: collector.TemperatureData{
+					Sensors: []collector.TemperatureSensor{
+						{Name: bigName, Temperature: 65.0},
+					},
+				},
+			}
+			s.Send(context.Background(), data)
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Good: writes completed without blocking
+	case <-time.After(5 * time.Second):
+		os.Stdout = origStdout
+		t.Fatal("FileSender blocked - console output is blocking file writes")
+	}
+
+	// Restore stdout and close pipe BEFORE s.Close() so drain goroutine can unblock
+	os.Stdout = origStdout
+	w.Close()
+	r.Close()
+	s.Close()
+
+	content, err := os.ReadFile(cfg.FilePath)
+	if err != nil {
+		t.Fatalf("failed to read metrics file: %v", err)
+	}
+	if len(content) == 0 {
+		t.Error("metrics file is empty - console blocking prevented file writes")
+	}
+}
+
 // --- Edge case tests ---
 
 func TestFileSender_Legacy_UnknownType(t *testing.T) {
