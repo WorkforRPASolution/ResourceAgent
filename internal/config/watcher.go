@@ -120,24 +120,6 @@ func (fw *FileWatcher) IsRunning() bool {
 
 // --- Convenience constructors for typed watchers ---
 
-// Watcher is kept for backward compatibility. It monitors a config file and reloads Config.
-type Watcher = FileWatcher
-
-// NewWatcher creates a watcher that loads a full Config on file change.
-func NewWatcher(path string, callback func(*Config)) (*FileWatcher, error) {
-	return NewFileWatcher(path, func() {
-		log := logger.WithComponent("config-watcher")
-		cfg, err := Load(path)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to reload configuration")
-			return
-		}
-		if callback != nil {
-			callback(cfg)
-		}
-	})
-}
-
 // NewMonitorWatcher creates a watcher that loads MonitorConfig on file change.
 func NewMonitorWatcher(path string, callback func(*MonitorConfig)) (*FileWatcher, error) {
 	return NewFileWatcher(path, func() {

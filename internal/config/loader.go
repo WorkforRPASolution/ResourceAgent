@@ -11,12 +11,10 @@ import (
 
 // rawConfig is used for JSON unmarshaling with duration strings.
 type rawConfig struct {
-	Agent      AgentConfig                   `json:"Agent"`
-	SenderType string                        `json:"SenderType"`
-	File       FileConfig                    `json:"File"`
-	Kafka      rawKafkaConfig                `json:"Kafka"`
-	Collectors map[string]rawCollectorConfig `json:"Collectors"`
-	Logging                 rawLoggingConfig              `json:"Logging"`
+	Agent      AgentConfig    `json:"Agent"`
+	SenderType string         `json:"SenderType"`
+	File       FileConfig     `json:"File"`
+	Kafka      rawKafkaConfig `json:"Kafka"`
 	VirtualAddressList      string                        `json:"VirtualAddressList"`
 	Redis                   RedisConfig                   `json:"Redis"`
 	PrivateIPAddressPattern string                        `json:"PrivateIPAddressPattern"`
@@ -98,7 +96,6 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 		Agent:      raw.Agent,
 		SenderType: raw.SenderType,
 		File:       raw.File,
-		Collectors: make(map[string]CollectorConfig),
 	}
 
 	// Convert Kafka config
@@ -107,18 +104,6 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 		return nil, err
 	}
 	cfg.Kafka = *kafka
-
-	// Convert Collector configs
-	for name, rawColl := range raw.Collectors {
-		coll, err := convertRawCollector(name, &rawColl)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Collectors[name] = *coll
-	}
-
-	// Convert Logging config
-	cfg.Logging = convertRawLogging(&raw.Logging)
 
 	// Direct-mapped fields (no duration conversion needed)
 	cfg.VirtualAddressList = raw.VirtualAddressList

@@ -4,8 +4,6 @@ package config
 import (
 	"fmt"
 	"time"
-
-	"resourceagent/internal/logger"
 )
 
 // Config is the root configuration structure.
@@ -14,8 +12,6 @@ type Config struct {
 	SenderType string                     `json:"SenderType"` // "kafka", "kafkarest", or "file"
 	Kafka      KafkaConfig                `json:"Kafka"`
 	File       FileConfig                 `json:"File"`
-	Collectors map[string]CollectorConfig `json:"Collectors"`
-	Logging                 logger.Config              `json:"Logging"`
 	VirtualAddressList      string                     `json:"VirtualAddressList"`
 	Redis                   RedisConfig                `json:"Redis"`
 	PrivateIPAddressPattern string                     `json:"PrivateIPAddressPattern"`
@@ -126,59 +122,6 @@ func DefaultConfig() *Config {
 			BatchSize:      16384,
 			Timeout:        10 * time.Second,
 		},
-		Collectors: map[string]CollectorConfig{
-			"cpu": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"memory": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"disk": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"network": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"temperature": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"cpu_process": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-				TopN:     10,
-			},
-			"memory_process": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-				TopN:     10,
-			},
-			"fan": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"gpu": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"storage_smart": {
-				Enabled:  true,
-				Interval: 60 * time.Second,
-			},
-			"voltage": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"motherboard_temp": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-		},
-		Logging: logger.DefaultConfig(),
 		Redis: RedisConfig{
 			Port: 6379,
 			DB:   10,
@@ -277,53 +220,6 @@ func (c *Config) Merge(other *Config) {
 	if other.Kafka.SASLPassword != "" {
 		c.Kafka.SASLPassword = other.Kafka.SASLPassword
 	}
-
-	// Merge Collector configs
-	for name, collectorCfg := range other.Collectors {
-		if existing, ok := c.Collectors[name]; ok {
-			existing.Enabled = collectorCfg.Enabled
-			if collectorCfg.Interval != 0 {
-				existing.Interval = collectorCfg.Interval
-			}
-			if collectorCfg.TopN != 0 {
-				existing.TopN = collectorCfg.TopN
-			}
-			if len(collectorCfg.Disks) > 0 {
-				existing.Disks = collectorCfg.Disks
-			}
-			if len(collectorCfg.Interfaces) > 0 {
-				existing.Interfaces = collectorCfg.Interfaces
-			}
-			if len(collectorCfg.IncludeZones) > 0 {
-				existing.IncludeZones = collectorCfg.IncludeZones
-			}
-			if len(collectorCfg.WatchProcesses) > 0 {
-				existing.WatchProcesses = collectorCfg.WatchProcesses
-			}
-			c.Collectors[name] = existing
-		} else {
-			c.Collectors[name] = collectorCfg
-		}
-	}
-
-	// Merge Logging config
-	if other.Logging.Level != "" {
-		c.Logging.Level = other.Logging.Level
-	}
-	if other.Logging.FilePath != "" {
-		c.Logging.FilePath = other.Logging.FilePath
-	}
-	if other.Logging.MaxSizeMB != 0 {
-		c.Logging.MaxSizeMB = other.Logging.MaxSizeMB
-	}
-	if other.Logging.MaxBackups != 0 {
-		c.Logging.MaxBackups = other.Logging.MaxBackups
-	}
-	if other.Logging.MaxAgeDays != 0 {
-		c.Logging.MaxAgeDays = other.Logging.MaxAgeDays
-	}
-	c.Logging.Compress = other.Logging.Compress
-	c.Logging.Console = other.Logging.Console
 
 	// Merge VirtualAddressList
 	if other.VirtualAddressList != "" {
