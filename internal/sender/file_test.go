@@ -157,7 +157,7 @@ func TestFileSender_Legacy_Memory(t *testing.T) {
 	data := &collector.MetricData{
 		Type:      "memory",
 		Timestamp: fileTestTimestamp,
-		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000},
+		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000, UsedBytes: 12000000000},
 	}
 	if err := s.Send(context.Background(), data); err != nil {
 		t.Fatalf("Send failed: %v", err)
@@ -170,7 +170,7 @@ func TestFileSender_Legacy_Memory(t *testing.T) {
 	expecteds := []string{
 		"2026-02-24 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_used_pct,value:75",
 		"2026-02-24 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_free_pct,value:25",
-		"2026-02-24 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_used_size,value:16000000000",
+		"2026-02-24 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_used_size,value:12000000000",
 	}
 	for i, exp := range expecteds {
 		if lines[i] != exp {
@@ -226,9 +226,11 @@ func TestFileSender_Legacy_Network(t *testing.T) {
 		Timestamp: fileTestTimestamp,
 		Data: collector.NetworkData{
 			Interfaces: []collector.NetworkInterface{
-				{Name: "eth0", BytesRecv: 1000, BytesSent: 2000},
-				{Name: "eth1", BytesRecv: 3000, BytesSent: 4000},
+				{Name: "Ethernet", BytesRecv: 1000, BytesSent: 2000, BytesRecvRate: 500.5, BytesSentRate: 250.3},
+				{Name: "Wi-Fi", BytesRecv: 3000, BytesSent: 4000, BytesRecvRate: 100.0, BytesSentRate: 50.0},
 			},
+			TCPInboundCount:  42,
+			TCPOutboundCount: 38,
 		},
 	}
 	if err := s.Send(context.Background(), data); err != nil {
@@ -236,14 +238,27 @@ func TestFileSender_Legacy_Network(t *testing.T) {
 	}
 
 	lines := readLegacyOutput(t, cfg.FilePath)
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 lines, got %d", len(lines))
+	// 2 (all_inbound/all_outbound) + 2 interfaces * 2 (recv_rate/sent_rate) = 6 lines
+	if len(lines) != 6 {
+		t.Fatalf("expected 6 lines, got %d", len(lines))
 	}
-	if !strings.Contains(lines[0], "metric:all_inbound,value:4000") {
+	if !strings.Contains(lines[0], "proc:@system,metric:all_inbound,value:42") {
 		t.Errorf("unexpected inbound line: %s", lines[0])
 	}
-	if !strings.Contains(lines[1], "metric:all_outbound,value:6000") {
+	if !strings.Contains(lines[1], "proc:@system,metric:all_outbound,value:38") {
 		t.Errorf("unexpected outbound line: %s", lines[1])
+	}
+	if !strings.Contains(lines[2], "proc:Ethernet,metric:recv_rate,value:500.5") {
+		t.Errorf("unexpected Ethernet recv_rate line: %s", lines[2])
+	}
+	if !strings.Contains(lines[3], "proc:Ethernet,metric:sent_rate,value:250.3") {
+		t.Errorf("unexpected Ethernet sent_rate line: %s", lines[3])
+	}
+	if !strings.Contains(lines[4], "proc:Wi-Fi,metric:recv_rate,value:100") {
+		t.Errorf("unexpected Wi-Fi recv_rate line: %s", lines[4])
+	}
+	if !strings.Contains(lines[5], "proc:Wi-Fi,metric:sent_rate,value:50") {
+		t.Errorf("unexpected Wi-Fi sent_rate line: %s", lines[5])
 	}
 }
 
@@ -604,7 +619,7 @@ func TestFileSender_SendBatch_Legacy(t *testing.T) {
 		{
 			Type:      "memory",
 			Timestamp: fileTestTimestamp,
-			Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000},
+			Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000, UsedBytes: 12000000000},
 		},
 	}
 

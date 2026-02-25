@@ -59,7 +59,7 @@ func TestConvertToEARSRows_Memory(t *testing.T) {
 	data := &collector.MetricData{
 		Type:      "memory",
 		Timestamp: testTimestamp,
-		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000},
+		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000, UsedBytes: 12000000000},
 	}
 	rows := ConvertToEARSRows(data)
 	if len(rows) != 3 {
@@ -67,7 +67,7 @@ func TestConvertToEARSRows_Memory(t *testing.T) {
 	}
 	assertRow(t, rows[0], "memory", 0, "@system", "total_used_pct", 75.0)
 	assertRow(t, rows[1], "memory", 0, "@system", "total_free_pct", 25.0)
-	assertRow(t, rows[2], "memory", 0, "@system", "total_used_size", 16000000000)
+	assertRow(t, rows[2], "memory", 0, "@system", "total_used_size", 12000000000)
 }
 
 func TestConvertToEARSRows_Disk(t *testing.T) {
@@ -95,17 +95,25 @@ func TestConvertToEARSRows_Network(t *testing.T) {
 		Timestamp: testTimestamp,
 		Data: collector.NetworkData{
 			Interfaces: []collector.NetworkInterface{
-				{Name: "eth0", BytesRecv: 1000, BytesSent: 2000},
-				{Name: "eth1", BytesRecv: 3000, BytesSent: 4000},
+				{Name: "Ethernet", BytesRecv: 1000, BytesSent: 2000, BytesRecvRate: 500.5, BytesSentRate: 250.3},
+				{Name: "Wi-Fi", BytesRecv: 3000, BytesSent: 4000, BytesRecvRate: 100.0, BytesSentRate: 50.0},
 			},
+			TCPInboundCount:  42,
+			TCPOutboundCount: 38,
 		},
 	}
 	rows := ConvertToEARSRows(data)
-	if len(rows) != 2 {
-		t.Fatalf("expected 2 rows, got %d", len(rows))
+	// 2 (all_inbound/all_outbound) + 2 interfaces * 2 (recv_rate/sent_rate) = 6 rows
+	if len(rows) != 6 {
+		t.Fatalf("expected 6 rows, got %d", len(rows))
 	}
-	assertRow(t, rows[0], "network", 0, "@system", "all_inbound", 4000)  // 1000+3000
-	assertRow(t, rows[1], "network", 0, "@system", "all_outbound", 6000) // 2000+4000
+	assertRow(t, rows[0], "network", 0, "@system", "all_inbound", 42)
+	assertRow(t, rows[1], "network", 0, "@system", "all_outbound", 38)
+	// Interface-level rate metrics with proc=NIC name
+	assertRow(t, rows[2], "network", 0, "Ethernet", "recv_rate", 500.5)
+	assertRow(t, rows[3], "network", 0, "Ethernet", "sent_rate", 250.3)
+	assertRow(t, rows[4], "network", 0, "Wi-Fi", "recv_rate", 100.0)
+	assertRow(t, rows[5], "network", 0, "Wi-Fi", "sent_rate", 50.0)
 }
 
 func TestConvertToEARSRows_CPUProcess(t *testing.T) {
@@ -327,7 +335,7 @@ func TestToLegacyString_GrokPatternMatch(t *testing.T) {
 
 	rows := []EARSRow{
 		{Timestamp: testTimestamp, Category: "cpu", PID: 0, ProcName: "@system", Metric: "total_used_pct", Value: 45.5},
-		{Timestamp: testTimestamp, Category: "memory", PID: 0, ProcName: "@system", Metric: "total_used_size", Value: 16000000000},
+		{Timestamp: testTimestamp, Category: "memory", PID: 0, ProcName: "@system", Metric: "total_used_size", Value: 12000000000},
 		{Timestamp: testTimestamp, Category: "cpu", PID: 1234, ProcName: "python.exe", Metric: "used_pct", Value: 12.5},
 		{Timestamp: testTimestamp, Category: "disk", PID: 0, ProcName: "@system", Metric: "C:", Value: 60.0},
 	}
@@ -347,15 +355,15 @@ func TestToLegacyString_LargeIntegerValue(t *testing.T) {
 		PID:       0,
 		ProcName:  "@system",
 		Metric:    "total_used_size",
-		Value:     16000000000,
+		Value:     12000000000,
 	}
 	result := row.ToLegacyString()
 	// Extract the value portion and verify no scientific notation
-	valueStr := formatValue(16000000000)
+	valueStr := formatValue(12000000000)
 	if regexp.MustCompile(`[eE]`).MatchString(valueStr) {
 		t.Errorf("value should not use scientific notation: %q", valueStr)
 	}
-	expected := "2026-02-24 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_used_size,value:16000000000"
+	expected := "2026-02-24 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_used_size,value:12000000000"
 	if result != expected {
 		t.Errorf("expected:\n  %s\ngot:\n  %s", expected, result)
 	}

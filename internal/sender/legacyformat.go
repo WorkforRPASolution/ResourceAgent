@@ -151,7 +151,7 @@ func convertMemory(data *collector.MetricData) []EARSRow {
 	return []EARSRow{
 		systemRow(data.Timestamp, "memory", "total_used_pct", d.UsagePercent),
 		systemRow(data.Timestamp, "memory", "total_free_pct", 100-d.UsagePercent),
-		systemRow(data.Timestamp, "memory", "total_used_size", float64(d.TotalBytes)),
+		systemRow(data.Timestamp, "memory", "total_used_size", float64(d.UsedBytes)),
 	}
 }
 
@@ -172,15 +172,29 @@ func convertNetwork(data *collector.MetricData) []EARSRow {
 	if !ok {
 		return nil
 	}
-	var totalRecv, totalSent uint64
+	rows := []EARSRow{
+		systemRow(data.Timestamp, "network", "all_inbound", float64(d.TCPInboundCount)),
+		systemRow(data.Timestamp, "network", "all_outbound", float64(d.TCPOutboundCount)),
+	}
 	for _, iface := range d.Interfaces {
-		totalRecv += iface.BytesRecv
-		totalSent += iface.BytesSent
+		rows = append(rows, EARSRow{
+			Timestamp: data.Timestamp,
+			Category:  "network",
+			PID:       0,
+			ProcName:  iface.Name,
+			Metric:    "recv_rate",
+			Value:     iface.BytesRecvRate,
+		})
+		rows = append(rows, EARSRow{
+			Timestamp: data.Timestamp,
+			Category:  "network",
+			PID:       0,
+			ProcName:  iface.Name,
+			Metric:    "sent_rate",
+			Value:     iface.BytesSentRate,
+		})
 	}
-	return []EARSRow{
-		systemRow(data.Timestamp, "network", "all_inbound", float64(totalRecv)),
-		systemRow(data.Timestamp, "network", "all_outbound", float64(totalSent)),
-	}
+	return rows
 }
 
 func convertCPUProcess(data *collector.MetricData) []EARSRow {

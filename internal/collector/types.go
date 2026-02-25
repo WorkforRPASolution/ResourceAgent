@@ -69,7 +69,9 @@ type DiskPartition struct {
 
 // NetworkData contains network interface metrics.
 type NetworkData struct {
-	Interfaces []NetworkInterface `json:"interfaces"`
+	Interfaces       []NetworkInterface `json:"interfaces"`
+	TCPInboundCount  int                `json:"tcp_inbound_count"`
+	TCPOutboundCount int                `json:"tcp_outbound_count"`
 }
 
 // NetworkInterface contains metrics for a single network interface.

@@ -103,11 +103,50 @@ func (c *NetworkCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	c.lastCollect = now
 
+	// Collect TCP connection counts
+	conns, err := net.ConnectionsWithContext(ctx, "inet")
+	if err != nil {
+		// Non-fatal: return metrics without TCP counts
+		conns = nil
+	}
+	inbound, outbound := classifyTCPConnections(conns)
+
 	return &MetricData{
 		Type:      c.Name(),
 		Timestamp: now,
-		Data:      NetworkData{Interfaces: interfaces},
+		Data: NetworkData{
+			Interfaces:       interfaces,
+			TCPInboundCount:  inbound,
+			TCPOutboundCount: outbound,
+		},
 	}, nil
+}
+
+// classifyTCPConnections classifies TCP connections into inbound (server) and outbound (client).
+// Inbound connections have a local port that matches a LISTEN port.
+// Outbound connections have a local port that does not match any LISTEN port.
+// LISTEN connections themselves are excluded from the count.
+func classifyTCPConnections(conns []net.ConnectionStat) (inbound, outbound int) {
+	// Step 1: collect all LISTEN ports
+	listenPorts := make(map[uint32]struct{})
+	for _, c := range conns {
+		if c.Status == "LISTEN" {
+			listenPorts[c.Laddr.Port] = struct{}{}
+		}
+	}
+
+	// Step 2: classify non-LISTEN connections
+	for _, c := range conns {
+		if c.Status == "LISTEN" {
+			continue
+		}
+		if _, ok := listenPorts[c.Laddr.Port]; ok {
+			inbound++
+		} else {
+			outbound++
+		}
+	}
+	return
 }
 
 func (c *NetworkCollector) shouldInclude(name string) bool {
