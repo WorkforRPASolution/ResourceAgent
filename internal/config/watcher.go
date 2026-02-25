@@ -9,117 +9,161 @@ import (
 	"resourceagent/internal/logger"
 )
 
-// Watcher monitors configuration file changes and triggers reload callbacks.
-type Watcher struct {
+// FileWatcher monitors a single file for changes and invokes a callback on modification.
+type FileWatcher struct {
 	path     string
 	watcher  *fsnotify.Watcher
-	callback func(*Config)
+	onChange func()
 
 	mu       sync.Mutex
 	running  bool
 	stopChan chan struct{}
 }
 
-// NewWatcher creates a new configuration file watcher.
-func NewWatcher(path string, callback func(*Config)) (*Watcher, error) {
+// NewFileWatcher creates a generic file watcher that calls onChange when the file is modified.
+func NewFileWatcher(path string, onChange func()) (*FileWatcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
 
-	return &Watcher{
+	return &FileWatcher{
 		path:     path,
 		watcher:  w,
-		callback: callback,
+		onChange: onChange,
 		stopChan: make(chan struct{}),
 	}, nil
 }
 
-// Start begins watching for configuration file changes.
-func (w *Watcher) Start() error {
-	w.mu.Lock()
-	if w.running {
-		w.mu.Unlock()
+// Start begins watching for file changes.
+func (fw *FileWatcher) Start() error {
+	fw.mu.Lock()
+	if fw.running {
+		fw.mu.Unlock()
 		return nil
 	}
-	w.running = true
-	w.mu.Unlock()
+	fw.running = true
+	fw.mu.Unlock()
 
-	log := logger.WithComponent("config-watcher")
+	log := logger.WithComponent("file-watcher")
 
-	// Watch the directory containing the config file
-	dir := filepath.Dir(w.path)
-	if err := w.watcher.Add(dir); err != nil {
+	dir := filepath.Dir(fw.path)
+	if err := fw.watcher.Add(dir); err != nil {
 		return err
 	}
 
-	log.Info().Str("path", w.path).Msg("Started watching configuration file")
+	log.Info().Str("path", fw.path).Msg("Started watching file")
 
-	go w.watch()
+	go fw.watch()
 	return nil
 }
 
 // Stop stops watching for changes.
-func (w *Watcher) Stop() error {
-	w.mu.Lock()
-	if !w.running {
-		w.mu.Unlock()
+func (fw *FileWatcher) Stop() error {
+	fw.mu.Lock()
+	if !fw.running {
+		fw.mu.Unlock()
 		return nil
 	}
-	w.running = false
-	w.mu.Unlock()
+	fw.running = false
+	fw.mu.Unlock()
 
-	close(w.stopChan)
-	return w.watcher.Close()
+	close(fw.stopChan)
+	return fw.watcher.Close()
 }
 
-func (w *Watcher) watch() {
-	log := logger.WithComponent("config-watcher")
-	filename := filepath.Base(w.path)
+func (fw *FileWatcher) watch() {
+	log := logger.WithComponent("file-watcher")
+	filename := filepath.Base(fw.path)
 
 	for {
 		select {
-		case <-w.stopChan:
-			log.Info().Msg("Configuration watcher stopped")
+		case <-fw.stopChan:
+			log.Info().Str("path", fw.path).Msg("File watcher stopped")
 			return
 
-		case event, ok := <-w.watcher.Events:
+		case event, ok := <-fw.watcher.Events:
 			if !ok {
 				return
 			}
 
-			// Only process events for our config file
 			if filepath.Base(event.Name) != filename {
 				continue
 			}
 
-			// Handle write and create events
 			if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
-				log.Info().Str("event", event.Op.String()).Msg("Configuration file changed, reloading")
+				log.Info().
+					Str("path", fw.path).
+					Str("event", event.Op.String()).
+					Msg("File changed, reloading")
 
-				cfg, err := Load(w.path)
-				if err != nil {
-					log.Error().Err(err).Msg("Failed to reload configuration")
-					continue
-				}
-
-				if w.callback != nil {
-					w.callback(cfg)
+				if fw.onChange != nil {
+					fw.onChange()
 				}
 			}
 
-		case err, ok := <-w.watcher.Errors:
+		case err, ok := <-fw.watcher.Errors:
 			if !ok {
 				return
 			}
-			log.Error().Err(err).Msg("Configuration watcher error")
+			log.Error().Err(err).Str("path", fw.path).Msg("File watcher error")
 		}
 	}
 }
 
 // IsRunning returns whether the watcher is currently running.
-func (w *Watcher) IsRunning() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.running
+func (fw *FileWatcher) IsRunning() bool {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	return fw.running
+}
+
+// --- Convenience constructors for typed watchers ---
+
+// Watcher is kept for backward compatibility. It monitors a config file and reloads Config.
+type Watcher = FileWatcher
+
+// NewWatcher creates a watcher that loads a full Config on file change.
+func NewWatcher(path string, callback func(*Config)) (*FileWatcher, error) {
+	return NewFileWatcher(path, func() {
+		log := logger.WithComponent("config-watcher")
+		cfg, err := Load(path)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to reload configuration")
+			return
+		}
+		if callback != nil {
+			callback(cfg)
+		}
+	})
+}
+
+// NewMonitorWatcher creates a watcher that loads MonitorConfig on file change.
+func NewMonitorWatcher(path string, callback func(*MonitorConfig)) (*FileWatcher, error) {
+	return NewFileWatcher(path, func() {
+		log := logger.WithComponent("monitor-watcher")
+		mc, err := LoadMonitor(path)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to reload monitor configuration")
+			return
+		}
+		if callback != nil {
+			callback(mc)
+		}
+	})
+}
+
+// NewLoggingWatcher creates a watcher that loads logger.Config on file change.
+func NewLoggingWatcher(path string, callback func(*logger.Config)) (*FileWatcher, error) {
+	return NewFileWatcher(path, func() {
+		log := logger.WithComponent("logging-watcher")
+		lc, err := LoadLogging(path)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to reload logging configuration")
+			return
+		}
+		if callback != nil {
+			callback(lc)
+		}
+	})
 }

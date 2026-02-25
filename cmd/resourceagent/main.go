@@ -28,7 +28,9 @@ var (
 
 func main() {
 	var (
-		configPath  = flag.String("config", "configs/config.json", "Path to configuration file")
+		configPath  = flag.String("config", "configs/ResourceAgent.json", "Path to main configuration file")
+		monitorPath = flag.String("monitor", "configs/Monitor.json", "Path to monitor configuration file")
+		loggingPath = flag.String("logging", "configs/Logging.json", "Path to logging configuration file")
 		showVersion = flag.Bool("version", false, "Show version information")
 	)
 	flag.Parse()
@@ -38,15 +40,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Load configuration
-	cfg, err := config.Load(*configPath)
+	// Load split configuration
+	cfg, mc, lc, err := config.LoadSplit(*configPath, *monitorPath, *loggingPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Initialize logger
-	if err := logger.Init(cfg.Logging); err != nil {
+	// Initialize logger from Logging.json
+	if err := logger.Init(*lc); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
@@ -55,11 +57,13 @@ func main() {
 	log.Info().
 		Str("version", version).
 		Str("config", *configPath).
+		Str("monitor", *monitorPath).
+		Str("logging", *loggingPath).
 		Msg("Starting ResourceAgent")
 
 	// Create and run service
 	svc := service.NewService(func(ctx context.Context) error {
-		return run(ctx, cfg, *configPath)
+		return run(ctx, cfg, mc, *monitorPath, *loggingPath)
 	})
 
 	if err := svc.Run(context.Background()); err != nil {
@@ -69,7 +73,7 @@ func main() {
 	log.Info().Msg("ResourceAgent stopped")
 }
 
-func run(ctx context.Context, cfg *config.Config, configPath string) error {
+func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, monitorPath, loggingPath string) error {
 	log := logger.WithComponent("main")
 
 	// Get agent identification
@@ -83,11 +87,11 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 
 	// --- Redis EQP_INFO + ServiceDiscovery (sender_type != "file" 일 때 필수) ---
 	if strings.ToLower(cfg.SenderType) != "file" {
-		// 1. VirtualIPList 검증
-		if cfg.VirtualIPList == "" {
-			return fmt.Errorf("sender_type=%q requires virtual_ip_list", cfg.SenderType)
+		// 1. VirtualAddressList 검증
+		if cfg.VirtualAddressList == "" {
+			return fmt.Errorf("sender_type=%q requires VirtualAddressList", cfg.SenderType)
 		}
-		virtualIPs := strings.Split(cfg.VirtualIPList, ",")
+		virtualIPs := strings.Split(cfg.VirtualAddressList, ",")
 		virtualIP := strings.TrimSpace(virtualIPs[0])
 		if virtualIP == "" {
 			return fmt.Errorf("sender_type=%q but first virtual IP is empty", cfg.SenderType)
@@ -119,7 +123,7 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 		log.Info().
 			Str("virtual_ip", virtualIP).
 			Str("redis_address", redisAddress).
-			Msg("Redis address resolved from VirtualIPList")
+			Msg("Redis address resolved from VirtualAddressList")
 
 		info, fetchErr := eqpinfo.FetchEqpInfo(ctx, redisAddress, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
 		if fetchErr != nil {
@@ -168,8 +172,8 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 	// Create collector registry with default collectors
 	registry := collector.DefaultRegistry()
 
-	// Configure collectors
-	if err := registry.Configure(cfg.Collectors); err != nil {
+	// Configure collectors from MonitorConfig
+	if err := registry.Configure(mc.Collectors); err != nil {
 		return fmt.Errorf("failed to configure collectors: %w", err)
 	}
 
@@ -213,39 +217,64 @@ func run(ctx context.Context, cfg *config.Config, configPath string) error {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
 
-	// Set up configuration watcher for hot reload
-	var watcher *config.Watcher
+	// Set up Monitor.json watcher for hot reload
 	var watcherMu sync.Mutex
 
-	watcher, err = config.NewWatcher(configPath, func(newCfg *config.Config) {
+	monitorWatcher, err := config.NewMonitorWatcher(monitorPath, func(newMC *config.MonitorConfig) {
 		watcherMu.Lock()
 		defer watcherMu.Unlock()
 
-		log.Info().Msg("Applying configuration changes")
+		log.Info().Msg("Applying monitor configuration changes")
 
-		// Update logging level
-		if err := logger.Init(newCfg.Logging); err != nil {
-			log.Error().Err(err).Msg("Failed to update logging configuration")
-		}
-
-		// Update collector configurations
-		if err := registry.Configure(newCfg.Collectors); err != nil {
+		if err := registry.Configure(newMC.Collectors); err != nil {
 			log.Error().Err(err).Msg("Failed to update collector configurations")
+			return
 		}
 
-		log.Info().Msg("Configuration updated")
+		sched.Reconfigure()
+		log.Info().Msg("Monitor configuration updated")
 	})
 
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to create configuration watcher, hot reload disabled")
+		log.Warn().Err(err).Msg("Failed to create monitor watcher, hot reload disabled")
 	} else {
-		if err := watcher.Start(); err != nil {
-			log.Warn().Err(err).Msg("Failed to start configuration watcher")
+		if err := monitorWatcher.Start(); err != nil {
+			log.Warn().Err(err).Msg("Failed to start monitor watcher")
 		} else {
 			defer func() {
-				log.Info().Msg("Stopping configuration watcher")
-				if err := watcher.Stop(); err != nil {
-					log.Error().Err(err).Msg("Error stopping configuration watcher")
+				log.Info().Msg("Stopping monitor watcher")
+				if err := monitorWatcher.Stop(); err != nil {
+					log.Error().Err(err).Msg("Error stopping monitor watcher")
+				}
+			}()
+		}
+	}
+
+	// Set up Logging.json watcher for hot reload
+	loggingWatcher, err := config.NewLoggingWatcher(loggingPath, func(newLC *logger.Config) {
+		watcherMu.Lock()
+		defer watcherMu.Unlock()
+
+		log.Info().Msg("Applying logging configuration changes")
+
+		if err := logger.Init(*newLC); err != nil {
+			log.Error().Err(err).Msg("Failed to update logging configuration")
+			return
+		}
+
+		log.Info().Msg("Logging configuration updated")
+	})
+
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to create logging watcher, hot reload disabled")
+	} else {
+		if err := loggingWatcher.Start(); err != nil {
+			log.Warn().Err(err).Msg("Failed to start logging watcher")
+		} else {
+			defer func() {
+				log.Info().Msg("Stopping logging watcher")
+				if err := loggingWatcher.Stop(); err != nil {
+					log.Error().Err(err).Msg("Error stopping logging watcher")
 				}
 			}()
 		}

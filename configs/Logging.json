@@ -1,0 +1,9 @@
+{
+  "Level": "info",
+  "FilePath": "logs/agent.log",
+  "MaxSizeMB": 10,
+  "MaxBackups": 5,
+  "MaxAgeDays": 30,
+  "Compress": true,
+  "Console": false
+}

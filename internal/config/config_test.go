@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 )
 
@@ -62,15 +63,15 @@ func TestDefaultConfig_EqpInfoNil(t *testing.T) {
 	}
 }
 
-// --- Parse Tests ---
+// --- Parse Tests (PascalCase JSON) ---
 
 func TestParse_WithRedisConfig(t *testing.T) {
 	input := `{
-		"virtual_ip_list": "10.20.30.40",
-		"redis": {
-			"port": 26379,
-			"password": "secret",
-			"db": 5
+		"VirtualAddressList": "10.20.30.40",
+		"Redis": {
+			"Port": 26379,
+			"Password": "secret",
+			"DB": 5
 		}
 	}`
 
@@ -79,8 +80,8 @@ func TestParse_WithRedisConfig(t *testing.T) {
 		t.Fatalf("Parse failed: %v", err)
 	}
 
-	if cfg.VirtualIPList != "10.20.30.40" {
-		t.Errorf("expected VirtualIPList='10.20.30.40', got %q", cfg.VirtualIPList)
+	if cfg.VirtualAddressList != "10.20.30.40" {
+		t.Errorf("expected VirtualAddressList='10.20.30.40', got %q", cfg.VirtualAddressList)
 	}
 	if cfg.Redis.Port != 26379 {
 		t.Errorf("expected Redis.Port=26379, got %d", cfg.Redis.Port)
@@ -95,8 +96,8 @@ func TestParse_WithRedisConfig(t *testing.T) {
 
 func TestParse_WithServiceDiscoveryConfig(t *testing.T) {
 	input := `{
-		"service_discovery_port": 60009,
-		"resource_monitor_topic": "model"
+		"ServiceDiscoveryPort": 60009,
+		"ResourceMonitorTopic": "model"
 	}`
 
 	cfg, err := Parse([]byte(input))
@@ -114,9 +115,9 @@ func TestParse_WithServiceDiscoveryConfig(t *testing.T) {
 
 func TestParse_WithSOCKSConfig(t *testing.T) {
 	input := `{
-		"socks_proxy": {
-			"host": "proxy.example.com",
-			"port": 1080
+		"SocksProxy": {
+			"Host": "proxy.example.com",
+			"Port": 1080
 		}
 	}`
 
@@ -135,7 +136,7 @@ func TestParse_WithSOCKSConfig(t *testing.T) {
 
 func TestParse_WithPrivateIPAddressPattern(t *testing.T) {
 	input := `{
-		"private_ip_address_pattern": "^10\\..*"
+		"PrivateIPAddressPattern": "^10\\..*"
 	}`
 
 	cfg, err := Parse([]byte(input))
@@ -149,15 +150,14 @@ func TestParse_WithPrivateIPAddressPattern(t *testing.T) {
 }
 
 func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
-	// Existing config without any new fields should still work
 	input := `{
-		"agent": {
-			"id": "test-agent"
+		"Agent": {
+			"ID": "test-agent"
 		},
-		"sender_type": "file",
-		"kafka": {
-			"brokers": ["broker1:9092"],
-			"topic": "test-topic"
+		"SenderType": "file",
+		"Kafka": {
+			"Brokers": ["broker1:9092"],
+			"Topic": "test-topic"
 		}
 	}`
 
@@ -166,7 +166,6 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 		t.Fatalf("Parse failed: %v", err)
 	}
 
-	// New fields should have defaults
 	if cfg.ServiceDiscoveryPort != 50009 {
 		t.Errorf("expected ServiceDiscoveryPort=50009 for backward compat, got %d", cfg.ServiceDiscoveryPort)
 	}
@@ -183,7 +182,6 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 		t.Errorf("expected PrivateIPAddressPattern='', got %q", cfg.PrivateIPAddressPattern)
 	}
 
-	// Existing fields should still parse correctly
 	if cfg.Agent.ID != "test-agent" {
 		t.Errorf("expected Agent.ID='test-agent', got %q", cfg.Agent.ID)
 	}
@@ -197,7 +195,7 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 func TestMerge_RedisConfig(t *testing.T) {
 	base := DefaultConfig()
 	other := &Config{
-		VirtualIPList: "10.20.30.40,10.20.30.41",
+		VirtualAddressList: "10.20.30.40,10.20.30.41",
 		Redis: RedisConfig{
 			Port:     26379,
 			Password: "pass123",
@@ -207,8 +205,8 @@ func TestMerge_RedisConfig(t *testing.T) {
 
 	base.Merge(other)
 
-	if base.VirtualIPList != "10.20.30.40,10.20.30.41" {
-		t.Errorf("expected VirtualIPList='10.20.30.40,10.20.30.41', got %q", base.VirtualIPList)
+	if base.VirtualAddressList != "10.20.30.40,10.20.30.41" {
+		t.Errorf("expected VirtualAddressList='10.20.30.40,10.20.30.41', got %q", base.VirtualAddressList)
 	}
 	if base.Redis.Port != 26379 {
 		t.Errorf("expected Redis.Port=26379, got %d", base.Redis.Port)
@@ -261,7 +259,6 @@ func TestMerge_EmptyValuesDoNotOverwrite(t *testing.T) {
 	base.SOCKSProxy.Port = 9999
 	base.PrivateIPAddressPattern = "^10\\..*"
 
-	// Merge with empty/zero values should not overwrite
 	other := &Config{}
 
 	base.Merge(other)
@@ -293,7 +290,6 @@ func TestEqpInfoConfig_NotSerialized(t *testing.T) {
 		Index:    "1",
 	}
 
-	// Marshal to JSON - EqpInfo should NOT appear (json:"-")
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		t.Fatalf("Marshal failed: %v", err)
@@ -373,24 +369,24 @@ func TestResolveTopic_EmptyMode(t *testing.T) {
 
 func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	input := `{
-		"agent": {
-			"id": "full-test"
+		"Agent": {
+			"ID": "full-test"
 		},
-		"virtual_ip_list": "10.0.0.1,10.0.0.2",
-		"service_discovery_port": 60009,
-		"resource_monitor_topic": "model",
-		"redis": {
-			"port": 26379,
-			"password": "pw",
-			"db": 7
+		"VirtualAddressList": "10.0.0.1,10.0.0.2",
+		"ServiceDiscoveryPort": 60009,
+		"ResourceMonitorTopic": "model",
+		"Redis": {
+			"Port": 26379,
+			"Password": "pw",
+			"DB": 7
 		},
-		"private_ip_address_pattern": "^172\\.16\\..*",
-		"socks_proxy": {
-			"host": "socks5.local",
-			"port": 8080
+		"PrivateIPAddressPattern": "^172\\.16\\..*",
+		"SocksProxy": {
+			"Host": "socks5.local",
+			"Port": 8080
 		},
-		"kafka": {
-			"topic": "metrics"
+		"Kafka": {
+			"Topic": "metrics"
 		}
 	}`
 
@@ -399,9 +395,8 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 		t.Fatalf("Parse failed: %v", err)
 	}
 
-	// Verify all new fields
-	if cfg.VirtualIPList != "10.0.0.1,10.0.0.2" {
-		t.Errorf("VirtualIPList: got %q", cfg.VirtualIPList)
+	if cfg.VirtualAddressList != "10.0.0.1,10.0.0.2" {
+		t.Errorf("VirtualAddressList: got %q", cfg.VirtualAddressList)
 	}
 	if cfg.ServiceDiscoveryPort != 60009 {
 		t.Errorf("ServiceDiscoveryPort: got %d", cfg.ServiceDiscoveryPort)
@@ -427,12 +422,209 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	if cfg.SOCKSProxy.Port != 8080 {
 		t.Errorf("SOCKSProxy.Port: got %d", cfg.SOCKSProxy.Port)
 	}
-
-	// Verify existing fields still work
 	if cfg.Agent.ID != "full-test" {
 		t.Errorf("Agent.ID: got %q", cfg.Agent.ID)
 	}
 	if cfg.Kafka.Topic != "metrics" {
 		t.Errorf("Kafka.Topic: got %q", cfg.Kafka.Topic)
+	}
+}
+
+// --- MonitorConfig Tests ---
+
+func TestDefaultMonitorConfig(t *testing.T) {
+	mc := DefaultMonitorConfig()
+
+	if mc.Collectors == nil {
+		t.Fatal("expected non-nil Collectors map")
+	}
+
+	cpu, ok := mc.Collectors["cpu"]
+	if !ok {
+		t.Fatal("expected 'cpu' collector in defaults")
+	}
+	if !cpu.Enabled {
+		t.Error("expected cpu.Enabled=true")
+	}
+}
+
+func TestParseMonitor(t *testing.T) {
+	input := `{
+		"Collectors": {
+			"cpu": {
+				"Enabled": true,
+				"Interval": "5s"
+			},
+			"memory": {
+				"Enabled": false,
+				"Interval": "20s"
+			}
+		}
+	}`
+
+	mc, err := ParseMonitor([]byte(input))
+	if err != nil {
+		t.Fatalf("ParseMonitor failed: %v", err)
+	}
+
+	cpu, ok := mc.Collectors["cpu"]
+	if !ok {
+		t.Fatal("expected 'cpu' collector")
+	}
+	if !cpu.Enabled {
+		t.Error("expected cpu.Enabled=true")
+	}
+	if cpu.Interval != 5*1e9 {
+		t.Errorf("expected cpu.Interval=5s, got %v", cpu.Interval)
+	}
+
+	mem, ok := mc.Collectors["memory"]
+	if !ok {
+		t.Fatal("expected 'memory' collector")
+	}
+	if mem.Enabled {
+		t.Error("expected memory.Enabled=false")
+	}
+}
+
+func TestParseMonitor_EmptyJSON(t *testing.T) {
+	mc, err := ParseMonitor([]byte(`{}`))
+	if err != nil {
+		t.Fatalf("ParseMonitor failed: %v", err)
+	}
+
+	// Should have defaults
+	if _, ok := mc.Collectors["cpu"]; !ok {
+		t.Error("expected default 'cpu' collector after parsing empty JSON")
+	}
+}
+
+func TestMonitorConfig_Merge(t *testing.T) {
+	base := DefaultMonitorConfig()
+	other := &MonitorConfig{
+		Collectors: map[string]CollectorConfig{
+			"cpu": {Enabled: false, Interval: 5e9},
+		},
+	}
+
+	base.Merge(other)
+
+	cpu := base.Collectors["cpu"]
+	if cpu.Enabled {
+		t.Error("expected cpu.Enabled=false after merge")
+	}
+	if cpu.Interval != 5e9 {
+		t.Errorf("expected cpu.Interval=5s after merge, got %v", cpu.Interval)
+	}
+
+	// memory should still exist from defaults
+	if _, ok := base.Collectors["memory"]; !ok {
+		t.Error("expected 'memory' collector preserved after merge")
+	}
+}
+
+// --- ParseLogging Tests ---
+
+func TestParseLogging(t *testing.T) {
+	input := `{
+		"Level": "debug",
+		"FilePath": "/var/log/agent.log",
+		"MaxSizeMB": 20,
+		"MaxBackups": 3,
+		"MaxAgeDays": 7,
+		"Compress": false,
+		"Console": true
+	}`
+
+	cfg, err := ParseLogging([]byte(input))
+	if err != nil {
+		t.Fatalf("ParseLogging failed: %v", err)
+	}
+
+	if cfg.Level != "debug" {
+		t.Errorf("expected Level='debug', got %q", cfg.Level)
+	}
+	if cfg.FilePath != "/var/log/agent.log" {
+		t.Errorf("expected FilePath='/var/log/agent.log', got %q", cfg.FilePath)
+	}
+	if cfg.MaxSizeMB != 20 {
+		t.Errorf("expected MaxSizeMB=20, got %d", cfg.MaxSizeMB)
+	}
+	if cfg.Console != true {
+		t.Error("expected Console=true")
+	}
+}
+
+func TestParseLogging_EmptyJSON(t *testing.T) {
+	cfg, err := ParseLogging([]byte(`{}`))
+	if err != nil {
+		t.Fatalf("ParseLogging failed: %v", err)
+	}
+
+	// Should have defaults
+	if cfg.Level != "info" {
+		t.Errorf("expected default Level='info', got %q", cfg.Level)
+	}
+}
+
+// --- LoadSplit Tests ---
+
+func TestLoadSplit_ThreeFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	configJSON := `{
+		"Agent": {"ID": "split-test"},
+		"SenderType": "file",
+		"File": {"FilePath": "out.jsonl"}
+	}`
+	monitorJSON := `{
+		"Collectors": {
+			"cpu": {"Enabled": true, "Interval": "3s"}
+		}
+	}`
+	loggingJSON := `{
+		"Level": "warn",
+		"Console": true
+	}`
+
+	writeFile(t, dir+"/ResourceAgent.json", configJSON)
+	writeFile(t, dir+"/Monitor.json", monitorJSON)
+	writeFile(t, dir+"/Logging.json", loggingJSON)
+
+	cfg, mc, lc, err := LoadSplit(dir+"/ResourceAgent.json", dir+"/Monitor.json", dir+"/Logging.json")
+	if err != nil {
+		t.Fatalf("LoadSplit failed: %v", err)
+	}
+
+	// Config assertions
+	if cfg.Agent.ID != "split-test" {
+		t.Errorf("expected Agent.ID='split-test', got %q", cfg.Agent.ID)
+	}
+	if cfg.SenderType != "file" {
+		t.Errorf("expected SenderType='file', got %q", cfg.SenderType)
+	}
+
+	// MonitorConfig assertions
+	cpu, ok := mc.Collectors["cpu"]
+	if !ok {
+		t.Fatal("expected 'cpu' collector")
+	}
+	if cpu.Interval != 3e9 {
+		t.Errorf("expected cpu.Interval=3s, got %v", cpu.Interval)
+	}
+
+	// LoggingConfig assertions
+	if lc.Level != "warn" {
+		t.Errorf("expected Level='warn', got %q", lc.Level)
+	}
+	if !lc.Console {
+		t.Error("expected Console=true")
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write %s: %v", path, err)
 	}
 }
