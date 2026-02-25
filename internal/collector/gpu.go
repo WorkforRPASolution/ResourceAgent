@@ -39,7 +39,7 @@ func (c *GpuCollector) Collect(ctx context.Context) (*MetricData, error) {
 		// GPU sensors may not be available on all systems
 		return &MetricData{
 			Type:      c.Name(),
-			Timestamp: time.Now().UTC(),
+			Timestamp: time.Now(),
 			Data:      GpuData{Gpus: []GpuSensor{}},
 		}, nil
 	}
@@ -50,7 +50,7 @@ func (c *GpuCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      GpuData{Gpus: gpus},
 	}, nil
 }

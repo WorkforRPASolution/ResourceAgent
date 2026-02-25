@@ -39,7 +39,7 @@ func (c *FanCollector) Collect(ctx context.Context) (*MetricData, error) {
 		// Fan sensors may not be available on all systems
 		return &MetricData{
 			Type:      c.Name(),
-			Timestamp: time.Now().UTC(),
+			Timestamp: time.Now(),
 			Data:      FanData{Sensors: []FanSensor{}},
 		}, nil
 	}
@@ -50,7 +50,7 @@ func (c *FanCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      FanData{Sensors: sensors},
 	}, nil
 }

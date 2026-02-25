@@ -39,7 +39,7 @@ func (c *VoltageCollector) Collect(ctx context.Context) (*MetricData, error) {
 		// Voltage sensors may not be available on all systems
 		return &MetricData{
 			Type:      c.Name(),
-			Timestamp: time.Now().UTC(),
+			Timestamp: time.Now(),
 			Data:      VoltageData{Sensors: []VoltageSensor{}},
 		}, nil
 	}
@@ -50,7 +50,7 @@ func (c *VoltageCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      VoltageData{Sensors: sensors},
 	}, nil
 }

@@ -39,7 +39,7 @@ func (c *StorageSmartCollector) Collect(ctx context.Context) (*MetricData, error
 		// S.M.A.R.T data may not be available on all systems
 		return &MetricData{
 			Type:      c.Name(),
-			Timestamp: time.Now().UTC(),
+			Timestamp: time.Now(),
 			Data:      StorageSmartData{Storages: []StorageSmartSensor{}},
 		}, nil
 	}
@@ -50,7 +50,7 @@ func (c *StorageSmartCollector) Collect(ctx context.Context) (*MetricData, error
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      StorageSmartData{Storages: storages},
 	}, nil
 }

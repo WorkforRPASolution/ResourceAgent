@@ -93,7 +93,7 @@ func (c *DiskCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      DiskData{Partitions: diskPartitions},
 	}, nil
 }

@@ -160,7 +160,7 @@ func (c *MemoryProcessCollector) Collect(ctx context.Context) (*MetricData, erro
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      ProcessMemoryData{Processes: processList},
 	}, nil
 }

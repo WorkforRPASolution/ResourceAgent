@@ -39,7 +39,7 @@ func (c *MotherboardTempCollector) Collect(ctx context.Context) (*MetricData, er
 		// Motherboard temperature sensors may not be available on all systems
 		return &MetricData{
 			Type:      c.Name(),
-			Timestamp: time.Now().UTC(),
+			Timestamp: time.Now(),
 			Data:      MotherboardTempData{Sensors: []MotherboardTempSensor{}},
 		}, nil
 	}
@@ -50,7 +50,7 @@ func (c *MotherboardTempCollector) Collect(ctx context.Context) (*MetricData, er
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      MotherboardTempData{Sensors: sensors},
 	}, nil
 }

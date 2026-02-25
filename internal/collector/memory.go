@@ -58,7 +58,7 @@ func (c *MemoryCollector) Collect(ctx context.Context) (*MetricData, error) {
 
 	return &MetricData{
 		Type:      c.Name(),
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now(),
 		Data:      memData,
 	}, nil
 }
