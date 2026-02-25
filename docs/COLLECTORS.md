@@ -234,6 +234,29 @@ CPU/메모리 부하를 줄이려면 주기를 늘립니다:
 - `per_cpu`: 코어별 CPU 사용률 배열
 - `load_average`: 시스템 로드 평균 (Linux만 해당)
 
+#### Windows 작업관리자와의 값 차이
+
+ResourceAgent의 CPU 사용률은 Windows 작업관리자 성능 탭보다 **10~15% 낮게** 표시될 수 있습니다. 이는 두 도구가 서로 다른 Windows 성능 카운터를 사용하기 때문입니다.
+
+| 항목 | ResourceAgent | 작업관리자 |
+|------|--------------|-----------|
+| 성능 카운터 | `% Processor Time` | `% Processor Utility` |
+| Windows API | `GetSystemTimes()` | `NtQuerySystemInformation()` |
+| 측정 방식 | 시간 기반 (CPU가 바쁜 시간 비율) | 유틸리티 기반 (전원 관리 상태 포함) |
+
+**차이 원인**: `% Processor Utility`는 CPU parking, C-state 등 Windows 전원 관리 상태를 반영하여 "유효 활용률"을 계산합니다. Turbo Boost가 없는 환경에서도 두 값은 차이가 발생합니다.
+
+**검증 방법** (PowerShell):
+
+```powershell
+Get-Counter '\Processor(_Total)\% Processor Time', '\Processor Information(_Total)\% Processor Utility'
+```
+
+- `% Processor Time` ≈ ResourceAgent 값
+- `% Processor Utility` ≈ 작업관리자 값
+
+> **참고**: ResourceAgent의 측정값은 정확합니다. gopsutil 라이브러리가 사용하는 `GetSystemTimes()` API는 업계 표준 방식이며, Prometheus node_exporter 등 대부분의 모니터링 도구가 동일한 방식을 사용합니다.
+
 ---
 
 ### Memory Collector
