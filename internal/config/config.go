@@ -33,6 +33,7 @@ type FileConfig struct {
 	MaxBackups int    `json:"max_backups"` // Number of backup files to keep
 	Console    bool   `json:"console"`     // Also output to console
 	Pretty     bool   `json:"pretty"`      // Pretty print JSON
+	Format     string `json:"format"`      // Output format: "json" or "legacy" (default: "legacy")
 }
 
 // AgentConfig contains general agent settings.
@@ -221,6 +222,9 @@ func (c *Config) Merge(other *Config) {
 	}
 	c.File.Console = other.File.Console
 	c.File.Pretty = other.File.Pretty
+	if other.File.Format != "" {
+		c.File.Format = other.File.Format
+	}
 
 	// Merge Kafka config
 	if len(other.Kafka.Brokers) > 0 {

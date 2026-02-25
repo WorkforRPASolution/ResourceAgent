@@ -21,6 +21,7 @@ type FileSender struct {
 	writer      *lumberjack.Logger
 	prettyPrint bool
 	console     bool
+	format      string
 	mu          sync.Mutex
 	closed      bool
 }
@@ -28,6 +29,15 @@ type FileSender struct {
 // NewFileSender creates a new FileSender with the given configuration.
 func NewFileSender(cfg config.FileConfig) (*FileSender, error) {
 	log := logger.WithComponent("file-sender")
+
+	// Default format is "legacy"
+	format := cfg.Format
+	if format == "" {
+		format = "legacy"
+	}
+	if format != "json" && format != "legacy" {
+		return nil, fmt.Errorf("unsupported file format %q: must be \"json\" or \"legacy\"", format)
+	}
 
 	// Ensure the directory exists
 	dir := filepath.Dir(cfg.FilePath)
@@ -47,6 +57,7 @@ func NewFileSender(cfg config.FileConfig) (*FileSender, error) {
 
 	log.Info().
 		Str("file_path", cfg.FilePath).
+		Str("format", format).
 		Bool("console", cfg.Console).
 		Bool("pretty", cfg.Pretty).
 		Msg("FileSender initialized")
@@ -56,6 +67,7 @@ func NewFileSender(cfg config.FileConfig) (*FileSender, error) {
 		writer:      writer,
 		prettyPrint: cfg.Pretty,
 		console:     cfg.Console,
+		format:      format,
 	}, nil
 }
 
@@ -68,6 +80,14 @@ func (s *FileSender) Send(ctx context.Context, data *collector.MetricData) error
 		return fmt.Errorf("sender is closed")
 	}
 
+	if s.format == "legacy" {
+		return s.sendLegacy(data)
+	}
+	return s.sendJSON(data)
+}
+
+// sendJSON writes metric data as JSON (original behavior).
+func (s *FileSender) sendJSON(data *collector.MetricData) error {
 	var jsonData []byte
 	var err error
 
@@ -80,20 +100,29 @@ func (s *FileSender) Send(ctx context.Context, data *collector.MetricData) error
 		return fmt.Errorf("failed to marshal metric data: %w", err)
 	}
 
-	// Write to file (JSONL format - one JSON per line)
 	if _, err := s.writer.Write(append(jsonData, '\n')); err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
 	}
 
-	// Optionally write to console
 	if s.console {
-		if s.prettyPrint {
-			fmt.Println(string(jsonData))
-		} else {
-			fmt.Println(string(jsonData))
-		}
+		fmt.Println(string(jsonData))
 	}
 
+	return nil
+}
+
+// sendLegacy writes metric data in Grok-compatible legacy text format.
+func (s *FileSender) sendLegacy(data *collector.MetricData) error {
+	rows := ConvertToEARSRows(data)
+	for _, row := range rows {
+		line := row.ToLegacyString()
+		if _, err := s.writer.Write(append([]byte(line), '\n')); err != nil {
+			return fmt.Errorf("failed to write to file: %w", err)
+		}
+		if s.console {
+			fmt.Println(line)
+		}
+	}
 	return nil
 }
 

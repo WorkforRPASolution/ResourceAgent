@@ -13,7 +13,8 @@
     "max_size_mb": 50,
     "max_backups": 3,
     "console": true,
-    "pretty": false
+    "pretty": false,
+    "format": "legacy"
   },
   "kafka": {
     "brokers": ["localhost:9092"],
