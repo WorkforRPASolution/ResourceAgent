@@ -263,6 +263,18 @@ func convertGPU(data *collector.MetricData) []EARSRow {
 		if g.MemoryLoad != nil {
 			rows = append(rows, systemRow(data.Timestamp, "gpu", g.Name+"_memory_load", *g.MemoryLoad))
 		}
+		if g.FanSpeed != nil {
+			rows = append(rows, systemRow(data.Timestamp, "gpu", g.Name+"_fan_speed", *g.FanSpeed))
+		}
+		if g.Power != nil {
+			rows = append(rows, systemRow(data.Timestamp, "gpu", g.Name+"_power", *g.Power))
+		}
+		if g.CoreClock != nil {
+			rows = append(rows, systemRow(data.Timestamp, "gpu", g.Name+"_core_clock", *g.CoreClock))
+		}
+		if g.MemoryClock != nil {
+			rows = append(rows, systemRow(data.Timestamp, "gpu", g.Name+"_memory_clock", *g.MemoryClock))
+		}
 	}
 	return rows
 }
@@ -311,7 +323,25 @@ func convertStorageSmart(data *collector.MetricData) []EARSRow {
 	var rows []EARSRow
 	for _, s := range d.Storages {
 		if s.Temperature != nil {
-			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name, *s.Temperature))
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_temperature", *s.Temperature))
+		}
+		if s.RemainingLife != nil {
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_remaining_life", *s.RemainingLife))
+		}
+		if s.MediaErrors != nil {
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_media_errors", float64(*s.MediaErrors)))
+		}
+		if s.PowerCycles != nil {
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_power_cycles", float64(*s.PowerCycles)))
+		}
+		if s.UnsafeShutdowns != nil {
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_unsafe_shutdowns", float64(*s.UnsafeShutdowns)))
+		}
+		if s.PowerOnHours != nil {
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_power_on_hours", float64(*s.PowerOnHours)))
+		}
+		if s.TotalBytesWritten != nil {
+			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_total_bytes_written", float64(*s.TotalBytesWritten)))
 		}
 	}
 	return rows

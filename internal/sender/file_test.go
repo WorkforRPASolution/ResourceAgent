@@ -371,12 +371,19 @@ func TestFileSender_Legacy_GPU(t *testing.T) {
 	temp := 75.0
 	coreLoad := 90.0
 	memLoad := 60.0
+	fanSpeed := 1800.0
+	power := 320.5
+	coreClock := 2520.0
+	memClock := 1200.0
 	data := &collector.MetricData{
 		Type:      "gpu",
 		Timestamp: fileTestTimestamp,
 		Data: collector.GpuData{
 			Gpus: []collector.GpuSensor{
-				{Name: "RTX4090", Temperature: &temp, CoreLoad: &coreLoad, MemoryLoad: &memLoad},
+				{
+					Name: "RTX4090", Temperature: &temp, CoreLoad: &coreLoad, MemoryLoad: &memLoad,
+					FanSpeed: &fanSpeed, Power: &power, CoreClock: &coreClock, MemoryClock: &memClock,
+				},
 			},
 		},
 	}
@@ -385,8 +392,8 @@ func TestFileSender_Legacy_GPU(t *testing.T) {
 	}
 
 	lines := readLegacyOutput(t, cfg.FilePath)
-	if len(lines) != 3 {
-		t.Fatalf("expected 3 lines, got %d", len(lines))
+	if len(lines) != 7 {
+		t.Fatalf("expected 7 lines, got %d", len(lines))
 	}
 	if !strings.Contains(lines[0], "category:gpu") || !strings.Contains(lines[0], "RTX4090_temperature") {
 		t.Errorf("unexpected line 0: %s", lines[0])
@@ -396,6 +403,18 @@ func TestFileSender_Legacy_GPU(t *testing.T) {
 	}
 	if !strings.Contains(lines[2], "RTX4090_memory_load") {
 		t.Errorf("unexpected line 2: %s", lines[2])
+	}
+	if !strings.Contains(lines[3], "RTX4090_fan_speed") {
+		t.Errorf("unexpected line 3: %s", lines[3])
+	}
+	if !strings.Contains(lines[4], "RTX4090_power") {
+		t.Errorf("unexpected line 4: %s", lines[4])
+	}
+	if !strings.Contains(lines[5], "RTX4090_core_clock") {
+		t.Errorf("unexpected line 5: %s", lines[5])
+	}
+	if !strings.Contains(lines[6], "RTX4090_memory_clock") {
+		t.Errorf("unexpected line 6: %s", lines[6])
 	}
 }
 
@@ -498,13 +517,15 @@ func TestFileSender_Legacy_StorageSmart(t *testing.T) {
 	defer s.Close()
 
 	temp := 35.0
+	remainLife := 98.0
+	powerCycles := int64(150)
 	data := &collector.MetricData{
 		Type:      "storage_smart",
 		Timestamp: fileTestTimestamp,
 		Data: collector.StorageSmartData{
 			Storages: []collector.StorageSmartSensor{
-				{Name: "nvme0", Temperature: &temp},
-				{Name: "sda", Temperature: nil}, // nil temp → skip
+				{Name: "nvme0", Temperature: &temp, RemainingLife: &remainLife, PowerCycles: &powerCycles},
+				{Name: "sda"}, // all nil → skip
 			},
 		},
 	}
@@ -513,11 +534,17 @@ func TestFileSender_Legacy_StorageSmart(t *testing.T) {
 	}
 
 	lines := readLegacyOutput(t, cfg.FilePath)
-	if len(lines) != 1 {
-		t.Fatalf("expected 1 line (nil temp skipped), got %d", len(lines))
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
 	}
-	if !strings.Contains(lines[0], "category:storage_smart,pid:0,proc:@system,metric:nvme0,value:35") {
-		t.Errorf("unexpected line: %s", lines[0])
+	if !strings.Contains(lines[0], "metric:nvme0_temperature,value:35") {
+		t.Errorf("unexpected line 0: %s", lines[0])
+	}
+	if !strings.Contains(lines[1], "metric:nvme0_remaining_life,value:98") {
+		t.Errorf("unexpected line 1: %s", lines[1])
+	}
+	if !strings.Contains(lines[2], "metric:nvme0_power_cycles,value:150") {
+		t.Errorf("unexpected line 2: %s", lines[2])
 	}
 }
 

@@ -175,23 +175,34 @@ func TestConvertToEARSRows_GPU(t *testing.T) {
 	temp := 75.0
 	coreLoad := 90.0
 	memLoad := 60.0
+	fanSpeed := 1800.0
+	power := 320.5
+	coreClock := 2520.0
+	memClock := 1200.0
 
 	data := &collector.MetricData{
 		Type:      "gpu",
 		Timestamp: testTimestamp,
 		Data: collector.GpuData{
 			Gpus: []collector.GpuSensor{
-				{Name: "RTX4090", Temperature: &temp, CoreLoad: &coreLoad, MemoryLoad: &memLoad},
+				{
+					Name: "RTX4090", Temperature: &temp, CoreLoad: &coreLoad, MemoryLoad: &memLoad,
+					FanSpeed: &fanSpeed, Power: &power, CoreClock: &coreClock, MemoryClock: &memClock,
+				},
 			},
 		},
 	}
 	rows := ConvertToEARSRows(data)
-	if len(rows) != 3 {
-		t.Fatalf("expected 3 rows, got %d", len(rows))
+	if len(rows) != 7 {
+		t.Fatalf("expected 7 rows, got %d", len(rows))
 	}
 	assertRow(t, rows[0], "gpu", 0, "@system", "RTX4090_temperature", 75.0)
 	assertRow(t, rows[1], "gpu", 0, "@system", "RTX4090_core_load", 90.0)
 	assertRow(t, rows[2], "gpu", 0, "@system", "RTX4090_memory_load", 60.0)
+	assertRow(t, rows[3], "gpu", 0, "@system", "RTX4090_fan_speed", 1800.0)
+	assertRow(t, rows[4], "gpu", 0, "@system", "RTX4090_power", 320.5)
+	assertRow(t, rows[5], "gpu", 0, "@system", "RTX4090_core_clock", 2520.0)
+	assertRow(t, rows[6], "gpu", 0, "@system", "RTX4090_memory_clock", 1200.0)
 }
 
 func TestConvertToEARSRows_GPU_NilFields(t *testing.T) {
@@ -201,7 +212,7 @@ func TestConvertToEARSRows_GPU_NilFields(t *testing.T) {
 		Timestamp: testTimestamp,
 		Data: collector.GpuData{
 			Gpus: []collector.GpuSensor{
-				{Name: "RTX4090", Temperature: &temp, CoreLoad: nil, MemoryLoad: nil},
+				{Name: "RTX4090", Temperature: &temp},
 			},
 		},
 	}
@@ -265,35 +276,52 @@ func TestConvertToEARSRows_MotherboardTemp(t *testing.T) {
 
 func TestConvertToEARSRows_StorageSmart(t *testing.T) {
 	temp := 35.0
+	remainLife := 98.0
+	mediaErr := int64(0)
+	powerCycles := int64(150)
+	unsafeShut := int64(3)
+	powerOnHrs := int64(8760)
+	totalWritten := int64(50000000000)
+
 	data := &collector.MetricData{
 		Type:      "storage_smart",
 		Timestamp: testTimestamp,
 		Data: collector.StorageSmartData{
 			Storages: []collector.StorageSmartSensor{
-				{Name: "nvme0", Temperature: &temp},
+				{
+					Name: "nvme0", Type: "NVMe", Temperature: &temp, RemainingLife: &remainLife,
+					MediaErrors: &mediaErr, PowerCycles: &powerCycles, UnsafeShutdowns: &unsafeShut,
+					PowerOnHours: &powerOnHrs, TotalBytesWritten: &totalWritten,
+				},
 			},
 		},
 	}
 	rows := ConvertToEARSRows(data)
-	if len(rows) != 1 {
-		t.Fatalf("expected 1 row, got %d", len(rows))
+	if len(rows) != 7 {
+		t.Fatalf("expected 7 rows, got %d", len(rows))
 	}
-	assertRow(t, rows[0], "storage_smart", 0, "@system", "nvme0", 35.0)
+	assertRow(t, rows[0], "storage_smart", 0, "@system", "nvme0_temperature", 35.0)
+	assertRow(t, rows[1], "storage_smart", 0, "@system", "nvme0_remaining_life", 98.0)
+	assertRow(t, rows[2], "storage_smart", 0, "@system", "nvme0_media_errors", 0)
+	assertRow(t, rows[3], "storage_smart", 0, "@system", "nvme0_power_cycles", 150)
+	assertRow(t, rows[4], "storage_smart", 0, "@system", "nvme0_unsafe_shutdowns", 3)
+	assertRow(t, rows[5], "storage_smart", 0, "@system", "nvme0_power_on_hours", 8760)
+	assertRow(t, rows[6], "storage_smart", 0, "@system", "nvme0_total_bytes_written", 50000000000)
 }
 
-func TestConvertToEARSRows_StorageSmart_NilTemp(t *testing.T) {
+func TestConvertToEARSRows_StorageSmart_NilFields(t *testing.T) {
 	data := &collector.MetricData{
 		Type:      "storage_smart",
 		Timestamp: testTimestamp,
 		Data: collector.StorageSmartData{
 			Storages: []collector.StorageSmartSensor{
-				{Name: "nvme0", Temperature: nil},
+				{Name: "nvme0"},
 			},
 		},
 	}
 	rows := ConvertToEARSRows(data)
 	if len(rows) != 0 {
-		t.Fatalf("expected 0 rows for nil temperature, got %d", len(rows))
+		t.Fatalf("expected 0 rows for all-nil fields, got %d", len(rows))
 	}
 }
 
