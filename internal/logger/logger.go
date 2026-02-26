@@ -2,9 +2,11 @@
 package logger
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,6 +111,22 @@ func Init(cfg Config) error {
 	zerolog.SetGlobalLevel(level)
 	zerolog.TimeFieldFormat = time.RFC3339
 
+	// Trim absolute build paths from caller field.
+	// e.g. "D:/GitHubTemp/ResourceAgent/internal/scheduler/scheduler.go:169"
+	//   -> "internal/scheduler/scheduler.go:169"
+	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+		// Normalize Windows backslashes
+		normalized := strings.ReplaceAll(file, "\\", "/")
+		if idx := strings.Index(normalized, "internal/"); idx >= 0 {
+			return fmt.Sprintf("%s:%d", normalized[idx:], line)
+		}
+		if idx := strings.Index(normalized, "cmd/"); idx >= 0 {
+			return fmt.Sprintf("%s:%d", normalized[idx:], line)
+		}
+		// Fallback: just the filename
+		return fmt.Sprintf("%s:%d", filepath.Base(file), line)
+	}
+
 	// Close previous writers from prior Init call (hot reload)
 	if prevFileWriter != nil {
 		prevFileWriter.Close()
@@ -136,7 +154,7 @@ func Init(cfg Config) error {
 			Compress:   cfg.Compress,
 		}
 		prevFileWriter = fileWriter
-		writers = append(writers, fileWriter)
+		writers = append(writers, NewFixedFormatWriter(fileWriter))
 	}
 
 	// Console output (async to prevent stdout blocking from cascading to file writes)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -40,15 +41,31 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Derive basePath from config path and change working directory.
+	// When running as a Windows service, the cwd is C:\Windows\System32.
+	// Absolute config path (e.g. D:\EARS\EEGAgent\conf\ResourceAgent\ResourceAgent.json)
+	// means service mode — extract basePath (3 levels up from config file) and chdir.
+	// Relative path means interactive/dev mode — basePath stays as ".".
+	if filepath.IsAbs(*configPath) {
+		basePath := filepath.Dir(filepath.Dir(filepath.Dir(*configPath)))
+		if err := os.Chdir(basePath); err != nil {
+			service.ReportStartupError("ResourceAgent", fmt.Errorf("failed to chdir to %s: %w", basePath, err))
+			fmt.Fprintf(os.Stderr, "Failed to change directory to %s: %v\n", basePath, err)
+			os.Exit(1)
+		}
+	}
+
 	// Load split configuration
 	cfg, mc, lc, err := config.LoadSplit(*configPath, *monitorPath, *loggingPath)
 	if err != nil {
+		service.ReportStartupError("ResourceAgent", err)
 		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Initialize logger from Logging.json
 	if err := logger.Init(*lc); err != nil {
+		service.ReportStartupError("ResourceAgent", err)
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}

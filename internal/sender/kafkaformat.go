@@ -2,12 +2,18 @@ package sender
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
 )
+
+// ErrNoRows is returned when a MetricData produces no EARS rows.
+// This is not a failure — it means the collector had no data to report
+// (e.g., no fan sensors detected). Callers should skip sending silently.
+var ErrNoRows = errors.New("no EARS rows produced")
 
 // KafkaValue is the value structure for Kafka direct messages (JSON mapper pipeline).
 // Unlike KafkaValue2, it has no "process" field — EARS_PROCESS is in ParsedDataList.
@@ -82,7 +88,7 @@ func generateESID(process, eqpID string, timestampMs int64, counter int) string 
 func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoConfig) ([]byte, error) {
 	rows := ConvertToEARSRows(data)
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("no EARS rows produced from metric type %q", data.Type)
+		return nil, fmt.Errorf("%w: metric type %q", ErrNoRows, data.Type)
 	}
 
 	tsMs := data.Timestamp.UnixMilli()
@@ -111,7 +117,7 @@ func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoCon
 func WrapMetricDataJSON(data *collector.MetricData, eqpInfo *config.EqpInfoConfig) (string, [][]byte, error) {
 	rows := ConvertToEARSRows(data)
 	if len(rows) == 0 {
-		return "", nil, fmt.Errorf("no EARS rows produced from metric type %q", data.Type)
+		return "", nil, fmt.Errorf("%w: metric type %q", ErrNoRows, data.Type)
 	}
 
 	tsMs := data.Timestamp.UnixMilli()

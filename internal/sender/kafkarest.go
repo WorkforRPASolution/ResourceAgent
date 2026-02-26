@@ -3,6 +3,7 @@ package sender
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -75,6 +76,9 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 
 	body, err := WrapMetricDataLegacy(data, s.eqpInfo)
 	if err != nil {
+		if errors.Is(err, ErrNoRows) {
+			return nil // Skip: collector produced valid but empty data
+		}
 		return fmt.Errorf("failed to wrap metric data: %w", err)
 	}
 

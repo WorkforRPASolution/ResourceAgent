@@ -5,10 +5,12 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/eventlog"
 
 	"resourceagent/internal/logger"
 )
@@ -69,6 +71,17 @@ func (s *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 
 	const acceptedCommands = svc.AcceptStop | svc.AcceptShutdown
 
+	// Open Event Log for error reporting
+	elog, elogErr := eventlog.Open(serviceName)
+	if elogErr != nil {
+		elog = nil
+	}
+	defer func() {
+		if elog != nil {
+			elog.Close()
+		}
+	}()
+
 	changes <- svc.Status{State: svc.StartPending}
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -78,6 +91,29 @@ func (s *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	go func() {
 		done <- s.runFunc(s.ctx)
 	}()
+
+	// Startup grace period: wait up to 5 seconds for early failures.
+	// If runFunc fails within this period, report Stopped without ever
+	// reporting Running — this gives SCM a proper error indication.
+	const startupGrace = 5 * time.Second
+	select {
+	case err := <-done:
+		if err != nil {
+			msg := fmt.Sprintf("Service failed during startup: %v", err)
+			log.Error().Err(err).Msg("Service failed during startup")
+			if elog != nil {
+				elog.Error(1, msg)
+			}
+			changes <- svc.Status{State: svc.Stopped}
+			return true, 1
+		}
+		// runFunc returned nil within grace period — clean exit
+		changes <- svc.Status{State: svc.Stopped}
+		return false, 0
+
+	case <-time.After(startupGrace):
+		// No error within grace period — initialization succeeded
+	}
 
 	changes <- svc.Status{State: svc.Running, Accepts: acceptedCommands}
 	log.Info().Msg("Windows service started")
@@ -113,7 +149,11 @@ func (s *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, chan
 
 		case err := <-done:
 			if err != nil {
+				msg := fmt.Sprintf("Service run function exited with error: %v", err)
 				log.Error().Err(err).Msg("Service run function exited with error")
+				if elog != nil {
+					elog.Error(1, msg)
+				}
 				changes <- svc.Status{State: svc.Stopped}
 				return true, 1
 			}

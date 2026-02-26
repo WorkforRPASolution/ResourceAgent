@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash"
 	"os"
@@ -186,6 +187,9 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 		// JSON mapper format: multiple KafkaValue messages per MetricData
 		key, values, err := WrapMetricDataJSON(data, s.eqpInfo)
 		if err != nil {
+			if errors.Is(err, ErrNoRows) {
+				return nil // Skip: collector produced valid but empty data
+			}
 			return fmt.Errorf("failed to wrap metric data as JSON: %w", err)
 		}
 		for _, v := range values {
