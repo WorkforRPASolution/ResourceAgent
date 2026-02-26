@@ -26,11 +26,11 @@ git checkout feature/lhm-temperature
 Windows에서 실행:
 
 ```bash
-cd tools/lhm-helper
+cd utils/lhm-helper
 dotnet publish -c Release -r win-x64 --self-contained
 ```
 
-**출력 위치**: `tools/lhm-helper/bin/Release/net8.0/win-x64/publish/LhmHelper.exe`
+**출력 위치**: `utils/lhm-helper/bin/Release/net8.0/win-x64/publish/LhmHelper.exe`
 
 ## 3. Go Agent 빌드
 
@@ -50,7 +50,7 @@ Windows PC에서 PowerShell 실행:
 # 테스트 폴더 생성 및 파일 복사
 mkdir C:\Test\ResourceAgent
 copy ResourceAgent.exe C:\Test\ResourceAgent\
-copy tools\lhm-helper\bin\Release\net8.0\win-x64\publish\LhmHelper.exe C:\Test\ResourceAgent\
+copy utils\lhm-helper\bin\Release\net8.0\win-x64\publish\LhmHelper.exe C:\Test\ResourceAgent\
 ```
 
 ## 5. PawnIO 드라이버 설치

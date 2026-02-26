@@ -52,7 +52,7 @@ go build -ldflags "-X main.version=1.0.0 -X main.buildTime=$(date -u +%Y-%m-%dT%
 Windows에서 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.R.T를 수집하려면 LhmHelper가 필요합니다.
 
 ```bash
-cd tools/lhm-helper
+cd utils/lhm-helper
 dotnet publish -c Release -r win-x64 --self-contained
 # 출력: bin/Release/net8.0/win-x64/publish/LhmHelper.exe
 ```

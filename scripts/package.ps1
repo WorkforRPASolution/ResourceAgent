@@ -68,18 +68,18 @@ if ($IncludeLhmHelper) {
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
 
     # LhmHelper.exe
-    $LhmExe = Join-Path $ProjectDir "tools\lhm-helper\bin\Release\net8.0\win-x64\publish\LhmHelper.exe"
+    $LhmExe = Join-Path $ProjectDir "utils\lhm-helper\bin\Release\net8.0\win-x64\publish\LhmHelper.exe"
     if (-not (Test-Path $LhmExe)) {
-        Write-Error "LhmHelper.exe not found. Build it first: cd tools\lhm-helper && dotnet publish -c Release -r win-x64 --self-contained"
+        Write-Error "LhmHelper.exe not found. Build it first: cd utils\lhm-helper && dotnet publish -c Release -r win-x64 --self-contained"
         exit 1
     }
     Copy-Item $LhmExe -Destination "$ToolsDir\LhmHelper.exe"
     Write-Host "  Copied LhmHelper.exe"
 
     # PawnIO_setup.exe
-    $PawnIO = Join-Path $ProjectDir "tools\lhm-helper\PawnIO_setup.exe"
+    $PawnIO = Join-Path $ProjectDir "utils\lhm-helper\PawnIO_setup.exe"
     if (-not (Test-Path $PawnIO)) {
-        Write-Error "PawnIO_setup.exe not found in tools\lhm-helper\."
+        Write-Error "PawnIO_setup.exe not found in utils\lhm-helper\."
         exit 1
     }
     Copy-Item $PawnIO -Destination "$ToolsDir\PawnIO_setup.exe"

@@ -37,7 +37,7 @@ ResourceAgent (Go) ← Parse JSON ← LhmHelper.exe (C#) ← LibreHardwareMonito
 
 ### Phase 1: LhmHelper Extension (C#)
 
-**File**: `tools/lhm-helper/Program.cs`
+**File**: `utils/lhm-helper/Program.cs`
 
 | Data Class | Fields |
 |------------|--------|
@@ -91,7 +91,7 @@ ResourceAgent (Go) ← Parse JSON ← LhmHelper.exe (C#) ← LibreHardwareMonito
 - `internal/collector/motherboard_temp_unix.go`
 
 ### Modified Files (5)
-- `tools/lhm-helper/Program.cs` (+200 lines)
+- `utils/lhm-helper/Program.cs` (+200 lines)
 - `internal/collector/types.go` (+60 lines)
 - `internal/collector/registry.go` (+8 lines)
 - `internal/config/config.go` (+16 lines)

@@ -67,8 +67,6 @@ resourceagent/
 │   ├── Monitor.json                # 수집기 설정 (Hot Reload)
 │   └── Logging.json                # 로깅 설정 (Hot Reload)
 ├── configs/                        # 설정 파일 (레거시 참조용)
-├── tools/
-│   └── lhm-helper/                 # C# LibreHardwareMonitor 헬퍼 + PawnIO_setup.exe
 └── scripts/                        # 설치/패키징 스크립트
     ├── install.bat / install.ps1   # Windows 설치 (패키지에 포함)
     ├── install.sh                  # Linux 설치
@@ -138,7 +136,7 @@ ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → PawnIO
 
 **LhmHelper 빌드**:
 ```bash
-cd tools/lhm-helper
+cd utils/lhm-helper
 dotnet publish -c Release -r win-x64 --self-contained
 # 출력: bin/Release/net8.0/win-x64/publish/LhmHelper.exe
 ```
