@@ -1,6 +1,7 @@
 package network
 
 import (
+	"net"
 	"strings"
 	"testing"
 )
@@ -62,4 +63,73 @@ func TestDetectIPv4Addresses(t *testing.T) {
 	}
 	// Log for visibility
 	t.Logf("Detected %d IPv4 address(es): %v", len(ips), ips)
+}
+
+func TestDetectIPByDial_ReturnsLocalIP(t *testing.T) {
+	// Start a local TCP listener
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer ln.Close()
+
+	// Accept one connection in background to complete the handshake
+	go func() {
+		conn, _ := ln.Accept()
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+
+	ip, err := DetectIPByDial(ln.Addr().String(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ip == "" {
+		t.Fatal("expected non-empty IP, got empty string")
+	}
+	// Connecting to 127.0.0.1 should return 127.0.0.1
+	if ip != "127.0.0.1" {
+		t.Errorf("expected 127.0.0.1, got %q", ip)
+	}
+	t.Logf("DetectIPByDial returned: %s", ip)
+}
+
+func TestDetectIPByDial_WithDialFunc(t *testing.T) {
+	// Start a local TCP listener
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer ln.Close()
+
+	go func() {
+		conn, _ := ln.Accept()
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+
+	// Custom dialFunc that just uses net.Dial
+	customDial := func(network, addr string) (net.Conn, error) {
+		return net.Dial(network, addr)
+	}
+
+	ip, err := DetectIPByDial(ln.Addr().String(), customDial)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ip == "" {
+		t.Fatal("expected non-empty IP, got empty string")
+	}
+	t.Logf("DetectIPByDial with custom dialFunc returned: %s", ip)
+}
+
+func TestDetectIPByDial_UnreachableAddr(t *testing.T) {
+	// Use an address that should fail to connect (RFC 5737 TEST-NET)
+	_, err := DetectIPByDial("192.0.2.1:1", nil)
+	if err == nil {
+		t.Fatal("expected error for unreachable address, got nil")
+	}
+	t.Logf("Got expected error: %v", err)
 }

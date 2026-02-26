@@ -122,18 +122,7 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 			return fmt.Errorf("sender_type=%q but first virtual IP is empty", cfg.SenderType)
 		}
 
-		// 2. IP 감지
-		ipInfo, ipErr := network.DetectIPs(cfg.PrivateIPAddressPattern, "")
-		if ipErr != nil {
-			return fmt.Errorf("failed to detect IP addresses: %w", ipErr)
-		}
-		log.Info().
-			Str("ip_addr", ipInfo.IPAddr).
-			Str("ip_addr_local", ipInfo.IPAddrLocal).
-			Strs("all_ips", ipInfo.AllIPs).
-			Msg("IP addresses detected")
-
-		// Create SOCKS dialer if configured
+		// 2. Create SOCKS dialer if configured
 		var dialFunc func(string, string) (net.Conn, error)
 		if cfg.SOCKSProxy.Host != "" && cfg.SOCKSProxy.Port > 0 {
 			dialFunc = network.DialerFunc(cfg.SOCKSProxy.Host, cfg.SOCKSProxy.Port)
@@ -143,13 +132,34 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 				Msg("SOCKS proxy configured")
 		}
 
-		// 3. Redis EQP_INFO 취득 (필수)
+		// 3. Redis address 결정
 		redisAddress := fmt.Sprintf("%s:%d", virtualIP, cfg.Redis.Port)
 		log.Info().
 			Str("virtual_ip", virtualIP).
 			Str("redis_address", redisAddress).
 			Msg("Redis address resolved from VirtualAddressList")
 
+		// 4. 연결 기반 IP 감지: Redis 서버로 TCP 연결하여 OS 라우팅 테이블이 선택한 실제 IP 확인
+		detectedIP, dialErr := network.DetectIPByDial(redisAddress, dialFunc)
+		if dialErr != nil {
+			log.Warn().Err(dialErr).Msg("DetectIPByDial failed, falling back to interface-based detection")
+			detectedIP = ""
+		} else {
+			log.Info().Str("detected_ip", detectedIP).Msg("IP detected via connection to Redis")
+		}
+
+		// 5. IP 감지 (detectedIP를 overrideIP로 전달)
+		ipInfo, ipErr := network.DetectIPs(cfg.PrivateIPAddressPattern, detectedIP)
+		if ipErr != nil {
+			return fmt.Errorf("failed to detect IP addresses: %w", ipErr)
+		}
+		log.Info().
+			Str("ip_addr", ipInfo.IPAddr).
+			Str("ip_addr_local", ipInfo.IPAddrLocal).
+			Strs("all_ips", ipInfo.AllIPs).
+			Msg("IP addresses detected")
+
+		// 6. Redis EQP_INFO 취득 (필수)
 		info, fetchErr := eqpinfo.FetchEqpInfo(ctx, redisAddress, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
 		if fetchErr != nil {
 			return fmt.Errorf("failed to fetch EQP_INFO from Redis: %w", fetchErr)
@@ -176,13 +186,13 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 			Str("index", info.Index).
 			Msg("EQP_INFO loaded from Redis")
 
-		// 4. ServiceDiscovery 호출 (필수)
+		// 7. ServiceDiscovery 호출 (필수)
 		services, sdErr := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, dialFunc)
 		if sdErr != nil {
 			return fmt.Errorf("ServiceDiscovery failed: %w", sdErr)
 		}
 
-		// 5. KafkaRest 주소 추출
+		// 8. KafkaRest 주소 추출
 		kafkaRestAddr, krErr := discovery.GetKafkaRestAddress(services)
 		if krErr != nil {
 			return fmt.Errorf("failed to get KafkaRest address: %w", krErr)
@@ -192,7 +202,7 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 			Str("kafkarest_addr", kafkaRestAddr).
 			Msg("KafkaRest address resolved from ServiceDiscovery")
 
-		// 6. TimeDiff Syncer 시작
+		// 9. TimeDiff Syncer 시작
 		syncer = timediff.NewSyncer(redisAddress, cfg.Redis, dialFunc, cfg.EqpInfo.EqpID, cfg.TimeDiffSyncInterval)
 		if err := syncer.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start TimeDiff syncer: %w", err)

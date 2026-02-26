@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"time"
 )
 
 // IPInfo holds detected IP address information.
@@ -66,6 +67,30 @@ func DetectIPs(privateIPPattern string, overrideIP string) (*IPInfo, error) {
 	}
 
 	return info, nil
+}
+
+// DetectIPByDial opens a TCP connection to targetAddr and returns the local IP
+// chosen by the OS routing table. If dialFunc is nil, net.DialTimeout is used.
+// Only the TCP handshake is needed; the connection is closed immediately.
+func DetectIPByDial(targetAddr string, dialFunc func(string, string) (net.Conn, error)) (string, error) {
+	var conn net.Conn
+	var err error
+
+	if dialFunc != nil {
+		conn, err = dialFunc("tcp", targetAddr)
+	} else {
+		conn, err = net.DialTimeout("tcp", targetAddr, 5*time.Second)
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to dial %s: %w", targetAddr, err)
+	}
+	defer conn.Close()
+
+	tcpAddr, ok := conn.LocalAddr().(*net.TCPAddr)
+	if !ok {
+		return "", fmt.Errorf("unexpected local address type: %T", conn.LocalAddr())
+	}
+	return tcpAddr.IP.String(), nil
 }
 
 // detectIPv4Addresses returns all non-loopback IPv4 addresses.

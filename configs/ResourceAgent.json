@@ -38,6 +38,7 @@
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,
   "ResourceMonitorTopic": "",
+  "TimeDiffSyncInterval": 3600,
   "Redis": {
     "Port": 6379,
     "Password": "",
