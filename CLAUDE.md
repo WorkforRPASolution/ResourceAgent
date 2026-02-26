@@ -95,8 +95,7 @@ D:\EARS\EEGAgent\                         ← basePath (ManagerAgent FTP home)
 │   └── ResourceAgent\                    # ResourceAgent 로그 (신규)
 │       ├── ResourceAgent.log
 │       └── metrics.jsonl
-├── utils\                               # 공유 유틸 (tail.exe 등)
-└── tools\
+└── utils\                               # 공유 유틸 (tail.exe 등)
     └── lhm-helper\                      # Windows 전용
         ├── LhmHelper.exe                # C# 하드웨어 센서 헬퍼
         └── PawnIO_setup.exe             # 하드웨어 접근 드라이버 설치/제거

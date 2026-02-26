@@ -74,7 +74,7 @@ echo "  Copied install scripts + guide"
 
 # --- Copy LhmHelper + PawnIO (optional) ---
 if [ "$INCLUDE_LHM" = true ]; then
-    mkdir -p "$PACKAGE_DIR/tools/lhm-helper"
+    mkdir -p "$PACKAGE_DIR/utils/lhm-helper"
 
     LHM_EXE="$PROJECT_DIR/tools/lhm-helper/bin/Release/net8.0/win-x64/publish/LhmHelper.exe"
     if [ ! -f "$LHM_EXE" ]; then
@@ -82,7 +82,7 @@ if [ "$INCLUDE_LHM" = true ]; then
         echo "       Build it first: cd tools/lhm-helper && dotnet publish -c Release -r win-x64 --self-contained"
         exit 1
     fi
-    cp "$LHM_EXE" "$PACKAGE_DIR/tools/lhm-helper/"
+    cp "$LHM_EXE" "$PACKAGE_DIR/utils/lhm-helper/"
     echo "  Copied LhmHelper.exe"
 
     PAWNIO="$PROJECT_DIR/tools/lhm-helper/PawnIO_setup.exe"
@@ -90,7 +90,7 @@ if [ "$INCLUDE_LHM" = true ]; then
         echo "ERROR: PawnIO_setup.exe not found in tools/lhm-helper/."
         exit 1
     fi
-    cp "$PAWNIO" "$PACKAGE_DIR/tools/lhm-helper/"
+    cp "$PAWNIO" "$PACKAGE_DIR/utils/lhm-helper/"
     echo "  Copied PawnIO_setup.exe"
 fi
 

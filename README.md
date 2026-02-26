@@ -218,7 +218,7 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 │   └── ResourceAgent\                    # ResourceAgent 로그
 │       ├── ResourceAgent.log
 │       └── metrics.jsonl
-└── tools\
+└── utils\
     └── lhm-helper\                       # Windows 전용
         ├── LhmHelper.exe                 # 하드웨어 센서 헬퍼
         └── PawnIO_setup.exe              # 드라이버 설치/제거
@@ -259,7 +259,7 @@ install_package_windows/
 │   ├── ResourceAgent.json
 │   ├── Monitor.json
 │   └── Logging.json
-└── tools\lhm-helper\                   (--lhmhelper 옵션 시)
+└── utils\lhm-helper\                   (--lhmhelper 옵션 시)
     ├── LhmHelper.exe
     └── PawnIO_setup.exe
 ```
@@ -382,7 +382,7 @@ $BasePath = "D:\EARS\EEGAgent"
 Remove-Item -Path "$BasePath\bin\x86\ResourceAgent.exe" -Force
 Remove-Item -Path "$BasePath\conf\ResourceAgent" -Recurse -Force
 Remove-Item -Path "$BasePath\log\ResourceAgent" -Recurse -Force
-Remove-Item -Path "$BasePath\tools\lhm-helper" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$BasePath\utils\lhm-helper" -Recurse -Force -ErrorAction SilentlyContinue
 
 # 3. PawnIO 드라이버 제거 (LhmHelper 사용 시)
 # 제어판 → 프로그램 추가/제거 → "PawnIO" 제거
@@ -571,7 +571,7 @@ failed to create Kafka producer: kafka: client has run out of available brokers
 
 ### 온도/하드웨어 센서 수집 실패
 
-- Windows: LhmHelper.exe가 `<BasePath>\tools\lhm-helper\`에 있는지 확인
+- Windows: LhmHelper.exe가 `<BasePath>\utils\lhm-helper\`에 있는지 확인
 - Windows: PawnIO 드라이버 설치 여부 확인 (`sc.exe query PawnIO`)
 - macOS: 온도 센서 접근 제한 (개발 테스트용이므로 무시 가능)
 - 다른 Collector에는 영향 없음 (Collector 격리)

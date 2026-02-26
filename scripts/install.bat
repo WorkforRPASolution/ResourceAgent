@@ -7,8 +7,8 @@ REM Package layout (this script must be at the root of the package):
 REM   install.bat
 REM   bin\x86\ResourceAgent.exe
 REM   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
-REM   tools\lhm-helper\LhmHelper.exe        (optional)
-REM   tools\lhm-helper\PawnIO_setup.exe      (optional)
+REM   utils\lhm-helper\LhmHelper.exe        (optional)
+REM   utils\lhm-helper\PawnIO_setup.exe      (optional)
 REM
 REM Usage:
 REM   install.bat                                    (default install)
@@ -57,7 +57,7 @@ REM --- Target paths ---
 set "BIN_DIR=%BASE_PATH%\bin\x86"
 set "CONF_DIR=%BASE_PATH%\conf\ResourceAgent"
 set "LOG_DIR=%BASE_PATH%\log\ResourceAgent"
-set "TOOLS_DIR=%BASE_PATH%\tools\lhm-helper"
+set "TOOLS_DIR=%BASE_PATH%\utils\lhm-helper"
 
 REM --- Check admin privileges ---
 net session >nul 2>&1
@@ -117,20 +117,20 @@ if "%INCLUDE_LHM%"=="1" (
     if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
 
     REM Copy LhmHelper.exe
-    if not exist "%PKG_DIR%tools\lhm-helper\LhmHelper.exe" (
-        echo ERROR: tools\lhm-helper\LhmHelper.exe not found in package.
+    if not exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" (
+        echo ERROR: utils\lhm-helper\LhmHelper.exe not found in package.
         echo        Rebuild package with: package.sh --lhmhelper
         exit /b 1
     )
-    copy /y "%PKG_DIR%tools\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\LhmHelper.exe" >nul
+    copy /y "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\LhmHelper.exe" >nul
     echo   Copied LhmHelper.exe
 
     REM Copy PawnIO_setup.exe
-    if not exist "%PKG_DIR%tools\lhm-helper\PawnIO_setup.exe" (
-        echo ERROR: tools\lhm-helper\PawnIO_setup.exe not found in package.
+    if not exist "%PKG_DIR%utils\lhm-helper\PawnIO_setup.exe" (
+        echo ERROR: utils\lhm-helper\PawnIO_setup.exe not found in package.
         exit /b 1
     )
-    copy /y "%PKG_DIR%tools\lhm-helper\PawnIO_setup.exe" "%TOOLS_DIR%\PawnIO_setup.exe" >nul
+    copy /y "%PKG_DIR%utils\lhm-helper\PawnIO_setup.exe" "%TOOLS_DIR%\PawnIO_setup.exe" >nul
     echo   Copied PawnIO_setup.exe
 
     REM Install PawnIO driver if not already installed

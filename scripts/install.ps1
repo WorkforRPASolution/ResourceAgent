@@ -6,8 +6,8 @@
 #   install.ps1
 #   bin\x86\ResourceAgent.exe
 #   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
-#   tools\lhm-helper\LhmHelper.exe        (optional)
-#   tools\lhm-helper\PawnIO_setup.exe      (optional)
+#   utils\lhm-helper\LhmHelper.exe        (optional)
+#   utils\lhm-helper\PawnIO_setup.exe      (optional)
 
 param(
     [string]$BasePath = "D:\EARS\EEGAgent",
@@ -31,7 +31,7 @@ function Install-ResourceAgent {
     $BinDir = Join-Path $BasePath "bin\x86"
     $ConfDir = Join-Path $BasePath "conf\ResourceAgent"
     $LogDir = Join-Path $BasePath "log\ResourceAgent"
-    $ToolsDir = Join-Path $BasePath "tools\lhm-helper"
+    $ToolsDir = Join-Path $BasePath "utils\lhm-helper"
 
     # Create target directory structure
     foreach ($dir in @($BinDir, $ConfDir, $LogDir)) {
@@ -73,18 +73,18 @@ function Install-ResourceAgent {
         }
 
         # Copy LhmHelper.exe
-        $LhmSource = Join-Path $PkgDir "tools\lhm-helper\LhmHelper.exe"
+        $LhmSource = Join-Path $PkgDir "utils\lhm-helper\LhmHelper.exe"
         if (-not (Test-Path $LhmSource)) {
-            Write-Error "tools\lhm-helper\LhmHelper.exe not found in package. Rebuild package with: package.sh --lhmhelper"
+            Write-Error "utils\lhm-helper\LhmHelper.exe not found in package. Rebuild package with: package.sh --lhmhelper"
             exit 1
         }
         Copy-Item $LhmSource -Destination "$ToolsDir\LhmHelper.exe" -Force
         Write-Host "  Copied LhmHelper.exe"
 
         # Copy PawnIO_setup.exe
-        $PawnioSource = Join-Path $PkgDir "tools\lhm-helper\PawnIO_setup.exe"
+        $PawnioSource = Join-Path $PkgDir "utils\lhm-helper\PawnIO_setup.exe"
         if (-not (Test-Path $PawnioSource)) {
-            Write-Error "tools\lhm-helper\PawnIO_setup.exe not found in package."
+            Write-Error "utils\lhm-helper\PawnIO_setup.exe not found in package."
             exit 1
         }
         Copy-Item $PawnioSource -Destination "$ToolsDir\PawnIO_setup.exe" -Force
@@ -156,7 +156,7 @@ function Uninstall-ResourceAgent {
     }
 
     # Uninstall PawnIO driver if installed
-    $ToolsDir = Join-Path $BasePath "tools\lhm-helper"
+    $ToolsDir = Join-Path $BasePath "utils\lhm-helper"
     sc.exe query PawnIO 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $PawnioSetup = Join-Path $ToolsDir "PawnIO_setup.exe"

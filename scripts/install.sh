@@ -7,7 +7,7 @@
 #   <BasePath>/bin/x86/resourceagent
 #   <BasePath>/conf/ResourceAgent/{ResourceAgent,Monitor,Logging}.json
 #   <BasePath>/log/ResourceAgent/
-#   <BasePath>/tools/lhm-helper/  (Windows only, skipped on Linux)
+#   <BasePath>/utils/lhm-helper/  (Windows only, skipped on Linux)
 
 set -e
 

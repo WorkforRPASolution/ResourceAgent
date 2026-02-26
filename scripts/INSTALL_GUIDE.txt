@@ -68,7 +68,7 @@
   ├── log\ResourceAgent\
   │   ├── ResourceAgent.log        ← 에이전트 로그
   │   └── metrics.jsonl            ← 수집 메트릭 (file sender 사용 시)
-  └── tools\lhm-helper\            ← /lhmhelper 옵션 사용 시
+  └── utils\lhm-helper\            ← /lhmhelper 옵션 사용 시
       ├── LhmHelper.exe
       └── PawnIO_setup.exe
 

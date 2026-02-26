@@ -187,24 +187,24 @@ func (p *LhmProvider) findLhmHelper() (string, error) {
 	candidates := []string{
 		"LhmHelper.exe",
 		"./LhmHelper.exe",
-		filepath.Join(".", "tools", "LhmHelper.exe"),
-		filepath.Join(".", "tools", "lhm-helper", "LhmHelper.exe"),
+		filepath.Join(".", "utils", "LhmHelper.exe"),
+		filepath.Join(".", "utils", "lhm-helper", "LhmHelper.exe"),
 	}
 
 	if exePath, err := exec.LookPath("ResourceAgent.exe"); err == nil {
 		exeDir := filepath.Dir(exePath)
 		candidates = append(candidates,
 			filepath.Join(exeDir, "LhmHelper.exe"),
-			filepath.Join(exeDir, "tools", "LhmHelper.exe"),
-			filepath.Join(exeDir, "tools", "lhm-helper", "LhmHelper.exe"),
-			filepath.Join(exeDir, "..", "..", "tools", "lhm-helper", "LhmHelper.exe"),
+			filepath.Join(exeDir, "utils", "LhmHelper.exe"),
+			filepath.Join(exeDir, "utils", "lhm-helper", "LhmHelper.exe"),
+			filepath.Join(exeDir, "..", "..", "utils", "lhm-helper", "LhmHelper.exe"),
 		)
 	}
 
 	candidates = append(candidates,
 		`C:\Program Files\ResourceAgent\LhmHelper.exe`,
-		`C:\Program Files\ResourceAgent\tools\LhmHelper.exe`,
-		`C:\Program Files\ResourceAgent\tools\lhm-helper\LhmHelper.exe`,
+		`C:\Program Files\ResourceAgent\utils\LhmHelper.exe`,
+		`C:\Program Files\ResourceAgent\utils\lhm-helper\LhmHelper.exe`,
 	)
 
 	for _, path := range candidates {

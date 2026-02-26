@@ -64,7 +64,7 @@ Write-Host "  Copied install scripts + guide"
 
 # --- Copy LhmHelper + PawnIO (optional) ---
 if ($IncludeLhmHelper) {
-    $ToolsDir = Join-Path $PackageDir "tools\lhm-helper"
+    $ToolsDir = Join-Path $PackageDir "utils\lhm-helper"
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
 
     # LhmHelper.exe
