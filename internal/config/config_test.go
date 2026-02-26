@@ -36,6 +36,31 @@ func TestDefaultConfig_HasServiceDiscoveryDefaults(t *testing.T) {
 	}
 }
 
+func TestDefaultConfig_HasTimeDiffSyncIntervalDefault(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.TimeDiffSyncInterval != 3600 {
+		t.Errorf("expected TimeDiffSyncInterval=3600, got %d", cfg.TimeDiffSyncInterval)
+	}
+}
+
+func TestMerge_TimeDiffSyncInterval(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{TimeDiffSyncInterval: 1800}
+	base.Merge(other)
+	if base.TimeDiffSyncInterval != 1800 {
+		t.Errorf("expected TimeDiffSyncInterval=1800, got %d", base.TimeDiffSyncInterval)
+	}
+}
+
+func TestMerge_TimeDiffSyncInterval_ZeroDoesNotOverwrite(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{}
+	base.Merge(other)
+	if base.TimeDiffSyncInterval != 3600 {
+		t.Errorf("expected TimeDiffSyncInterval=3600 preserved, got %d", base.TimeDiffSyncInterval)
+	}
+}
+
 func TestDefaultConfig_HasSOCKSDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 

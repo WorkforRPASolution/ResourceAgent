@@ -20,6 +20,7 @@ import (
 	"resourceagent/internal/scheduler"
 	"resourceagent/internal/sender"
 	"resourceagent/internal/service"
+	"resourceagent/internal/timediff"
 )
 
 var (
@@ -108,7 +109,8 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 		Str("hostname", hostname).
 		Msg("Agent initialized")
 
-	// --- Redis EQP_INFO + ServiceDiscovery (sender_type != "file" 일 때 필수) ---
+	// --- Redis EQP_INFO + ServiceDiscovery + TimeDiff (sender_type != "file" 일 때 필수) ---
+	var syncer *timediff.Syncer
 	if strings.ToLower(cfg.SenderType) != "file" {
 		// 1. VirtualAddressList 검증
 		if cfg.VirtualAddressList == "" {
@@ -189,8 +191,15 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 		log.Info().
 			Str("kafkarest_addr", kafkaRestAddr).
 			Msg("KafkaRest address resolved from ServiceDiscovery")
+
+		// 6. TimeDiff Syncer 시작
+		syncer = timediff.NewSyncer(redisAddress, cfg.Redis, dialFunc, cfg.EqpInfo.EqpID, cfg.TimeDiffSyncInterval)
+		if err := syncer.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start TimeDiff syncer: %w", err)
+		}
+		defer syncer.Stop()
 	}
-	// --- END Redis EQP_INFO + ServiceDiscovery ---
+	// --- END Redis EQP_INFO + ServiceDiscovery + TimeDiff ---
 
 	// Create collector registry with default collectors
 	registry := collector.DefaultRegistry()
@@ -204,7 +213,13 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	cfg.File.Console = lc.Console
 
 	// Create sender based on configuration
-	snd, err := sender.NewSender(cfg)
+	var timeDiffFunc func() int64
+	if syncer != nil {
+		timeDiffFunc = syncer.GetDiff
+	} else {
+		timeDiffFunc = func() int64 { return 0 }
+	}
+	snd, err := sender.NewSender(cfg, timeDiffFunc)
 	if err != nil {
 		return fmt.Errorf("failed to create sender: %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 // NewSender creates a Sender based on the configuration.
-func NewSender(cfg *config.Config) (Sender, error) {
+func NewSender(cfg *config.Config, timeDiffFunc func() int64) (Sender, error) {
 	log := logger.WithComponent("sender-factory")
 
 	senderType := strings.ToLower(cfg.SenderType)
@@ -28,9 +28,9 @@ func NewSender(cfg *config.Config) (Sender, error) {
 			Str("kafkarest_addr", cfg.KafkaRestAddress).
 			Str("topic", topic).
 			Msg("Creating KafkaRest sender")
-		return NewKafkaRestSender(cfg.KafkaRestAddress, topic, cfg.EqpInfo, cfg.SOCKSProxy)
+		return NewKafkaRestSender(cfg.KafkaRestAddress, topic, cfg.EqpInfo, cfg.SOCKSProxy, timeDiffFunc)
 	case "kafka":
-		return NewKafkaSender(cfg.Kafka, cfg.SOCKSProxy, cfg.EqpInfo)
+		return NewKafkaSender(cfg.Kafka, cfg.SOCKSProxy, cfg.EqpInfo, timeDiffFunc)
 	case "file":
 		return NewFileSender(cfg.File)
 	default:

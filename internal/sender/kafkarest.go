@@ -27,17 +27,18 @@ const (
 
 // KafkaRestSender sends metrics to Kafka via the KafkaRest HTTP proxy.
 type KafkaRestSender struct {
-	client    *http.Client
-	baseURL   string
-	topic     string
-	eqpInfo   *config.EqpInfoConfig
-	mu        sync.RWMutex
-	closed    bool
+	client       *http.Client
+	baseURL      string
+	topic        string
+	eqpInfo      *config.EqpInfoConfig
+	timeDiffFunc func() int64
+	mu           sync.RWMutex
+	closed       bool
 }
 
 // NewKafkaRestSender creates a new KafkaRest HTTP sender.
 func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConfig,
-	socksCfg config.SOCKSConfig) (*KafkaRestSender, error) {
+	socksCfg config.SOCKSConfig, timeDiffFunc func() int64) (*KafkaRestSender, error) {
 
 	transport := &http.Transport{}
 
@@ -58,10 +59,11 @@ func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConf
 	}
 
 	return &KafkaRestSender{
-		client:  client,
-		baseURL: ensureHTTPScheme(kafkaRestAddr),
-		topic:   topic,
-		eqpInfo: eqpInfo,
+		client:       client,
+		baseURL:      ensureHTTPScheme(kafkaRestAddr),
+		topic:        topic,
+		eqpInfo:      eqpInfo,
+		timeDiffFunc: timeDiffFunc,
 	}, nil
 }
 
@@ -74,7 +76,7 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 	}
 	s.mu.RUnlock()
 
-	body, err := WrapMetricDataLegacy(data, s.eqpInfo)
+	body, err := WrapMetricDataLegacy(data, s.eqpInfo, s.timeDiffFunc())
 	if err != nil {
 		if errors.Is(err, ErrNoRows) {
 			return nil // Skip: collector produced valid but empty data

@@ -28,7 +28,7 @@ func newTestKafkaRestSender(t *testing.T, handler http.HandlerFunc) (*KafkaRestS
 		Index:    "42",
 	}
 
-	s, err := NewKafkaRestSender(server.URL, "tp_all_all_resource", eqpInfo, config.SOCKSConfig{})
+	s, err := NewKafkaRestSender(server.URL, "tp_all_all_resource", eqpInfo, config.SOCKSConfig{}, func() int64 { return 0 })
 	if err != nil {
 		t.Fatalf("failed to create KafkaRestSender: %v", err)
 	}

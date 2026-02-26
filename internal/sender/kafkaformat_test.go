@@ -272,7 +272,7 @@ func TestWrapMetricDataLegacy_MultipleRecords(t *testing.T) {
 	data := newTestMemoryMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	result, err := WrapMetricDataLegacy(data, eqpInfo)
+	result, err := WrapMetricDataLegacy(data, eqpInfo, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestWrapMetricDataLegacy_PlainTextRaw(t *testing.T) {
 	data := newTestCPUMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	result, err := WrapMetricDataLegacy(data, eqpInfo)
+	result, err := WrapMetricDataLegacy(data, eqpInfo, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestWrapMetricDataLegacy_HasProcessField(t *testing.T) {
 	data := newTestCPUMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	result, err := WrapMetricDataLegacy(data, eqpInfo)
+	result, err := WrapMetricDataLegacy(data, eqpInfo, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestWrapMetricDataLegacy_DiffIsZero(t *testing.T) {
 	data := newTestCPUMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	result, _ := WrapMetricDataLegacy(data, eqpInfo)
+	result, _ := WrapMetricDataLegacy(data, eqpInfo, 0)
 	var wrapper KafkaMessageWrapper2
 	json.Unmarshal(result, &wrapper)
 
@@ -354,11 +354,24 @@ func TestWrapMetricDataLegacy_DiffIsZero(t *testing.T) {
 	}
 }
 
+func TestWrapMetricDataLegacy_DiffPassedThrough(t *testing.T) {
+	data := newTestCPUMetricData()
+	eqpInfo := newTestEqpInfo()
+
+	result, _ := WrapMetricDataLegacy(data, eqpInfo, 1234)
+	var wrapper KafkaMessageWrapper2
+	json.Unmarshal(result, &wrapper)
+
+	if wrapper.Records[0].Value.Diff != 1234 {
+		t.Errorf("diff should be 1234, got %d", wrapper.Records[0].Value.Diff)
+	}
+}
+
 func TestWrapMetricDataLegacy_ESIDFormat(t *testing.T) {
 	data := newTestMemoryMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	result, _ := WrapMetricDataLegacy(data, eqpInfo)
+	result, _ := WrapMetricDataLegacy(data, eqpInfo, 0)
 	var wrapper KafkaMessageWrapper2
 	json.Unmarshal(result, &wrapper)
 
@@ -377,7 +390,7 @@ func TestWrapMetricDataJSON_MultipleValues(t *testing.T) {
 	data := newTestMemoryMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	key, values, err := WrapMetricDataJSON(data, eqpInfo)
+	key, values, err := WrapMetricDataJSON(data, eqpInfo, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -396,7 +409,7 @@ func TestWrapMetricDataJSON_NoProcessField(t *testing.T) {
 	data := newTestCPUMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	_, values, err := WrapMetricDataJSON(data, eqpInfo)
+	_, values, err := WrapMetricDataJSON(data, eqpInfo, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -429,7 +442,7 @@ func TestWrapMetricDataJSON_RawIsParsedDataList(t *testing.T) {
 	data := newTestCPUMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	_, values, err := WrapMetricDataJSON(data, eqpInfo)
+	_, values, err := WrapMetricDataJSON(data, eqpInfo, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -466,7 +479,7 @@ func TestWrapMetricDataJSON_DiffIsZero(t *testing.T) {
 	data := newTestCPUMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	_, values, _ := WrapMetricDataJSON(data, eqpInfo)
+	_, values, _ := WrapMetricDataJSON(data, eqpInfo, 0)
 	var kv KafkaValue
 	json.Unmarshal(values[0], &kv)
 
@@ -475,11 +488,24 @@ func TestWrapMetricDataJSON_DiffIsZero(t *testing.T) {
 	}
 }
 
+func TestWrapMetricDataJSON_DiffPassedThrough(t *testing.T) {
+	data := newTestCPUMetricData()
+	eqpInfo := newTestEqpInfo()
+
+	_, values, _ := WrapMetricDataJSON(data, eqpInfo, -5678)
+	var kv KafkaValue
+	json.Unmarshal(values[0], &kv)
+
+	if kv.Diff != -5678 {
+		t.Errorf("diff should be -5678, got %d", kv.Diff)
+	}
+}
+
 func TestWrapMetricDataJSON_ESIDFormat(t *testing.T) {
 	data := newTestMemoryMetricData()
 	eqpInfo := newTestEqpInfo()
 
-	_, values, _ := WrapMetricDataJSON(data, eqpInfo)
+	_, values, _ := WrapMetricDataJSON(data, eqpInfo, 0)
 
 	tsMs := data.Timestamp.UnixMilli()
 	for i, v := range values {

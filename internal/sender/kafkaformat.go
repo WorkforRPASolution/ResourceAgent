@@ -85,7 +85,7 @@ func generateESID(process, eqpID string, timestampMs int64, counter int) string 
 
 // WrapMetricDataLegacy creates KafkaMessageWrapper2 with plain text raw (for KafkaRest/Grok).
 // Returns multiple records, one per EARS row.
-func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoConfig) ([]byte, error) {
+func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoConfig, timeDiff int64) ([]byte, error) {
 	rows := ConvertToEARSRows(data)
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("%w: metric type %q", ErrNoRows, data.Type)
@@ -101,7 +101,7 @@ func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoCon
 				Line:    eqpInfo.Line,
 				EqpID:   eqpInfo.EqpID,
 				Model:   eqpInfo.EqpModel,
-				Diff:    0,
+				Diff:    timeDiff,
 				ESID:    generateESID(eqpInfo.Process, eqpInfo.EqpID, tsMs, i),
 				Raw:     row.ToLegacyString(),
 			},
@@ -114,7 +114,7 @@ func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoCon
 
 // WrapMetricDataJSON creates KafkaValue messages with ParsedDataList raw (for Kafka direct/JSON mapper).
 // Returns the key and multiple KafkaValue JSONs, one per EARS row.
-func WrapMetricDataJSON(data *collector.MetricData, eqpInfo *config.EqpInfoConfig) (string, [][]byte, error) {
+func WrapMetricDataJSON(data *collector.MetricData, eqpInfo *config.EqpInfoConfig, timeDiff int64) (string, [][]byte, error) {
 	rows := ConvertToEARSRows(data)
 	if len(rows) == 0 {
 		return "", nil, fmt.Errorf("%w: metric type %q", ErrNoRows, data.Type)
@@ -135,7 +135,7 @@ func WrapMetricDataJSON(data *collector.MetricData, eqpInfo *config.EqpInfoConfi
 			Line:  eqpInfo.Line,
 			EqpID: eqpInfo.EqpID,
 			Model: eqpInfo.EqpModel,
-			Diff:  0,
+			Diff:  timeDiff,
 			ESID:  generateESID(eqpInfo.Process, eqpInfo.EqpID, tsMs, i),
 			Raw:   string(rawJSON),
 		}

@@ -18,6 +18,7 @@ type Config struct {
 	SOCKSProxy              SOCKSConfig                `json:"SocksProxy"`
 	ServiceDiscoveryPort    int                        `json:"ServiceDiscoveryPort"`
 	ResourceMonitorTopic    string                     `json:"ResourceMonitorTopic"`
+	TimeDiffSyncInterval    int                        `json:"TimeDiffSyncInterval"` // seconds, default 3600
 	KafkaRestAddress        string                     `json:"-"` // runtime only, from ServiceDiscovery
 	EqpInfo                 *EqpInfoConfig             `json:"-"` // runtime only, not serialized
 }
@@ -137,8 +138,9 @@ func DefaultConfig() *Config {
 			Port: 6379,
 			DB:   10,
 		},
-		ServiceDiscoveryPort: 50009,
-		ResourceMonitorTopic: "process",
+		ServiceDiscoveryPort:    50009,
+		ResourceMonitorTopic:    "process",
+		TimeDiffSyncInterval:    3600,
 	}
 }
 
@@ -267,6 +269,9 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.ResourceMonitorTopic != "" {
 		c.ResourceMonitorTopic = other.ResourceMonitorTopic
+	}
+	if other.TimeDiffSyncInterval != 0 {
+		c.TimeDiffSyncInterval = other.TimeDiffSyncInterval
 	}
 }
 

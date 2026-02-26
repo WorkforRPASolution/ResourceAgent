@@ -59,15 +59,16 @@ func (x *XDGSCRAMClient) Done() bool {
 
 // KafkaSender sends metrics to Kafka.
 type KafkaSender struct {
-	producer sarama.AsyncProducer
-	topic    string
-	mu       sync.RWMutex
-	closed   bool
-	eqpInfo  *config.EqpInfoConfig // nil if Redis not configured
+	producer     sarama.AsyncProducer
+	topic        string
+	mu           sync.RWMutex
+	closed       bool
+	eqpInfo      *config.EqpInfoConfig // nil if Redis not configured
+	timeDiffFunc func() int64
 }
 
 // NewKafkaSender creates a new Kafka sender with the given configuration.
-func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo *config.EqpInfoConfig) (*KafkaSender, error) {
+func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo *config.EqpInfoConfig, timeDiffFunc func() int64) (*KafkaSender, error) {
 	saramaConfig := sarama.NewConfig()
 
 	// Producer settings
@@ -163,9 +164,10 @@ func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo
 	}
 
 	sender := &KafkaSender{
-		producer: producer,
-		topic:    cfg.Topic,
-		eqpInfo:  eqpInfo,
+		producer:     producer,
+		topic:        cfg.Topic,
+		eqpInfo:      eqpInfo,
+		timeDiffFunc: timeDiffFunc,
 	}
 
 	// Start error handler goroutine
@@ -185,7 +187,7 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 
 	if s.eqpInfo != nil {
 		// JSON mapper format: multiple KafkaValue messages per MetricData
-		key, values, err := WrapMetricDataJSON(data, s.eqpInfo)
+		key, values, err := WrapMetricDataJSON(data, s.eqpInfo, s.timeDiffFunc())
 		if err != nil {
 			if errors.Is(err, ErrNoRows) {
 				return nil // Skip: collector produced valid but empty data
