@@ -55,6 +55,12 @@ func main() {
 		}
 	}
 
+	// Detect service mode and suppress console output if no stdout available
+	svcProbe := service.NewService(nil)
+	if svcProbe.IsService() {
+		logger.SetServiceMode(true)
+	}
+
 	// Load split configuration
 	cfg, mc, lc, err := config.LoadSplit(*configPath, *monitorPath, *loggingPath)
 	if err != nil {

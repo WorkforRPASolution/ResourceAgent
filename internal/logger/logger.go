@@ -99,7 +99,15 @@ var (
 	globalLogger     zerolog.Logger
 	prevFileWriter   io.Closer     // Previous file writer to close on re-init
 	prevConsoleAsync *asyncWriter  // Previous async console writer to close on re-init
+	serviceMode      bool          // When true, console output is suppressed (no stdout in services)
 )
+
+// SetServiceMode suppresses console output. Call before Init().
+// Windows services and Linux systemd units have no stdout,
+// so console output would be wasted work.
+func SetServiceMode(enabled bool) {
+	serviceMode = enabled
+}
 
 // Init initializes the global logger with the given configuration.
 func Init(cfg Config) error {
@@ -158,7 +166,8 @@ func Init(cfg Config) error {
 	}
 
 	// Console output (async to prevent stdout blocking from cascading to file writes)
-	if cfg.Console {
+	// Skip when running as a service — no stdout available.
+	if cfg.Console && !serviceMode {
 		consoleWriter := zerolog.ConsoleWriter{
 			Out:        os.Stdout,
 			TimeFormat: time.RFC3339,
