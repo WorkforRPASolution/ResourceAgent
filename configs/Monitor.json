@@ -2,62 +2,62 @@
   "Collectors": {
     "cpu": {
       "Enabled": true,
-      "Interval": "10s"
+      "Interval": "30s"
     },
     "memory": {
       "Enabled": true,
-      "Interval": "10s"
+      "Interval": "30s"
     },
     "disk": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "Disks": []
     },
     "network": {
       "Enabled": true,
-      "Interval": "10s",
+      "Interval": "30s",
       "Interfaces": []
     },
     "temperature": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "IncludeZones": []
     },
     "cpu_process": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "TopN": 10,
       "WatchProcesses": []
     },
     "memory_process": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "TopN": 10,
       "WatchProcesses": []
     },
     "fan": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "IncludeZones": []
     },
     "gpu": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "IncludeZones": []
     },
     "storage_smart": {
       "Enabled": true,
-      "Interval": "60s",
+      "Interval": "300s",
       "Disks": []
     },
     "voltage": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "IncludeZones": []
     },
     "motherboard_temp": {
       "Enabled": true,
-      "Interval": "30s",
+      "Interval": "60s",
       "IncludeZones": []
     }
   }
