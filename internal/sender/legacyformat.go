@@ -3,11 +3,16 @@ package sender
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"resourceagent/internal/collector"
 )
+
+var unsafeCharsRe = regexp.MustCompile(`[^a-zA-Z0-9_:.@\-]`)
+var multiUnderscoreRe = regexp.MustCompile(`_{2,}`)
 
 // EARSRow represents one metric line with EARS fields.
 type EARSRow struct {
@@ -34,6 +39,18 @@ func FormatJSONTimestamp(t time.Time) string {
 	return fmt.Sprintf("%s.%03d", t.Format(jsonTimeFmt), t.Nanosecond()/1e6)
 }
 
+// sanitizeName replaces special characters in field values
+// to ensure safe downstream processing (ES insertion).
+// Parentheses are removed (common in hardware names like "Intel(R)").
+// Other unsafe chars → '_', then collapse consecutive '_'.
+// Keeps: [a-zA-Z0-9_:.@-]
+func sanitizeName(s string) string {
+	s = strings.NewReplacer("(", "", ")", "").Replace(s)
+	s = unsafeCharsRe.ReplaceAllString(s, "_")
+	s = multiUnderscoreRe.ReplaceAllString(s, "_")
+	return s
+}
+
 // formatValue formats a float64 without scientific notation.
 func formatValue(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
@@ -42,7 +59,8 @@ func formatValue(v float64) string {
 // ToLegacyString returns the ARSAgent-compatible plain text format for Grok parsing.
 func (r EARSRow) ToLegacyString() string {
 	return fmt.Sprintf("%s category:%s,pid:%d,proc:%s,metric:%s,value:%s",
-		FormatLegacyTimestamp(r.Timestamp), r.Category, r.PID, r.ProcName, r.Metric, formatValue(r.Value))
+		FormatLegacyTimestamp(r.Timestamp), r.Category, r.PID,
+		sanitizeName(r.ProcName), sanitizeName(r.Metric), formatValue(r.Value))
 }
 
 // ParsedData represents a typed key-value pair for the JSON mapper pipeline.

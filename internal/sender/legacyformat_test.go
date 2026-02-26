@@ -513,5 +513,105 @@ func assertRow(t *testing.T, row EARSRow, category string, pid int, procName, me
 	}
 }
 
+// --- sanitizeName ---
+
+func TestSanitizeName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// Parentheses removed
+		{"Intel(R) HD Graphics 530_power", "IntelR_HD_Graphics_530_power"},
+		// Spaces → _, hash removed
+		{"CPU Core #1 Distance to TjMax", "CPU_Core_1_Distance_to_TjMax"},
+		// Spaces → _
+		{"Intel Core i7-6700 - Core Max", "Intel_Core_i7-6700_-_Core_Max"},
+		// Spaces → _
+		{"Samsung SSD 860 PRO 256GB_temperature", "Samsung_SSD_860_PRO_256GB_temperature"},
+		// Drive letter unchanged
+		{"C:", "C:"},
+		// Already clean name unchanged
+		{"total_used_pct", "total_used_pct"},
+		// @ preserved (used in @system)
+		{"@system", "@system"},
+		// Dot preserved
+		{"python3.11", "python3.11"},
+		// Consecutive special chars → single _
+		{"Fan  ##2", "Fan_2"},
+		// Empty string
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeName(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestToLegacyString_SpecialCharsInMetric(t *testing.T) {
+	grokPattern := regexp.MustCompile(
+		`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) category:(\w+),pid:(\d+),proc:([^,]+),metric:([^,]+),value:(.+)$`,
+	)
+
+	tests := []struct {
+		name           string
+		row            EARSRow
+		expectedMetric string
+		expectedProc   string
+	}{
+		{
+			name: "GPU with parentheses and spaces",
+			row: EARSRow{
+				Timestamp: testTimestamp, Category: "gpu", PID: 0,
+				ProcName: "@system", Metric: "Intel(R) HD Graphics 530_power",
+			},
+			expectedMetric: "IntelR_HD_Graphics_530_power",
+			expectedProc:   "@system",
+		},
+		{
+			name: "Temperature sensor with hash",
+			row: EARSRow{
+				Timestamp: testTimestamp, Category: "temperature", PID: 0,
+				ProcName: "@system", Metric: "CPU Core #1 Distance to TjMax",
+			},
+			expectedMetric: "CPU_Core_1_Distance_to_TjMax",
+			expectedProc:   "@system",
+		},
+		{
+			name: "Network interface with spaces",
+			row: EARSRow{
+				Timestamp: testTimestamp, Category: "network", PID: 0,
+				ProcName: "Loopback Pseudo-Interface 1", Metric: "recv_rate", Value: 100.0,
+			},
+			expectedMetric: "recv_rate",
+			expectedProc:   "Loopback_Pseudo-Interface_1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tt.row.ToLegacyString()
+			if !grokPattern.MatchString(s) {
+				t.Errorf("Grok pattern does not match: %q", s)
+			}
+			matches := grokPattern.FindStringSubmatch(s)
+			if matches == nil {
+				t.Fatalf("no regex match for %q", s)
+			}
+			proc := matches[4]
+			metric := matches[5]
+			if metric != tt.expectedMetric {
+				t.Errorf("metric: expected %q, got %q", tt.expectedMetric, metric)
+			}
+			if proc != tt.expectedProc {
+				t.Errorf("proc: expected %q, got %q", tt.expectedProc, proc)
+			}
+		})
+	}
+}
+
 // Suppress unused import warning
 var _ = fmt.Sprintf
