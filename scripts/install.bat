@@ -209,7 +209,7 @@ if "%INCLUDE_LHM%"=="1" (
     sc.exe query PawnIO >nul 2>&1
     if errorlevel 1 (
         echo   PawnIO driver not installed. Installing...
-        "%TOOLS_DIR%\PawnIO_setup.exe" /S
+        "%TOOLS_DIR%\PawnIO_setup.exe" -install -silent
         if errorlevel 1 (
             echo ERROR: PawnIO driver installation failed.
             exit /b 1
@@ -281,7 +281,7 @@ sc.exe query PawnIO >nul 2>&1
 if not errorlevel 1 (
     if exist "%TOOLS_DIR%\PawnIO_setup.exe" (
         echo   Uninstalling PawnIO driver...
-        "%TOOLS_DIR%\PawnIO_setup.exe" /S /uninstall
+        "%TOOLS_DIR%\PawnIO_setup.exe" -uninstall -silent
         echo   PawnIO driver uninstalled
     ) else (
         echo   WARNING: PawnIO driver is installed but PawnIO_setup.exe not found.

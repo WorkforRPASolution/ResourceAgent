@@ -147,7 +147,7 @@ function Install-ResourceAgent {
         sc.exe query PawnIO 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  PawnIO driver not installed. Installing..."
-            $process = Start-Process -FilePath "$ToolsDir\PawnIO_setup.exe" -ArgumentList "/S" -Wait -PassThru
+            $process = Start-Process -FilePath "$ToolsDir\PawnIO_setup.exe" -ArgumentList "-install -silent" -Wait -PassThru
             if ($process.ExitCode -ne 0) {
                 Write-Error "PawnIO driver installation failed (exit code: $($process.ExitCode))."
                 exit 1
@@ -214,7 +214,7 @@ function Uninstall-ResourceAgent {
         $PawnioSetup = Join-Path $ToolsDir "PawnIO_setup.exe"
         if (Test-Path $PawnioSetup) {
             Write-Host "  Uninstalling PawnIO driver..."
-            $process = Start-Process -FilePath $PawnioSetup -ArgumentList "/S /uninstall" -Wait -PassThru
+            $process = Start-Process -FilePath $PawnioSetup -ArgumentList "-uninstall -silent" -Wait -PassThru
             Write-Host "  PawnIO driver uninstalled"
         } else {
             Write-Warning "PawnIO driver is installed but PawnIO_setup.exe not found. Uninstall PawnIO manually from Control Panel."
