@@ -70,6 +70,10 @@ echo "  Copied config files"
 cp "$SCRIPT_DIR/install.bat" "$PACKAGE_DIR/"
 cp "$SCRIPT_DIR/install.ps1" "$PACKAGE_DIR/"
 cp "$SCRIPT_DIR/INSTALL_GUIDE.txt" "$PACKAGE_DIR/"
+if [ -f "$SCRIPT_DIR/sites.conf" ]; then
+    cp "$SCRIPT_DIR/sites.conf" "$PACKAGE_DIR/"
+    echo "  Copied sites.conf"
+fi
 echo "  Copied install scripts + guide"
 
 # --- Copy LhmHelper + PawnIO (optional) ---

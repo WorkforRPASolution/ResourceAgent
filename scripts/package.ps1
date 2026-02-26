@@ -60,6 +60,11 @@ Write-Host "  Copied config files"
 Copy-Item (Join-Path $ScriptDir "install.bat") -Destination $PackageDir
 Copy-Item (Join-Path $ScriptDir "install.ps1") -Destination $PackageDir
 Copy-Item (Join-Path $ScriptDir "INSTALL_GUIDE.txt") -Destination $PackageDir
+$SitesConf = Join-Path $ScriptDir "sites.conf"
+if (Test-Path $SitesConf) {
+    Copy-Item $SitesConf -Destination $PackageDir
+    Write-Host "  Copied sites.conf"
+}
 Write-Host "  Copied install scripts + guide"
 
 # --- Copy LhmHelper + PawnIO (optional) ---

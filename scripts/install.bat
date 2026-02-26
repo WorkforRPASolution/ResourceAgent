@@ -14,6 +14,7 @@ REM Usage:
 REM   install.bat                                    (default install)
 REM   install.bat /basepath D:\EARS\EEGAgent         (specify basepath)
 REM   install.bat /lhmhelper                         (include LhmHelper + PawnIO)
+REM   install.bat /site 1                            (non-interactive site selection)
 REM   install.bat /uninstall                         (uninstall)
 
 setlocal enabledelayedexpansion
@@ -25,6 +26,7 @@ REM --- Default values ---
 set "BASE_PATH=D:\EARS\EEGAgent"
 set "INCLUDE_LHM=0"
 set "UNINSTALL=0"
+set "SITE_NUM="
 set "SERVICE_NAME=ResourceAgent"
 set "DISPLAY_NAME=ResourceAgent Monitoring Service"
 set "DESCRIPTION=Lightweight monitoring agent for collecting hardware resource metrics"
@@ -43,13 +45,19 @@ if /i "%~1"=="/lhmhelper" (
     shift
     goto :parse_args
 )
+if /i "%~1"=="/site" (
+    set "SITE_NUM=%~2"
+    shift
+    shift
+    goto :parse_args
+)
 if /i "%~1"=="/uninstall" (
     set "UNINSTALL=1"
     shift
     goto :parse_args
 )
 echo Unknown option: %~1
-echo Usage: %~nx0 [/basepath PATH] [/lhmhelper] [/uninstall]
+echo Usage: %~nx0 [/basepath PATH] [/lhmhelper] [/site N] [/uninstall]
 exit /b 1
 :args_done
 
@@ -111,6 +119,69 @@ for %%F in (ResourceAgent.json Monitor.json Logging.json) do (
         echo   Skipped %%F (already exists at target)
     )
 )
+
+REM --- Site selection: configure VirtualAddressList ---
+set "SITES_FILE=%PKG_DIR%sites.conf"
+if exist "%SITES_FILE%" (
+    REM Parse sites.conf
+    set "SITE_COUNT=0"
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%SITES_FILE%") do (
+        set "%%A=%%B"
+    )
+    if !SITE_COUNT! GTR 0 (
+        if defined SITE_NUM (
+            REM Non-interactive mode: /site N
+            if "!SITE_NUM!"=="0" (
+                echo   Site selection skipped ^(/site 0^)
+                goto :site_done
+            )
+            if !SITE_NUM! GTR !SITE_COUNT! (
+                echo ERROR: /site !SITE_NUM! is out of range ^(1-!SITE_COUNT!^)
+                exit /b 1
+            )
+            set "SELECTED_SITE=!SITE_NUM!"
+        ) else (
+            REM Interactive mode: show menu
+            echo.
+            echo === Site Selection ===
+            for /L %%I in (1,1,!SITE_COUNT!) do (
+                call set "MENU_NAME=%%SITE_%%I_NAME%%"
+                call set "MENU_ADDR=%%SITE_%%I_ADDR%%"
+                echo   %%I^) !MENU_NAME! ^(!MENU_ADDR!^)
+            )
+            echo   0^) Skip ^(do not modify VirtualAddressList^)
+            echo.
+            set /p "SELECTED_SITE=Select site [0-!SITE_COUNT!]: "
+        )
+        if "!SELECTED_SITE!"=="0" (
+            echo   Site selection skipped
+            goto :site_done
+        )
+        REM Validate selection and resolve indirection
+        call set "SITE_ADDR=%%SITE_!SELECTED_SITE!_ADDR%%"
+        call set "SITE_NAME_SEL=%%SITE_!SELECTED_SITE!_NAME%%"
+        if not defined SITE_ADDR (
+            echo ERROR: Invalid site number: !SELECTED_SITE!
+            exit /b 1
+        )
+        REM Update VirtualAddressList in ResourceAgent.json
+        set "RA_CONFIG=%CONF_DIR%\ResourceAgent.json"
+        if exist "!RA_CONFIG!" (
+            set "TEMP_CONFIG=!RA_CONFIG!.tmp"
+            (for /f "usebackq delims=" %%L in ("!RA_CONFIG!") do (
+                set "LINE=%%L"
+                if "!LINE:VirtualAddressList=!" neq "!LINE!" (
+                    echo   "VirtualAddressList": "!SITE_ADDR!",
+                ) else (
+                    echo(!LINE!
+                )
+            )) > "!TEMP_CONFIG!"
+            move /y "!TEMP_CONFIG!" "!RA_CONFIG!" >nul
+            echo   VirtualAddressList set to: !SITE_ADDR! ^(!SITE_NAME_SEL!^)
+        )
+    )
+)
+:site_done
 
 REM --- Copy LhmHelper + PawnIO (optional) ---
 if "%INCLUDE_LHM%"=="1" (

@@ -14,6 +14,7 @@ set -e
 BASE_PATH="/opt/EEGAgent"
 SERVICE_USER="resourceagent"
 UNINSTALL=false
+SITE_NUM=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -26,13 +27,17 @@ while [[ $# -gt 0 ]]; do
             SERVICE_USER="$2"
             shift 2
             ;;
+        --site)
+            SITE_NUM="$2"
+            shift 2
+            ;;
         --uninstall)
             UNINSTALL=true
             shift
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--base-path PATH] [--user USER] [--uninstall]"
+            echo "Usage: $0 [--base-path PATH] [--user USER] [--site N] [--uninstall]"
             exit 1
             ;;
     esac
@@ -77,6 +82,52 @@ install_agent() {
     if [[ -d "$DEFAULT_CONF" ]]; then
         cp "$DEFAULT_CONF"/*.json "$CONF_DIR/"
         echo "  Copied default configuration files"
+    fi
+
+    # --- Site selection: configure VirtualAddressList ---
+    SITES_FILE="$SCRIPT_DIR/sites.conf"
+    if [[ -f "$SITES_FILE" ]]; then
+        # Parse sites.conf (KEY=VALUE, skip # comments and blank lines)
+        SITE_COUNT=0
+        while IFS='=' read -r key val; do
+            key=$(echo "$key" | tr -d '[:space:]')
+            [[ -z "$key" || "$key" == \#* ]] && continue
+            val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            eval "$key=\"$val\""
+        done < "$SITES_FILE"
+
+        if [[ "$SITE_COUNT" -gt 0 ]]; then
+            SELECTED_SITE="$SITE_NUM"
+            if [[ -z "$SELECTED_SITE" ]]; then
+                # Interactive mode: show menu
+                echo ""
+                echo "=== Site Selection ==="
+                for ((i=1; i<=SITE_COUNT; i++)); do
+                    name_var="SITE_${i}_NAME"
+                    addr_var="SITE_${i}_ADDR"
+                    echo "  $i) ${!name_var} (${!addr_var})"
+                done
+                echo "  0) Skip (do not modify VirtualAddressList)"
+                echo ""
+                read -p "Select site [0-$SITE_COUNT]: " SELECTED_SITE
+            fi
+            if [[ "$SELECTED_SITE" == "0" ]]; then
+                echo "  Site selection skipped"
+            elif [[ "$SELECTED_SITE" -ge 1 && "$SELECTED_SITE" -le "$SITE_COUNT" ]]; then
+                addr_var="SITE_${SELECTED_SITE}_ADDR"
+                name_var="SITE_${SELECTED_SITE}_NAME"
+                SITE_ADDR="${!addr_var}"
+                SITE_NAME="${!name_var}"
+                RA_CONFIG="$CONF_DIR/ResourceAgent.json"
+                if [[ -f "$RA_CONFIG" ]]; then
+                    sed -i "s|\"VirtualAddressList\": \"[^\"]*\"|\"VirtualAddressList\": \"$SITE_ADDR\"|" "$RA_CONFIG"
+                    echo "  VirtualAddressList set to: $SITE_ADDR ($SITE_NAME)"
+                fi
+            else
+                echo "ERROR: Invalid site number: $SELECTED_SITE (valid: 0-$SITE_COUNT)"
+                exit 1
+            fi
+        fi
     fi
 
     # Set permissions

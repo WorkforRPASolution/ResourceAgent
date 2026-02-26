@@ -12,6 +12,7 @@
 param(
     [string]$BasePath = "D:\EARS\EEGAgent",
     [switch]$IncludeLhmHelper,
+    [int]$Site = -1,
     [switch]$Uninstall
 )
 
@@ -63,6 +64,57 @@ function Install-ResourceAgent {
             Write-Host "  Copied $file"
         } else {
             Write-Host "  Skipped $file (already exists at target)"
+        }
+    }
+
+    # --- Site selection: configure VirtualAddressList ---
+    $SitesFile = Join-Path $PkgDir "sites.conf"
+    if (Test-Path $SitesFile) {
+        # Parse sites.conf (KEY=VALUE, skip # comments)
+        $siteData = @{}
+        Get-Content $SitesFile | ForEach-Object {
+            $line = $_.Trim()
+            if ($line -and -not $line.StartsWith("#")) {
+                $eqIdx = $line.IndexOf("=")
+                if ($eqIdx -gt 0) {
+                    $key = $line.Substring(0, $eqIdx).Trim()
+                    $val = $line.Substring($eqIdx + 1).Trim()
+                    $siteData[$key] = $val
+                }
+            }
+        }
+        $siteCount = [int]$siteData["SITE_COUNT"]
+        if ($siteCount -gt 0) {
+            $selectedSite = $Site
+            if ($selectedSite -eq -1) {
+                # Interactive mode: show menu
+                Write-Host ""
+                Write-Host "=== Site Selection ==="
+                for ($i = 1; $i -le $siteCount; $i++) {
+                    $name = $siteData["SITE_${i}_NAME"]
+                    $addr = $siteData["SITE_${i}_ADDR"]
+                    Write-Host "  $i) $name ($addr)"
+                }
+                Write-Host "  0) Skip (do not modify VirtualAddressList)"
+                Write-Host ""
+                $selectedSite = [int](Read-Host "Select site [0-$siteCount]")
+            }
+            if ($selectedSite -eq 0) {
+                Write-Host "  Site selection skipped"
+            } elseif ($selectedSite -ge 1 -and $selectedSite -le $siteCount) {
+                $addr = $siteData["SITE_${selectedSite}_ADDR"]
+                $siteName = $siteData["SITE_${selectedSite}_NAME"]
+                $ConfigFile = Join-Path $ConfDir "ResourceAgent.json"
+                if (Test-Path $ConfigFile) {
+                    $content = Get-Content $ConfigFile -Raw
+                    $content = $content -replace '"VirtualAddressList":\s*"[^"]*"', "`"VirtualAddressList`": `"$addr`""
+                    Set-Content $ConfigFile -Value $content -NoNewline
+                    Write-Host "  VirtualAddressList set to: $addr ($siteName)"
+                }
+            } else {
+                Write-Error "Invalid site number: $selectedSite (valid: 0-$siteCount)"
+                exit 1
+            }
         }
     }
 
