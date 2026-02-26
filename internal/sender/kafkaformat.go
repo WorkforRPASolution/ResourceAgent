@@ -78,9 +78,9 @@ func WrapMetricData(data *collector.MetricData, eqpInfo *config.EqpInfoConfig) (
 	return json.Marshal(wrapper)
 }
 
-// generateESID creates an ESID in the format: {Process}:{EqpID}-{timestamp_ms}-{counter}
-func generateESID(process, eqpID string, timestampMs int64, counter int) string {
-	return fmt.Sprintf("%s:%s-%d-%d", process, eqpID, timestampMs, counter)
+// generateESID creates an ESID in the format: {Process}:{EqpID}-{metricType}-{timestamp_ms}-{counter}
+func generateESID(process, eqpID, metricType string, timestampMs int64, counter int) string {
+	return fmt.Sprintf("%s:%s-%s-%d-%d", process, eqpID, metricType, timestampMs, counter)
 }
 
 // WrapMetricDataLegacy creates KafkaMessageWrapper2 with plain text raw (for KafkaRest/Grok).
@@ -102,7 +102,7 @@ func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoCon
 				EqpID:   eqpInfo.EqpID,
 				Model:   eqpInfo.EqpModel,
 				Diff:    timeDiff,
-				ESID:    generateESID(eqpInfo.Process, eqpInfo.EqpID, tsMs, i),
+				ESID:    generateESID(eqpInfo.Process, eqpInfo.EqpID, data.Type, tsMs, i),
 				Raw:     row.ToLegacyString(),
 			},
 		})
@@ -136,7 +136,7 @@ func WrapMetricDataJSON(data *collector.MetricData, eqpInfo *config.EqpInfoConfi
 			EqpID: eqpInfo.EqpID,
 			Model: eqpInfo.EqpModel,
 			Diff:  timeDiff,
-			ESID:  generateESID(eqpInfo.Process, eqpInfo.EqpID, tsMs, i),
+			ESID:  generateESID(eqpInfo.Process, eqpInfo.EqpID, data.Type, tsMs, i),
 			Raw:   string(rawJSON),
 		}
 		b, err := json.Marshal(kv)

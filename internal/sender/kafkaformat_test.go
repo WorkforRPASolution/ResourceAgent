@@ -377,7 +377,7 @@ func TestWrapMetricDataLegacy_ESIDFormat(t *testing.T) {
 
 	tsMs := data.Timestamp.UnixMilli()
 	for i, rec := range wrapper.Records {
-		expected := fmt.Sprintf("PROCESS1:EQP001-%d-%d", tsMs, i)
+		expected := fmt.Sprintf("PROCESS1:EQP001-memory-%d-%d", tsMs, i)
 		if rec.Value.ESID != expected {
 			t.Errorf("record[%d] ESID: expected %s, got %s", i, expected, rec.Value.ESID)
 		}
@@ -511,7 +511,7 @@ func TestWrapMetricDataJSON_ESIDFormat(t *testing.T) {
 	for i, v := range values {
 		var kv KafkaValue
 		json.Unmarshal(v, &kv)
-		expected := fmt.Sprintf("PROCESS1:EQP001-%d-%d", tsMs, i)
+		expected := fmt.Sprintf("PROCESS1:EQP001-memory-%d-%d", tsMs, i)
 		if kv.ESID != expected {
 			t.Errorf("value[%d] ESID: expected %s, got %s", i, expected, kv.ESID)
 		}
@@ -521,15 +521,24 @@ func TestWrapMetricDataJSON_ESIDFormat(t *testing.T) {
 // --- generateESID test ---
 
 func TestGenerateESID(t *testing.T) {
-	esid := generateESID("ARSAgent", "EQP001", 1708593045123, 0)
-	expected := "ARSAgent:EQP001-1708593045123-0"
+	esid := generateESID("ARSAgent", "EQP001", "cpu", 1708593045123, 0)
+	expected := "ARSAgent:EQP001-cpu-1708593045123-0"
 	if esid != expected {
 		t.Errorf("expected %s, got %s", expected, esid)
 	}
 
-	esid2 := generateESID("ARSAgent", "EQP001", 1708593045123, 2)
-	expected2 := "ARSAgent:EQP001-1708593045123-2"
+	esid2 := generateESID("ARSAgent", "EQP001", "memory", 1708593045123, 2)
+	expected2 := "ARSAgent:EQP001-memory-1708593045123-2"
 	if esid2 != expected2 {
 		t.Errorf("expected %s, got %s", expected2, esid2)
+	}
+}
+
+func TestGenerateESID_NoDuplicateAcrossTypes(t *testing.T) {
+	ts := int64(1708593045123)
+	esidCPU := generateESID("PROC", "EQP01", "cpu", ts, 0)
+	esidMem := generateESID("PROC", "EQP01", "memory", ts, 0)
+	if esidCPU == esidMem {
+		t.Errorf("ESID should differ across metric types, both got %s", esidCPU)
 	}
 }
