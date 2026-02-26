@@ -13,6 +13,32 @@ EARS 변환 경로(file legacy, kafkarest, kafka with eqpInfo)로 전송되는 �
 2026-02-25 10:30:45,123 category:cpu,pid:0,proc:@system,metric:total_used_pct,value:45.5
 ```
 
+### sanitizeName (Grok/KafkaRest 전용)
+
+`ToLegacyString()`에서 `proc`과 `metric` 필드에 `sanitizeName()` 적용. 하드웨어 센서 이름의 특수문자를 제거하여 ES 인서트 오류를 방지합니다. JSON format(`ToParsedData`)에는 미적용.
+
+**규칙**: 괄호 제거 → `[^a-zA-Z0-9_:.@-]` → `_` → 연속 `_` 축소
+
+| 원본 (센서 이름) | sanitize 후 |
+|-----------------|------------|
+| `Intel(R) HD Graphics 530_power` | `IntelR_HD_Graphics_530_power` |
+| `CPU Core #1 Distance to TjMax` | `CPU_Core_1_Distance_to_TjMax` |
+| `Loopback Pseudo-Interface 1` | `Loopback_Pseudo-Interface_1` |
+| `C:` | `C:` (변경 없음) |
+| `total_used_pct` | `total_used_pct` (변경 없음) |
+
+### ESID 형식
+
+```
+{Process}:{EqpID}-{metricType}-{timestamp_ms}-{counter}
+```
+
+- `metricType`: collector 타입 (cpu, memory, disk, network, temperature, gpu 등)
+- `counter`: MetricData 내 EARS row 인덱스 (0부터)
+- 동일 timestamp라도 metricType이 달라 타입 간 중복 없음
+
+**예시:** `PROCESS1:EQP001-memory-1740000000000-1`
+
 ---
 
 ## 시스템 메트릭 (proc=@system, pid=0)
@@ -72,7 +98,7 @@ category:network,pid:0,proc:Wi-Fi,metric:sent_rate,value:50
 
 | metric | 설명 | 단위 | 예시 |
 |--------|------|------|------|
-| `{센서이름}` | CPU 온도 | °C | metric=`Intel Core i7 - CPU Package`, value=`65.0` |
+| `{센서이름}` | CPU 온도 | °C | 원본: `Intel Core i7 - CPU Package` → sanitize 후 metric=`Intel_Core_i7_-_CPU_Package`, value=`65.0` |
 
 ### fan
 
@@ -80,7 +106,7 @@ category:network,pid:0,proc:Wi-Fi,metric:sent_rate,value:50
 
 | metric | 설명 | 단위 | 예시 |
 |--------|------|------|------|
-| `{팬이름}` | 팬 회전 속도 | RPM | metric=`CPU Fan`, value=`1200` |
+| `{팬이름}` | 팬 회전 속도 | RPM | 원본: `CPU Fan` → sanitize 후 metric=`CPU_Fan`, value=`1200` |
 
 ### voltage
 
@@ -88,7 +114,7 @@ category:network,pid:0,proc:Wi-Fi,metric:sent_rate,value:50
 
 | metric | 설명 | 단위 | 예시 |
 |--------|------|------|------|
-| `{센서이름}` | 전압 | V | metric=`CPU Vcore`, value=`1.25` |
+| `{센서이름}` | 전압 | V | 원본: `CPU Vcore` → sanitize 후 metric=`CPU_Vcore`, value=`1.25` |
 
 ### motherboard_temp
 
@@ -161,8 +187,8 @@ GPU마다 non-nil 필드당 1개 row 생성. metric 이름은 `{GPU이름}_{필�
 2026-02-25 10:30:45,123 category:network,pid:0,proc:@system,metric:all_outbound,value:38
 2026-02-25 10:30:45,123 category:network,pid:0,proc:Ethernet,metric:recv_rate,value:12345.6
 2026-02-25 10:30:45,123 category:network,pid:0,proc:Ethernet,metric:sent_rate,value:678.9
-2026-02-25 10:30:45,123 category:temperature,pid:0,proc:@system,metric:CPU Package,value:65
-2026-02-25 10:30:45,123 category:fan,pid:0,proc:@system,metric:CPU Fan,value:1200
+2026-02-25 10:30:45,123 category:temperature,pid:0,proc:@system,metric:CPU_Package,value:65
+2026-02-25 10:30:45,123 category:fan,pid:0,proc:@system,metric:CPU_Fan,value:1200
 2026-02-25 10:30:45,123 category:gpu,pid:0,proc:@system,metric:RTX4090_temperature,value:75
 2026-02-25 10:30:45,123 category:gpu,pid:0,proc:@system,metric:RTX4090_core_load,value:90
 2026-02-25 10:30:45,123 category:gpu,pid:0,proc:@system,metric:RTX4090_memory_load,value:60
@@ -170,7 +196,7 @@ GPU마다 non-nil 필드당 1개 row 생성. metric 이름은 `{GPU이름}_{필�
 2026-02-25 10:30:45,123 category:gpu,pid:0,proc:@system,metric:RTX4090_power,value:320.5
 2026-02-25 10:30:45,123 category:gpu,pid:0,proc:@system,metric:RTX4090_core_clock,value:2520
 2026-02-25 10:30:45,123 category:gpu,pid:0,proc:@system,metric:RTX4090_memory_clock,value:1200
-2026-02-25 10:30:45,123 category:voltage,pid:0,proc:@system,metric:CPU Vcore,value:1.25
+2026-02-25 10:30:45,123 category:voltage,pid:0,proc:@system,metric:CPU_Vcore,value:1.25
 2026-02-25 10:30:45,123 category:motherboard_temp,pid:0,proc:@system,metric:System,value:42
 2026-02-25 10:30:45,123 category:storage_smart,pid:0,proc:@system,metric:nvme0_temperature,value:35
 2026-02-25 10:30:45,123 category:storage_smart,pid:0,proc:@system,metric:nvme0_remaining_life,value:98
