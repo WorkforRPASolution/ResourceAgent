@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"runtime"
 	"sort"
 	"time"
 
@@ -16,6 +17,8 @@ type CPUProcessCollector struct {
 	topN           int             // Number of top processes to report
 	watchProcesses []string        // List of process names to always include
 	matcher        *ProcessMatcher // For efficient process name matching
+	numCPU         float64         // Number of logical CPUs for normalization
+	warmedUp       bool            // Whether baseline CPUPercent has been populated
 }
 
 // NewCPUProcessCollector creates a new CPU process collector.
@@ -23,6 +26,7 @@ func NewCPUProcessCollector() *CPUProcessCollector {
 	return &CPUProcessCollector{
 		BaseCollector: NewBaseCollector("cpu_process"),
 		topN:          10,
+		numCPU:        float64(runtime.NumCPU()),
 	}
 }
 
@@ -54,6 +58,15 @@ func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) 
 		return nil, err
 	}
 
+	// Warmup: first call populates gopsutil internal baselines, returns nil
+	if !c.warmedUp {
+		for _, p := range procs {
+			p.CPUPercentWithContext(ctx)
+		}
+		c.warmedUp = true
+		return nil, nil
+	}
+
 	// 1st Pass: CPU% + Name only (2 syscalls per process)
 	type quickInfo struct {
 		proc       *process.Process
@@ -74,6 +87,7 @@ func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) 
 		if err != nil {
 			continue
 		}
+		cpuPercent = cpuPercent / c.numCPU // Normalize to 0-100% range
 
 		name, _ := p.NameWithContext(ctx)
 		if name == "" {

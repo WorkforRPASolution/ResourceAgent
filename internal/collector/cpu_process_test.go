@@ -25,6 +25,16 @@ func TestCPUProcessCollector_Collect_WithWatchProcesses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Warmup call (populates baselines, returns nil)
+	warmup, err := collector.Collect(ctx)
+	if err != nil {
+		t.Fatalf("Warmup Collect failed: %v", err)
+	}
+	if warmup != nil {
+		t.Error("First call should return nil for warmup")
+	}
+
+	// Real collection
 	metric, err := collector.Collect(ctx)
 	if err != nil {
 		t.Fatalf("Collect failed: %v", err)
@@ -57,6 +67,13 @@ func TestCPUProcessCollector_Collect_WithWatchProcesses(t *testing.T) {
 		t.Error("Expected at least one watched process (go or zsh)")
 	}
 
+	// Verify CPU% is normalized to 0-100% range
+	for _, p := range data.Processes {
+		if p.CPUPercent > 100.0 {
+			t.Errorf("CPU%% = %.2f for %s, should be <= 100.0 (normalized)", p.CPUPercent, p.Name)
+		}
+	}
+
 	// Log all collected processes
 	t.Logf("Total processes: %d, Watched: %d", len(data.Processes), watchedCount)
 	for i, p := range data.Processes {
@@ -80,6 +97,16 @@ func TestCPUProcessCollector_Collect_WatchedFirst(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Warmup call
+	warmup, err := collector.Collect(ctx)
+	if err != nil {
+		t.Fatalf("Warmup Collect failed: %v", err)
+	}
+	if warmup != nil {
+		t.Error("First call should return nil for warmup")
+	}
+
+	// Real collection
 	metric, err := collector.Collect(ctx)
 	if err != nil {
 		t.Fatalf("Collect failed: %v", err)
@@ -121,6 +148,16 @@ func TestCPUProcessCollector_Collect_NoWatchProcesses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Warmup call
+	warmup, err := collector.Collect(ctx)
+	if err != nil {
+		t.Fatalf("Warmup Collect failed: %v", err)
+	}
+	if warmup != nil {
+		t.Error("First call should return nil for warmup")
+	}
+
+	// Real collection
 	metric, err := collector.Collect(ctx)
 	if err != nil {
 		t.Fatalf("Collect failed: %v", err)
