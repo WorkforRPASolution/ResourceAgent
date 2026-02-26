@@ -37,7 +37,7 @@
 
     ResourceAgent installed and running successfully!
       BasePath: D:\EARS\EEGAgent
-      Binary:   D:\EARS\EEGAgent\bin\x86\resourceagent.exe
+      Binary:   D:\EARS\EEGAgent\bin\x86\ResourceAgent.exe
       Config:   D:\EARS\EEGAgent\conf\ResourceAgent\
       Logs:     D:\EARS\EEGAgent\log\ResourceAgent\
 
@@ -60,7 +60,7 @@
 
   D:\EARS\EEGAgent\
   ├── bin\x86\
-  │   └── resourceagent.exe        ← 모니터링 에이전트
+  │   └── ResourceAgent.exe        ← 모니터링 에이전트
   ├── conf\ResourceAgent\
   │   ├── ResourceAgent.json       ← 메인 설정
   │   ├── Monitor.json             ← 수집 항목 설정 (변경 시 자동 반영)
@@ -78,9 +78,9 @@
   "This script requires Administrator privileges" 오류:
     → install.bat를 우클릭 → "관리자 권한으로 실행"
 
-  "resourceagent.exe not found in package" 오류:
+  "ResourceAgent.exe not found in package" 오류:
     → 패키지가 올바르게 압축 해제되었는지 확인하세요.
-       bin\x86\resourceagent.exe 파일이 있어야 합니다.
+       bin\x86\ResourceAgent.exe 파일이 있어야 합니다.
 
   "PawnIO driver installation failed" 오류:
     → 다른 하드웨어 모니터링 프로그램이 실행 중이면 종료 후 재시도

@@ -5,7 +5,7 @@ REM Run as Administrator
 REM
 REM Package layout (this script must be at the root of the package):
 REM   install.bat
-REM   bin\x86\resourceagent.exe
+REM   bin\x86\ResourceAgent.exe
 REM   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
 REM   tools\lhm-helper\LhmHelper.exe        (optional)
 REM   tools\lhm-helper\PawnIO_setup.exe      (optional)
@@ -90,13 +90,13 @@ for %%D in ("%BIN_DIR%" "%CONF_DIR%" "%LOG_DIR%") do (
     )
 )
 
-REM --- Copy resourceagent.exe ---
-if not exist "%PKG_DIR%bin\x86\resourceagent.exe" (
-    echo ERROR: bin\x86\resourceagent.exe not found in package.
+REM --- Copy ResourceAgent.exe ---
+if not exist "%PKG_DIR%bin\x86\ResourceAgent.exe" (
+    echo ERROR: bin\x86\ResourceAgent.exe not found in package.
     exit /b 1
 )
-copy /y "%PKG_DIR%bin\x86\resourceagent.exe" "%BIN_DIR%\resourceagent.exe" >nul
-echo   Copied resourceagent.exe
+copy /y "%PKG_DIR%bin\x86\ResourceAgent.exe" "%BIN_DIR%\ResourceAgent.exe" >nul
+echo   Copied ResourceAgent.exe
 
 REM --- Copy config files (skip if already exist at target) ---
 for %%F in (ResourceAgent.json Monitor.json Logging.json) do (
@@ -150,7 +150,7 @@ if "%INCLUDE_LHM%"=="1" (
 )
 
 REM --- Register Windows service ---
-set "BINARY_PATH=%BIN_DIR%\resourceagent.exe"
+set "BINARY_PATH=%BIN_DIR%\ResourceAgent.exe"
 set "CONFIG_FILE=%CONF_DIR%\ResourceAgent.json"
 set "MONITOR_FILE=%CONF_DIR%\Monitor.json"
 set "LOGGING_FILE=%CONF_DIR%\Logging.json"
@@ -181,7 +181,7 @@ if not errorlevel 1 (
     echo.
     echo ResourceAgent installed and running successfully!
     echo   BasePath: %BASE_PATH%
-    echo   Binary:   %BIN_DIR%\resourceagent.exe
+    echo   Binary:   %BIN_DIR%\ResourceAgent.exe
     echo   Config:   %CONF_DIR%\
     echo   Logs:     %LOG_DIR%\
 ) else (
@@ -227,7 +227,7 @@ if /i not "%CONFIRM%"=="y" (
 )
 
 REM Remove ResourceAgent files only (preserve ARSAgent)
-if exist "%BIN_DIR%\resourceagent.exe" del /f "%BIN_DIR%\resourceagent.exe"
+if exist "%BIN_DIR%\ResourceAgent.exe" del /f "%BIN_DIR%\ResourceAgent.exe"
 if exist "%CONF_DIR%" rmdir /s /q "%CONF_DIR%"
 if exist "%LOG_DIR%" rmdir /s /q "%LOG_DIR%"
 if exist "%TOOLS_DIR%" rmdir /s /q "%TOOLS_DIR%"

@@ -630,7 +630,7 @@ resourceagent/
 
 ```bash
 # Windows 64bit
-GOOS=windows GOARCH=amd64 go build -o resourceagent.exe ./cmd/resourceagent
+GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
 
 # Linux 64bit
 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
@@ -642,7 +642,7 @@ GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
 
 ```powershell
 # 서비스 등록
-sc create ResourceAgent binPath= "C:\Program Files\ResourceAgent\resourceagent.exe" start= auto
+sc create ResourceAgent binPath= "C:\Program Files\ResourceAgent\ResourceAgent.exe" start= auto
 
 # 서비스 시작
 sc start ResourceAgent

@@ -7,7 +7,7 @@
 #   ./scripts/package.sh --lhmhelper             # with LhmHelper + PawnIO
 #
 # Prerequisites:
-#   - resourceagent.exe must be built first (GOOS=windows go build ...)
+#   - ResourceAgent.exe must be built first (GOOS=windows go build ...)
 #   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
 #
 # Output:
@@ -47,15 +47,15 @@ fi
 mkdir -p "$PACKAGE_DIR/bin/x86"
 mkdir -p "$PACKAGE_DIR/conf/ResourceAgent"
 
-# --- Copy resourceagent.exe ---
-BINARY="$PROJECT_DIR/resourceagent.exe"
+# --- Copy ResourceAgent.exe ---
+BINARY="$PROJECT_DIR/ResourceAgent.exe"
 if [ ! -f "$BINARY" ]; then
-    echo "ERROR: resourceagent.exe not found."
-    echo "       Build it first: GOOS=windows GOARCH=amd64 go build -o resourceagent.exe ./cmd/resourceagent"
+    echo "ERROR: ResourceAgent.exe not found."
+    echo "       Build it first: GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent"
     exit 1
 fi
 cp "$BINARY" "$PACKAGE_DIR/bin/x86/"
-echo "  Copied resourceagent.exe"
+echo "  Copied ResourceAgent.exe"
 
 # --- Copy config files ---
 CONF_DIR="$PROJECT_DIR/conf/ResourceAgent"

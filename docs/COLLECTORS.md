@@ -590,7 +590,7 @@ CPU/GPU/Storage/Motherboard Sensors
 
 ### 공통 요구사항
 
-1. **LhmHelper.exe**: resourceagent.exe와 같은 폴더에 위치
+1. **LhmHelper.exe**: ResourceAgent.exe와 같은 폴더에 위치
 2. **PawnIO 드라이버**: 설치 필요 (재부팅 불필요)
 3. **관리자 권한**: 하드웨어 센서 접근에 필요
 

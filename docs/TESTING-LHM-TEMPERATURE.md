@@ -36,10 +36,10 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ```bash
 # Windows에서 직접 빌드
-go build -o resourceagent.exe ./cmd/resourceagent
+go build -o ResourceAgent.exe ./cmd/resourceagent
 
 # 또는 크로스 컴파일 (Linux/Mac에서)
-GOOS=windows GOARCH=amd64 go build -o resourceagent.exe ./cmd/resourceagent
+GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
 ```
 
 ## 4. 실행 파일 준비
@@ -49,7 +49,7 @@ Windows PC에서 PowerShell 실행:
 ```powershell
 # 테스트 폴더 생성 및 파일 복사
 mkdir C:\Test\ResourceAgent
-copy resourceagent.exe C:\Test\ResourceAgent\
+copy ResourceAgent.exe C:\Test\ResourceAgent\
 copy tools\lhm-helper\bin\Release\net8.0\win-x64\publish\LhmHelper.exe C:\Test\ResourceAgent\
 ```
 
@@ -123,7 +123,7 @@ cd C:\Test\ResourceAgent
 
 ```powershell
 cd C:\Test\ResourceAgent
-.\resourceagent.exe -config config.json
+.\ResourceAgent.exe -config config.json
 ```
 
 **예상 출력** (5초마다):
@@ -162,7 +162,7 @@ cd C:\Test\ResourceAgent
 
 **원인**: LhmHelper.exe가 올바른 위치에 없음
 
-**해결**: LhmHelper.exe를 resourceagent.exe와 같은 폴더에 복사
+**해결**: LhmHelper.exe를 ResourceAgent.exe와 같은 폴더에 복사
 
 ### Windows Defender 차단
 
@@ -174,9 +174,9 @@ cd C:\Test\ResourceAgent
 |------|--------|
 | 브랜치 체크아웃 | `git checkout feature/lhm-temperature` |
 | LhmHelper 빌드 | `dotnet publish -c Release -r win-x64 --self-contained` |
-| Agent 빌드 | `go build -o resourceagent.exe ./cmd/resourceagent` |
+| Agent 빌드 | `go build -o ResourceAgent.exe ./cmd/resourceagent` |
 | LhmHelper 테스트 | `.\LhmHelper.exe` (관리자 권한) |
-| Agent 테스트 | `.\resourceagent.exe -config config.json` |
+| Agent 테스트 | `.\ResourceAgent.exe -config config.json` |
 
 ## 아키텍처
 

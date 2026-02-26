@@ -1,6 +1,6 @@
 # Binaries
 /resourceagent
-/resourceagent.exe
+/ResourceAgent.exe
 *.exe
 *.dll
 *.so

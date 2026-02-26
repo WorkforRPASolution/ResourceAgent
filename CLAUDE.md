@@ -16,7 +16,7 @@ ResourceAgent는 공장 내 PC(10,000대 이상)의 하드웨어 자원 사용�
 
 ```bash
 # Windows 빌드
-GOOS=windows GOARCH=amd64 go build -o resourceagent.exe ./cmd/resourceagent
+GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
 
 # Linux 빌드
 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
@@ -83,7 +83,7 @@ resourceagent/
 D:\EARS\EEGAgent\                         ← basePath (ManagerAgent FTP home)
 ├── bin\x86\
 │   ├── earsagent.exe                     # ARSAgent 바이너리 (기존)
-│   └── resourceagent.exe                 # ResourceAgent 바이너리 (신규)
+│   └── ResourceAgent.exe                 # ResourceAgent 바이너리 (신규)
 ├── conf\
 │   ├── ARSAgent\                         # ARSAgent 설정 (기존)
 │   └── ResourceAgent\                    # ResourceAgent 설정 (신규)
@@ -151,7 +151,7 @@ dotnet publish -c Release -r win-x64 --self-contained
 - Microsoft 서명 버전 제공
 
 **배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 설치 패키지 생성
-- 패키지에 resourceagent.exe, 설정 파일, install.bat/ps1, INSTALL_GUIDE.txt 포함
+- 패키지에 ResourceAgent.exe, 설정 파일, install.bat/ps1, INSTALL_GUIDE.txt 포함
 - `/lhmhelper` 옵션 시 LhmHelper.exe + PawnIO_setup.exe 포함
 - PawnIO 드라이버 설치/제거도 install.bat에서 자동 처리
 

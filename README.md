@@ -41,10 +41,10 @@ go mod tidy
 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
 
 # Windows 빌드
-GOOS=windows GOARCH=amd64 go build -o resourceagent.exe ./cmd/resourceagent
+GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
 
 # 버전 정보 포함 빌드
-go build -ldflags "-X main.version=1.0.0 -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o resourceagent.exe ./cmd/resourceagent
+go build -ldflags "-X main.version=1.0.0 -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o ResourceAgent.exe ./cmd/resourceagent
 ```
 
 ### LhmHelper 빌드 (Windows 하드웨어 모니터링)
@@ -206,7 +206,7 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 <BasePath>\                               ← ARSAgent basePath (예: D:\EARS\EEGAgent)
 ├── bin\x86\
 │   ├── earsagent.exe                     # ARSAgent 바이너리 (기존)
-│   └── resourceagent.exe                 # ResourceAgent 바이너리
+│   └── ResourceAgent.exe                 # ResourceAgent 바이너리
 ├── conf\
 │   ├── ARSAgent\                         # ARSAgent 설정 (기존)
 │   └── ResourceAgent\                    # ResourceAgent 설정
@@ -254,7 +254,7 @@ install_package_windows/
 ├── install.bat                          # 설치 스크립트
 ├── install.ps1                          # PowerShell 설치 스크립트
 ├── bin\x86\
-│   └── resourceagent.exe
+│   └── ResourceAgent.exe
 ├── conf\ResourceAgent\
 │   ├── ResourceAgent.json
 │   ├── Monitor.json
@@ -379,7 +379,7 @@ sc.exe delete ResourceAgent
 
 # 2. ResourceAgent 파일만 삭제 (ARSAgent는 유지)
 $BasePath = "D:\EARS\EEGAgent"
-Remove-Item -Path "$BasePath\bin\x86\resourceagent.exe" -Force
+Remove-Item -Path "$BasePath\bin\x86\ResourceAgent.exe" -Force
 Remove-Item -Path "$BasePath\conf\ResourceAgent" -Recurse -Force
 Remove-Item -Path "$BasePath\log\ResourceAgent" -Recurse -Force
 Remove-Item -Path "$BasePath\tools\lhm-helper" -Recurse -Force -ErrorAction SilentlyContinue
@@ -398,7 +398,7 @@ PawnIO_setup.exe /S /uninstall
 
 ```cmd
 cd D:\EARS\EEGAgent
-bin\x86\resourceagent.exe
+bin\x86\ResourceAgent.exe
 ```
 
 설정 파일 기본 경로가 `conf/ResourceAgent/ResourceAgent.json` 등 상대 경로이므로, basePath에서 실행하면 플래그 없이 바로 동작합니다.
@@ -406,7 +406,7 @@ bin\x86\resourceagent.exe
 경로를 직접 지정하려면:
 
 ```cmd
-resourceagent.exe -config conf\ResourceAgent\ResourceAgent.json -monitor conf\ResourceAgent\Monitor.json -logging conf\ResourceAgent\Logging.json
+ResourceAgent.exe -config conf\ResourceAgent\ResourceAgent.json -monitor conf\ResourceAgent\Monitor.json -logging conf\ResourceAgent\Logging.json
 ```
 
 > 상대 경로는 작업 디렉토리(cwd) 기준입니다. 다른 경로에서 실행할 경우 절대 경로를 지정하세요.

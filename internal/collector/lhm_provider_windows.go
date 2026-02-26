@@ -191,7 +191,7 @@ func (p *LhmProvider) findLhmHelper() (string, error) {
 		filepath.Join(".", "tools", "lhm-helper", "LhmHelper.exe"),
 	}
 
-	if exePath, err := exec.LookPath("resourceagent.exe"); err == nil {
+	if exePath, err := exec.LookPath("ResourceAgent.exe"); err == nil {
 		exeDir := filepath.Dir(exePath)
 		candidates = append(candidates,
 			filepath.Join(exeDir, "LhmHelper.exe"),

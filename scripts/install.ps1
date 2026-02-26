@@ -4,7 +4,7 @@
 #
 # Package layout (this script must be at the root of the package):
 #   install.ps1
-#   bin\x86\resourceagent.exe
+#   bin\x86\ResourceAgent.exe
 #   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
 #   tools\lhm-helper\LhmHelper.exe        (optional)
 #   tools\lhm-helper\PawnIO_setup.exe      (optional)
@@ -41,14 +41,14 @@ function Install-ResourceAgent {
         }
     }
 
-    # --- Copy resourceagent.exe ---
-    $BinarySource = Join-Path $PkgDir "bin\x86\resourceagent.exe"
+    # --- Copy ResourceAgent.exe ---
+    $BinarySource = Join-Path $PkgDir "bin\x86\ResourceAgent.exe"
     if (-not (Test-Path $BinarySource)) {
-        Write-Error "bin\x86\resourceagent.exe not found in package."
+        Write-Error "bin\x86\ResourceAgent.exe not found in package."
         exit 1
     }
-    Copy-Item $BinarySource -Destination "$BinDir\resourceagent.exe" -Force
-    Write-Host "  Copied resourceagent.exe"
+    Copy-Item $BinarySource -Destination "$BinDir\ResourceAgent.exe" -Force
+    Write-Host "  Copied ResourceAgent.exe"
 
     # --- Copy config files (skip if already exist at target) ---
     foreach ($file in @("ResourceAgent.json", "Monitor.json", "Logging.json")) {
@@ -107,7 +107,7 @@ function Install-ResourceAgent {
     }
 
     # --- Register Windows service ---
-    $BinaryPath = Join-Path $BinDir "resourceagent.exe"
+    $BinaryPath = Join-Path $BinDir "ResourceAgent.exe"
     $ConfigFile = Join-Path $ConfDir "ResourceAgent.json"
     $MonitorFile = Join-Path $ConfDir "Monitor.json"
     $LoggingFile = Join-Path $ConfDir "Logging.json"
@@ -135,7 +135,7 @@ function Install-ResourceAgent {
         Write-Host ""
         Write-Host "ResourceAgent installed and running successfully!" -ForegroundColor Green
         Write-Host "  BasePath: $BasePath"
-        Write-Host "  Binary:   $BinDir\resourceagent.exe"
+        Write-Host "  Binary:   $BinDir\ResourceAgent.exe"
         Write-Host "  Config:   $ConfDir\"
         Write-Host "  Logs:     $LogDir\"
     } else {
@@ -172,7 +172,7 @@ function Uninstall-ResourceAgent {
     # Remove ResourceAgent files only (do not touch ARSAgent files)
     $response = Read-Host "Remove ResourceAgent files from $BasePath? (y/N)"
     if ($response -eq "y" -or $response -eq "Y") {
-        $BinFile = Join-Path $BasePath "bin\x86\resourceagent.exe"
+        $BinFile = Join-Path $BasePath "bin\x86\ResourceAgent.exe"
         $ConfDir = Join-Path $BasePath "conf\ResourceAgent"
         $LogDir = Join-Path $BasePath "log\ResourceAgent"
 

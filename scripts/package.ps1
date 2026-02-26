@@ -6,7 +6,7 @@
 #   .\scripts\package.ps1 -IncludeLhmHelper      # with LhmHelper + PawnIO
 #
 # Prerequisites:
-#   - resourceagent.exe must be built first (GOOS=windows go build ...)
+#   - ResourceAgent.exe must be built first (GOOS=windows go build ...)
 #   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
 #
 # Output:
@@ -38,14 +38,14 @@ if (Test-Path $ZipFile) {
 New-Item -ItemType Directory -Path (Join-Path $PackageDir "bin\x86") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $PackageDir "conf\ResourceAgent") -Force | Out-Null
 
-# --- Copy resourceagent.exe ---
-$Binary = Join-Path $ProjectDir "resourceagent.exe"
+# --- Copy ResourceAgent.exe ---
+$Binary = Join-Path $ProjectDir "ResourceAgent.exe"
 if (-not (Test-Path $Binary)) {
-    Write-Error "resourceagent.exe not found. Build it first: GOOS=windows GOARCH=amd64 go build -o resourceagent.exe ./cmd/resourceagent"
+    Write-Error "ResourceAgent.exe not found. Build it first: GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent"
     exit 1
 }
-Copy-Item $Binary -Destination (Join-Path $PackageDir "bin\x86\resourceagent.exe")
-Write-Host "  Copied resourceagent.exe"
+Copy-Item $Binary -Destination (Join-Path $PackageDir "bin\x86\ResourceAgent.exe")
+Write-Host "  Copied ResourceAgent.exe"
 
 # --- Copy config files ---
 $ConfDir = Join-Path $ProjectDir "conf\ResourceAgent"
