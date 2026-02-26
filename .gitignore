@@ -25,6 +25,10 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Install package
+/install_package_windows/
+/install_package_windows.zip
+
 # Temporary files
 *.tmp
 *.bak

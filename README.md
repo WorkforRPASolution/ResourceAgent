@@ -95,7 +95,7 @@ go test ./internal/sender/...
   },
   "SenderType": "file",
   "File": {
-    "FilePath": "logs/metrics.jsonl",
+    "FilePath": "log/ResourceAgent/metrics.jsonl",
     "MaxSizeMB": 50,
     "MaxBackups": 3,
     "Console": true,
@@ -113,7 +113,7 @@ go test ./internal/sender/...
   },
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,
-  "ResourceMonitorTopic": "all",
+  "ResourceMonitorTopic": "process",
   "Redis": {
     "Port": 6379,
     "Password": "",
@@ -153,7 +153,7 @@ go test ./internal/sender/...
 ```json
 {
   "Level": "info",
-  "FilePath": "logs/agent.log",
+  "FilePath": "log/ResourceAgent/ResourceAgent.log",
   "MaxSizeMB": 10,
   "MaxBackups": 5,
   "MaxAgeDays": 30,
@@ -190,34 +190,134 @@ go test ./internal/sender/...
 ```bash
 resourceagent [flags]
 
-  -config string    ResourceAgent.json 경로 (기본값: "configs/ResourceAgent.json")
-  -monitor string   Monitor.json 경로 (기본값: "configs/Monitor.json")
-  -logging string   Logging.json 경로 (기본값: "configs/Logging.json")
+  -config string    ResourceAgent.json 경로 (기본값: "conf/ResourceAgent/ResourceAgent.json")
+  -monitor string   Monitor.json 경로 (기본값: "conf/ResourceAgent/Monitor.json")
+  -logging string   Logging.json 경로 (기본값: "conf/ResourceAgent/Logging.json")
   -version          버전 정보 출력
 ```
 
 ## 설치
 
-### 배포 파일 목록
+ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 
-| 파일 | 필수 | 설명 |
-|------|:----:|------|
-| `resourceagent.exe` (또는 `resourceagent`) | O | Go 바이너리 |
-| `configs/ResourceAgent.json` | O | 에이전트/sender 설정 |
-| `configs/Monitor.json` | O | Collector 설정 |
-| `configs/Logging.json` | O | 로깅 설정 |
-| `LhmHelper.exe` | - | Windows 하드웨어 센서 수집용 (temperature, fan, gpu, voltage, motherboard_temp, storage_smart) |
-| PawnIO 드라이버 | - | LhmHelper 하드웨어 접근 드라이버 (`PawnIO_setup.exe /S`로 설치) |
+### 통합 배포 구조
+
+```
+<BasePath>\                               ← ARSAgent basePath (예: D:\EARS\EEGAgent)
+├── bin\x86\
+│   ├── earsagent.exe                     # ARSAgent 바이너리 (기존)
+│   └── resourceagent.exe                 # ResourceAgent 바이너리
+├── conf\
+│   ├── ARSAgent\                         # ARSAgent 설정 (기존)
+│   └── ResourceAgent\                    # ResourceAgent 설정
+│       ├── ResourceAgent.json
+│       ├── Monitor.json
+│       └── Logging.json
+├── log\
+│   ├── ARSAgent\                         # ARSAgent 로그 (기존)
+│   └── ResourceAgent\                    # ResourceAgent 로그
+│       ├── ResourceAgent.log
+│       └── metrics.jsonl
+└── tools\
+    └── lhm-helper\                       # Windows 전용
+        ├── LhmHelper.exe                 # 하드웨어 센서 헬퍼
+        └── PawnIO_setup.exe              # 드라이버 설치/제거
+```
+
+### Windows 설치 패키지 만들기
+
+개발 PC에서 패키지를 생성하고, 현장 PC에 배포합니다.
+
+```bash
+# 패키지 생성 (LhmHelper 없이)
+./scripts/package.sh
+
+# LhmHelper + PawnIO 포함 패키지 생성
+./scripts/package.sh --lhmhelper
+```
+
+Windows에서 패키지 생성 시:
+
+```powershell
+# 패키지 생성 (LhmHelper 없이)
+.\scripts\package.ps1
+
+# LhmHelper + PawnIO 포함 패키지 생성
+.\scripts\package.ps1 -IncludeLhmHelper
+```
+
+생성되는 패키지 구조:
+
+```
+install_package_windows/
+├── INSTALL_GUIDE.txt                    # 설치 가이드 (현장 담당자용)
+├── install.bat                          # 설치 스크립트
+├── install.ps1                          # PowerShell 설치 스크립트
+├── bin\x86\
+│   └── resourceagent.exe
+├── conf\ResourceAgent\
+│   ├── ResourceAgent.json
+│   ├── Monitor.json
+│   └── Logging.json
+└── tools\lhm-helper\                   (--lhmhelper 옵션 시)
+    ├── LhmHelper.exe
+    └── PawnIO_setup.exe
+```
+
+> `install_package_windows.zip`도 함께 생성됩니다. 현장 PC에 zip을 복사 후 압축 해제하여 사용합니다.
+
+### Windows 설치
+
+패키지 압축 해제 후, 관리자 권한으로 실행 (우클릭 → "관리자 권한으로 실행"):
+
+```cmd
+REM 기본 설치 (BasePath: D:\EARS\EEGAgent)
+install.bat
+
+REM BasePath 지정
+install.bat /basepath D:\EARS\EEGAgent
+
+REM LhmHelper + PawnIO 포함 설치
+install.bat /lhmhelper
+
+REM 옵션
+REM   /basepath PATH    BasePath 지정 (기본값: D:\EARS\EEGAgent)
+REM   /lhmhelper        LhmHelper + PawnIO 드라이버 설치
+REM   /uninstall        제거
+```
+
+또는 PowerShell:
+
+```powershell
+.\install.ps1
+.\install.ps1 -BasePath "D:\EARS\EEGAgent" -IncludeLhmHelper
+```
+
+> 설정 파일(`conf/ResourceAgent/*.json`)은 대상 경로에 이미 존재하면 덮어쓰지 않습니다. 바이너리만 업데이트됩니다.
 
 ### Linux (systemd)
 
 ```bash
-# 1. 바이너리 및 설정 복사
-sudo mkdir -p /opt/resourceagent/{configs,logs}
-sudo cp resourceagent /opt/resourceagent/
-sudo cp configs/ResourceAgent.json /opt/resourceagent/configs/
-sudo cp configs/Monitor.json /opt/resourceagent/configs/
-sudo cp configs/Logging.json /opt/resourceagent/configs/
+# 기본 설치 (basePath: /opt/EEGAgent)
+sudo ./scripts/install.sh
+
+# basePath 지정
+sudo ./scripts/install.sh --base-path /opt/EEGAgent
+
+# 옵션
+#   --base-path PATH    BASE 경로 지정 (기본값: /opt/EEGAgent)
+#   --user USER         서비스 사용자 지정 (기본값: resourceagent)
+#   --uninstall         제거
+```
+
+또는 수동 설치:
+
+```bash
+# 1. 디렉토리 생성 및 파일 복사
+BASE_PATH=/opt/EEGAgent
+sudo mkdir -p $BASE_PATH/{bin/x86,conf/ResourceAgent,log/ResourceAgent}
+sudo cp resourceagent $BASE_PATH/bin/x86/
+sudo cp conf/ResourceAgent/*.json $BASE_PATH/conf/ResourceAgent/
 
 # 2. 서비스 등록
 sudo cp scripts/resourceagent.service /etc/systemd/system/
@@ -229,44 +329,17 @@ sudo systemctl start resourceagent
 sudo systemctl status resourceagent
 ```
 
-또는 설치 스크립트 사용:
-
-```bash
-sudo ./scripts/install.sh
-```
-
-### Windows
-
-```powershell
-# 1. 폴더 생성 및 파일 복사
-$InstallPath = "C:\Program Files\ResourceAgent"
-New-Item -ItemType Directory -Path "$InstallPath\configs" -Force
-New-Item -ItemType Directory -Path "$InstallPath\logs" -Force
-Copy-Item resourceagent.exe "$InstallPath\"
-Copy-Item configs\ResourceAgent.json "$InstallPath\configs\"
-Copy-Item configs\Monitor.json "$InstallPath\configs\"
-Copy-Item configs\Logging.json "$InstallPath\configs\"
-
-# (선택) LhmHelper 복사 - 하드웨어 센서 수집 시 필요
-Copy-Item LhmHelper.exe "$InstallPath\"
-
-# 2. 서비스 등록
-sc.exe create ResourceAgent binPath= "`"$InstallPath\resourceagent.exe`"" start= auto
-sc.exe start ResourceAgent
-
-# 3. 상태 확인
-sc.exe query ResourceAgent
-```
-
-또는 설치 스크립트 사용 (관리자 권한):
-
-```powershell
-.\scripts\install.ps1
-```
+> systemd 서비스 파일은 `/opt/EEGAgent` basePath를 기본으로 사용합니다. 다른 경로를 사용하는 경우 `resourceagent.service`의 `WorkingDirectory`와 `ExecStart` 경로를 수정하세요.
 
 ## 제거 (Uninstall)
 
 ### Linux
+
+```bash
+sudo ./scripts/install.sh --uninstall
+```
+
+또는 수동 제거:
 
 ```bash
 # 서비스 중지 및 제거
@@ -275,28 +348,41 @@ sudo systemctl disable resourceagent
 sudo rm /etc/systemd/system/resourceagent.service
 sudo systemctl daemon-reload
 
-# 설치 디렉토리 삭제
-sudo rm -rf /opt/resourceagent
+# ResourceAgent 파일만 삭제 (ARSAgent는 유지)
+BASE_PATH=/opt/EEGAgent
+sudo rm -f $BASE_PATH/bin/x86/resourceagent
+sudo rm -rf $BASE_PATH/conf/ResourceAgent
+sudo rm -rf $BASE_PATH/log/ResourceAgent
 
 # 서비스 사용자 삭제 (선택)
 sudo userdel resourceagent
 ```
 
-또는 설치 스크립트 사용:
+### Windows
 
-```bash
-sudo ./scripts/install.sh --uninstall
+패키지 폴더에서 관리자 권한으로 실행:
+
+```cmd
+install.bat /uninstall
 ```
 
-### Windows
+또는 PowerShell: `.\install.ps1 -Uninstall`
+
+> `/lhmhelper`로 설치한 경우, PawnIO 드라이버도 자동으로 제거됩니다.
+
+수동 제거:
 
 ```powershell
 # 1. 서비스 중지 및 제거
 sc.exe stop ResourceAgent
 sc.exe delete ResourceAgent
 
-# 2. 설치 디렉토리 삭제
-Remove-Item -Path "C:\Program Files\ResourceAgent" -Recurse -Force
+# 2. ResourceAgent 파일만 삭제 (ARSAgent는 유지)
+$BasePath = "D:\EARS\EEGAgent"
+Remove-Item -Path "$BasePath\bin\x86\resourceagent.exe" -Force
+Remove-Item -Path "$BasePath\conf\ResourceAgent" -Recurse -Force
+Remove-Item -Path "$BasePath\log\ResourceAgent" -Recurse -Force
+Remove-Item -Path "$BasePath\tools\lhm-helper" -Recurse -Force -ErrorAction SilentlyContinue
 
 # 3. PawnIO 드라이버 제거 (LhmHelper 사용 시)
 # 제어판 → 프로그램 추가/제거 → "PawnIO" 제거
@@ -304,39 +390,23 @@ Remove-Item -Path "C:\Program Files\ResourceAgent" -Recurse -Force
 PawnIO_setup.exe /S /uninstall
 ```
 
-또는 설치 스크립트 사용 (관리자 권한):
-
-```powershell
-.\scripts\install.ps1 -Uninstall
-```
-
-> 단독 실행(서비스 미등록)의 경우 설치 디렉토리만 삭제하면 됩니다.
+> 단독 실행(서비스 미등록)의 경우 해당 디렉토리만 삭제하면 됩니다.
 
 ## 단독 실행 (서비스 등록 없이)
 
-서비스로 등록하지 않고 단독 실행할 수 있습니다. exe 파일과 설정 파일을 아래 구조로 배치합니다:
-
-```
-C:\ResourceAgent\
-├── resourceagent.exe
-├── LhmHelper.exe          (선택 - 하드웨어 센서 수집 시 필요)
-└── configs\
-    ├── ResourceAgent.json
-    ├── Monitor.json
-    └── Logging.json
-```
-
-설정 파일 기본 경로가 `configs/ResourceAgent.json` 등 상대 경로이므로, exe가 있는 폴더에서 실행하면 플래그 없이 바로 동작합니다:
+서비스로 등록하지 않고 단독 실행할 수 있습니다. 통합 배포 구조의 basePath에서 실행합니다:
 
 ```cmd
-cd C:\ResourceAgent
-resourceagent.exe
+cd D:\EARS\EEGAgent
+bin\x86\resourceagent.exe
 ```
+
+설정 파일 기본 경로가 `conf/ResourceAgent/ResourceAgent.json` 등 상대 경로이므로, basePath에서 실행하면 플래그 없이 바로 동작합니다.
 
 경로를 직접 지정하려면:
 
 ```cmd
-resourceagent.exe -config configs\ResourceAgent.json -monitor configs\Monitor.json -logging configs\Logging.json
+resourceagent.exe -config conf\ResourceAgent\ResourceAgent.json -monitor conf\ResourceAgent\Monitor.json -logging conf\ResourceAgent\Logging.json
 ```
 
 > 상대 경로는 작업 디렉토리(cwd) 기준입니다. 다른 경로에서 실행할 경우 절대 경로를 지정하세요.
@@ -347,13 +417,13 @@ Kafka/인프라 연결 없이 로컬에서 테스트하려면 `SenderType`을 `f
 
 ### 설정
 
-`configs/ResourceAgent.json`에서:
+`conf/ResourceAgent/ResourceAgent.json`에서:
 
 ```json
 {
   "SenderType": "file",
   "File": {
-    "FilePath": "logs/metrics.jsonl",
+    "FilePath": "log/ResourceAgent/metrics.jsonl",
     "Console": true,
     "Pretty": false,
     "Format": "json"
@@ -368,21 +438,21 @@ Kafka/인프라 연결 없이 로컬에서 테스트하려면 `SenderType`을 `f
 ### 실행
 
 ```bash
-# 기본 경로 사용 (Linux/macOS)
-./resourceagent
+# 기본 경로 사용 (Linux/macOS, basePath에서 실행)
+./bin/x86/resourceagent
 
 # 설정 파일 경로 지정
-./resourceagent -config configs/ResourceAgent.json -monitor configs/Monitor.json -logging configs/Logging.json
+./bin/x86/resourceagent -config conf/ResourceAgent/ResourceAgent.json -monitor conf/ResourceAgent/Monitor.json -logging conf/ResourceAgent/Logging.json
 ```
 
 ### 출력 확인
 
 ```bash
 # 콘솔 출력 (Console: true 일 때 실행하면 바로 출력)
-./resourceagent
+./bin/x86/resourceagent
 
 # 로그 파일 확인
-tail -f logs/metrics.jsonl
+tail -f log/ResourceAgent/metrics.jsonl
 ```
 
 ### 출력 예시
@@ -402,6 +472,7 @@ tail -f logs/metrics.jsonl
 ```
 
 > EARS legacy 포맷 상세 명세는 [`docs/EARS-METRICS-REFERENCE.md`](docs/EARS-METRICS-REFERENCE.md) 참조.
+> 12종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
 
 ## 운영
 
@@ -412,7 +483,7 @@ tail -f logs/metrics.jsonl
 journalctl -u resourceagent -f
 
 # 로그 파일 직접 확인
-tail -f /opt/resourceagent/logs/agent.log
+tail -f /opt/EEGAgent/log/ResourceAgent/ResourceAgent.log
 ```
 
 ### 서비스 관리
@@ -436,11 +507,11 @@ sc.exe query ResourceAgent
 
 ```bash
 # Collector 수집 주기 변경 예시
-vi /opt/resourceagent/configs/Monitor.json
+vi /opt/EEGAgent/conf/ResourceAgent/Monitor.json
 # 로그에서 "Monitor configuration updated" 메시지 확인
 
 # 로그 레벨 변경 예시
-vi /opt/resourceagent/configs/Logging.json
+vi /opt/EEGAgent/conf/ResourceAgent/Logging.json
 # 로그에서 "Logging configuration updated" 메시지 확인
 ```
 
@@ -462,6 +533,10 @@ ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → PawnIO
 2. **PawnIO 드라이버** — 하드웨어 접근 드라이버 (WinRing0 대체, Microsoft 서명)
 
 ### PawnIO 드라이버 설치
+
+`install.bat /lhmhelper` 사용 시 PawnIO 드라이버가 자동으로 설치됩니다.
+
+수동 설치가 필요한 경우:
 
 ```cmd
 PawnIO_setup.exe /S
@@ -496,17 +571,17 @@ failed to create Kafka producer: kafka: client has run out of available brokers
 
 ### 온도/하드웨어 센서 수집 실패
 
-- Windows: LhmHelper.exe가 ResourceAgent.exe와 같은 디렉토리에 있는지 확인
-- Windows: PawnIO 드라이버 설치 여부 확인
+- Windows: LhmHelper.exe가 `<BasePath>\tools\lhm-helper\`에 있는지 확인
+- Windows: PawnIO 드라이버 설치 여부 확인 (`sc.exe query PawnIO`)
 - macOS: 온도 센서 접근 제한 (개발 테스트용이므로 무시 가능)
 - 다른 Collector에는 영향 없음 (Collector 격리)
 
 ### 권한 문제 (Linux)
 
 ```bash
-chmod +x /opt/resourceagent/resourceagent
-mkdir -p /opt/resourceagent/logs
-chown -R resourceagent:resourceagent /opt/resourceagent
+chmod +x /opt/EEGAgent/bin/x86/resourceagent
+mkdir -p /opt/EEGAgent/log/ResourceAgent
+chown -R resourceagent:resourceagent /opt/EEGAgent/log/ResourceAgent
 ```
 
 ## 라이선스

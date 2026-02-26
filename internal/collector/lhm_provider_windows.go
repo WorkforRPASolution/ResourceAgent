@@ -188,6 +188,7 @@ func (p *LhmProvider) findLhmHelper() (string, error) {
 		"LhmHelper.exe",
 		"./LhmHelper.exe",
 		filepath.Join(".", "tools", "LhmHelper.exe"),
+		filepath.Join(".", "tools", "lhm-helper", "LhmHelper.exe"),
 	}
 
 	if exePath, err := exec.LookPath("resourceagent.exe"); err == nil {
@@ -195,12 +196,15 @@ func (p *LhmProvider) findLhmHelper() (string, error) {
 		candidates = append(candidates,
 			filepath.Join(exeDir, "LhmHelper.exe"),
 			filepath.Join(exeDir, "tools", "LhmHelper.exe"),
+			filepath.Join(exeDir, "tools", "lhm-helper", "LhmHelper.exe"),
+			filepath.Join(exeDir, "..", "..", "tools", "lhm-helper", "LhmHelper.exe"),
 		)
 	}
 
 	candidates = append(candidates,
 		`C:\Program Files\ResourceAgent\LhmHelper.exe`,
 		`C:\Program Files\ResourceAgent\tools\LhmHelper.exe`,
+		`C:\Program Files\ResourceAgent\tools\lhm-helper\LhmHelper.exe`,
 	)
 
 	for _, path := range candidates {

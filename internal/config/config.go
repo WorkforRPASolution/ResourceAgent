@@ -115,7 +115,7 @@ func DefaultConfig() *Config {
 		},
 		SenderType: "kafka", // default for backward compatibility
 		File: FileConfig{
-			FilePath:   "logs/metrics.jsonl",
+			FilePath:   "log/ResourceAgent/metrics.jsonl",
 			MaxSizeMB:  50,
 			MaxBackups: 3,
 			Console:    true,

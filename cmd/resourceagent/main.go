@@ -28,9 +28,9 @@ var (
 
 func main() {
 	var (
-		configPath  = flag.String("config", "configs/ResourceAgent.json", "Path to main configuration file")
-		monitorPath = flag.String("monitor", "configs/Monitor.json", "Path to monitor configuration file")
-		loggingPath = flag.String("logging", "configs/Logging.json", "Path to logging configuration file")
+		configPath  = flag.String("config", "conf/ResourceAgent/ResourceAgent.json", "Path to main configuration file")
+		monitorPath = flag.String("monitor", "conf/ResourceAgent/Monitor.json", "Path to monitor configuration file")
+		loggingPath = flag.String("logging", "conf/ResourceAgent/Logging.json", "Path to logging configuration file")
 		showVersion = flag.Bool("version", false, "Show version information")
 	)
 	flag.Parse()

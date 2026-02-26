@@ -47,20 +47,13 @@ ConfigManager ──► Scheduler ──► Collectors ──► Sender (Kafka)
 - **Sender**: Kafka로 메트릭 전송
 - **ConfigManager**: 설정 로드, 변경 감지, Hot Reload 처리
 
-### 디렉토리 구조
+### 디렉토리 구조 (개발)
 
 ```
 resourceagent/
 ├── cmd/resourceagent/main.go       # 진입점
-├── internal/
+├── internal/                       # 핵심 구현
 │   ├── collector/                  # Collector 구현체
-│   │   ├── collector.go           # 인터페이스 정의
-│   │   ├── registry.go            # Collector 등록/관리
-│   │   ├── cpu.go, memory.go, disk.go, network.go
-│   │   ├── temperature.go         # 공통 인터페이스
-│   │   ├── temperature_windows.go # Windows LHM 연동
-│   │   ├── temperature_linux.go   # Linux gopsutil
-│   │   └── cpu_process.go, memory_process.go
 │   ├── config/                     # 설정 관리
 │   ├── discovery/                  # ServiceDiscovery HTTP 클라이언트
 │   ├── eqpinfo/                    # Redis EQP_INFO 조회
@@ -69,10 +62,44 @@ resourceagent/
 │   ├── scheduler/                  # 수집 스케줄링
 │   ├── logger/                     # 구조화된 로깅
 │   └── service/                    # Windows/Linux 서비스 통합
+├── conf/ResourceAgent/             # 설정 파일 (통합 구조 기본)
+│   ├── ResourceAgent.json          # 메인 설정
+│   ├── Monitor.json                # 수집기 설정 (Hot Reload)
+│   └── Logging.json                # 로깅 설정 (Hot Reload)
+├── configs/                        # 설정 파일 (레거시 참조용)
 ├── tools/
-│   └── lhm-helper/                 # C# LibreHardwareMonitor 헬퍼
-├── configs/config.json             # 설정 파일 샘플
-└── scripts/                        # 설치 스크립트
+│   └── lhm-helper/                 # C# LibreHardwareMonitor 헬퍼 + PawnIO_setup.exe
+└── scripts/                        # 설치/패키징 스크립트
+    ├── install.bat / install.ps1   # Windows 설치 (패키지에 포함)
+    ├── install.sh                  # Linux 설치
+    ├── package.sh / package.ps1    # 설치 패키지 빌드
+    ├── INSTALL_GUIDE.txt           # 현장 담당자용 가이드 (패키지에 포함)
+    └── resourceagent.service       # systemd 서비스 파일
+```
+
+### 통합 배포 구조 (ARSAgent 공유 basePath)
+
+```
+D:\EARS\EEGAgent\                         ← basePath (ManagerAgent FTP home)
+├── bin\x86\
+│   ├── earsagent.exe                     # ARSAgent 바이너리 (기존)
+│   └── resourceagent.exe                 # ResourceAgent 바이너리 (신규)
+├── conf\
+│   ├── ARSAgent\                         # ARSAgent 설정 (기존)
+│   └── ResourceAgent\                    # ResourceAgent 설정 (신규)
+│       ├── ResourceAgent.json
+│       ├── Monitor.json
+│       └── Logging.json
+├── log\
+│   ├── ARSAgent\                         # ARSAgent 로그 (기존)
+│   └── ResourceAgent\                    # ResourceAgent 로그 (신규)
+│       ├── ResourceAgent.log
+│       └── metrics.jsonl
+├── utils\                               # 공유 유틸 (tail.exe 등)
+└── tools\
+    └── lhm-helper\                      # Windows 전용
+        ├── LhmHelper.exe                # C# 하드웨어 센서 헬퍼
+        └── PawnIO_setup.exe             # 하드웨어 접근 드라이버 설치/제거
 ```
 
 ## 핵심 의존성
@@ -123,10 +150,10 @@ dotnet publish -c Release -r win-x64 --self-contained
 - 재부팅 불필요
 - Microsoft 서명 버전 제공
 
-**배포 시 포함 파일**:
-- `resourceagent.exe` (Go 바이너리)
-- `LhmHelper.exe` (C# 헬퍼, ~60-80MB self-contained)
-- PawnIO 드라이버 설치 스크립트
+**배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 설치 패키지 생성
+- 패키지에 resourceagent.exe, 설정 파일, install.bat/ps1, INSTALL_GUIDE.txt 포함
+- `/lhmhelper` 옵션 시 LhmHelper.exe + PawnIO_setup.exe 포함
+- PawnIO 드라이버 설치/제거도 install.bat에서 자동 처리
 
 ### 데이터 흐름
 
@@ -142,14 +169,19 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 ## 서비스 설치
 
-**Windows**:
+**Windows** (설치 패키지 사용):
 ```cmd
-sc create ResourceAgent binPath= "C:\Program Files\ResourceAgent\resourceagent.exe" start= auto
+REM 패키지 생성 (개발 PC)
+scripts\package.ps1 -IncludeLhmHelper
+
+REM 현장 PC에서 설치 (패키지 압축 해제 후)
+install.bat /lhmhelper
+install.bat /basepath D:\EARS\EEGAgent /lhmhelper
+install.bat /uninstall
 ```
 
 **Linux (systemd)**:
 ```bash
-# resourceagent.service를 /etc/systemd/system/에 복사
-systemctl enable resourceagent
-systemctl start resourceagent
+sudo ./scripts/install.sh --base-path /opt/EEGAgent
+sudo ./scripts/install.sh --uninstall
 ```

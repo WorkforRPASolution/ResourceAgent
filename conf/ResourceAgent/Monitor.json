@@ -1,0 +1,64 @@
+{
+  "Collectors": {
+    "cpu": {
+      "Enabled": true,
+      "Interval": "10s"
+    },
+    "memory": {
+      "Enabled": true,
+      "Interval": "10s"
+    },
+    "disk": {
+      "Enabled": true,
+      "Interval": "30s",
+      "Disks": []
+    },
+    "network": {
+      "Enabled": true,
+      "Interval": "10s",
+      "Interfaces": []
+    },
+    "temperature": {
+      "Enabled": true,
+      "Interval": "30s",
+      "IncludeZones": []
+    },
+    "cpu_process": {
+      "Enabled": true,
+      "Interval": "30s",
+      "TopN": 10,
+      "WatchProcesses": []
+    },
+    "memory_process": {
+      "Enabled": true,
+      "Interval": "30s",
+      "TopN": 10,
+      "WatchProcesses": []
+    },
+    "fan": {
+      "Enabled": true,
+      "Interval": "30s",
+      "IncludeZones": []
+    },
+    "gpu": {
+      "Enabled": true,
+      "Interval": "30s",
+      "IncludeZones": []
+    },
+    "storage_smart": {
+      "Enabled": true,
+      "Interval": "60s",
+      "Disks": []
+    },
+    "voltage": {
+      "Enabled": true,
+      "Interval": "30s",
+      "IncludeZones": []
+    },
+    "motherboard_temp": {
+      "Enabled": true,
+      "Interval": "30s",
+      "IncludeZones": []
+    }
+  }
+}

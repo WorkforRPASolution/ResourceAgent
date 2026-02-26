@@ -1,23 +1,29 @@
 #!/bin/bash
-# ResourceAgent Linux Installation Script
+# ResourceAgent Linux Installation Script (Integrated Structure)
+# Installs ResourceAgent into the shared ARSAgent basePath directory.
 # Run as root or with sudo
+#
+# Integrated directory layout:
+#   <BasePath>/bin/x86/resourceagent
+#   <BasePath>/conf/ResourceAgent/{ResourceAgent,Monitor,Logging}.json
+#   <BasePath>/log/ResourceAgent/
+#   <BasePath>/tools/lhm-helper/  (Windows only, skipped on Linux)
 
 set -e
 
-INSTALL_PATH="/opt/resourceagent"
-CONFIG_PATH=""
+BASE_PATH="/opt/EEGAgent"
 SERVICE_USER="resourceagent"
 UNINSTALL=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --install-path)
-            INSTALL_PATH="$2"
+        --base-path)
+            BASE_PATH="$2"
             shift 2
             ;;
-        --config)
-            CONFIG_PATH="$2"
+        --user)
+            SERVICE_USER="$2"
             shift 2
             ;;
         --uninstall)
@@ -26,23 +32,28 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
+            echo "Usage: $0 [--base-path PATH] [--user USER] [--uninstall]"
             exit 1
             ;;
     esac
 done
 
+BIN_DIR="$BASE_PATH/bin/x86"
+CONF_DIR="$BASE_PATH/conf/ResourceAgent"
+LOG_DIR="$BASE_PATH/log/ResourceAgent"
+
 install_agent() {
-    echo "Installing ResourceAgent..."
+    echo "Installing ResourceAgent (Integrated)..."
 
     # Create service user if not exists
     if ! id "$SERVICE_USER" &>/dev/null; then
         useradd --system --no-create-home --shell /bin/false "$SERVICE_USER"
-        echo "Created service user: $SERVICE_USER"
+        echo "  Created service user: $SERVICE_USER"
     fi
 
-    # Create installation directory
-    mkdir -p "$INSTALL_PATH"/{configs,logs}
-    echo "Created installation directory: $INSTALL_PATH"
+    # Create directory structure
+    mkdir -p "$BIN_DIR" "$CONF_DIR" "$LOG_DIR"
+    echo "  Created directories under $BASE_PATH"
 
     # Copy binary
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,58 +64,61 @@ install_agent() {
     fi
 
     if [[ -f "$BINARY_SOURCE" ]]; then
-        cp "$BINARY_SOURCE" "$INSTALL_PATH/"
-        chmod +x "$INSTALL_PATH/resourceagent"
-        echo "Copied binary to $INSTALL_PATH"
+        cp "$BINARY_SOURCE" "$BIN_DIR/resourceagent"
+        chmod +x "$BIN_DIR/resourceagent"
+        echo "  Copied binary to $BIN_DIR"
     else
         echo "Error: Binary not found. Please build the project first."
         exit 1
     fi
 
-    # Copy or create config
-    if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
-        cp "$CONFIG_PATH" "$INSTALL_PATH/configs/config.json"
-        echo "Copied configuration from $CONFIG_PATH"
-    else
-        DEFAULT_CONFIG="$SCRIPT_DIR/../configs/config.json"
-        if [[ -f "$DEFAULT_CONFIG" ]]; then
-            cp "$DEFAULT_CONFIG" "$INSTALL_PATH/configs/config.json"
-            echo "Copied default configuration"
-        fi
+    # Copy config files
+    DEFAULT_CONF="$SCRIPT_DIR/../conf/ResourceAgent"
+    if [[ -d "$DEFAULT_CONF" ]]; then
+        cp "$DEFAULT_CONF"/*.json "$CONF_DIR/"
+        echo "  Copied default configuration files"
     fi
 
     # Set permissions
-    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_PATH"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$CONF_DIR" "$LOG_DIR"
+    chown "$SERVICE_USER:$SERVICE_USER" "$BIN_DIR/resourceagent"
 
-    # Install systemd service
+    # Install systemd service with absolute config paths
     cat > /etc/systemd/system/resourceagent.service << EOF
 [Unit]
 Description=ResourceAgent Monitoring Service
-Documentation=https://github.com/your-org/resourceagent
 After=network.target
 
 [Service]
 Type=simple
 User=$SERVICE_USER
 Group=$SERVICE_USER
-ExecStart=$INSTALL_PATH/resourceagent -config $INSTALL_PATH/configs/config.json
+WorkingDirectory=$BASE_PATH
+ExecStart=$BIN_DIR/resourceagent -config $CONF_DIR/ResourceAgent.json -monitor $CONF_DIR/Monitor.json -logging $CONF_DIR/Logging.json
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$INSTALL_PATH/logs
+ReadWritePaths=$LOG_DIR
 PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    echo "Installed systemd service"
+    echo "  Installed systemd service"
 
     # Reload systemd and start service
     systemctl daemon-reload
@@ -114,8 +128,12 @@ EOF
     # Check status
     if systemctl is-active --quiet resourceagent; then
         echo "ResourceAgent installed and running successfully!"
+        echo "  BasePath: $BASE_PATH"
+        echo "  Binary:   $BIN_DIR/resourceagent"
+        echo "  Config:   $CONF_DIR/"
+        echo "  Logs:     $LOG_DIR/"
     else
-        echo "Warning: Service installed but not running. Check logs with: journalctl -u resourceagent"
+        echo "Warning: Service installed but not running. Check: journalctl -u resourceagent"
     fi
 }
 
@@ -134,20 +152,22 @@ uninstall_agent() {
     # Remove service file
     rm -f /etc/systemd/system/resourceagent.service
     systemctl daemon-reload
-    echo "Removed systemd service"
+    echo "  Removed systemd service"
 
-    # Remove installation directory
-    read -p "Remove installation directory $INSTALL_PATH? (y/N) " response
+    # Remove ResourceAgent files only (preserve ARSAgent files)
+    read -p "Remove ResourceAgent files from $BASE_PATH? (y/N) " response
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        rm -rf "$INSTALL_PATH"
-        echo "Removed installation directory"
+        rm -f "$BIN_DIR/resourceagent"
+        rm -rf "$CONF_DIR"
+        rm -rf "$LOG_DIR"
+        echo "  ResourceAgent files removed (ARSAgent files preserved)"
     fi
 
     # Remove service user
     read -p "Remove service user $SERVICE_USER? (y/N) " response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         userdel "$SERVICE_USER" 2>/dev/null || true
-        echo "Removed service user"
+        echo "  Removed service user"
     fi
 
     echo "ResourceAgent uninstalled successfully!"

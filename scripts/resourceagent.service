@@ -1,13 +1,13 @@
 [Unit]
 Description=ResourceAgent Monitoring Service
-Documentation=https://github.com/your-org/resourceagent
 After=network.target
 
 [Service]
 Type=simple
 User=resourceagent
 Group=resourceagent
-ExecStart=/opt/resourceagent/resourceagent -config /opt/resourceagent/configs/config.json
+WorkingDirectory=/opt/EEGAgent
+ExecStart=/opt/EEGAgent/bin/x86/resourceagent -config /opt/EEGAgent/conf/ResourceAgent/ResourceAgent.json -monitor /opt/EEGAgent/conf/ResourceAgent/Monitor.json -logging /opt/EEGAgent/conf/ResourceAgent/Logging.json
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -21,7 +21,7 @@ LimitNPROC=4096
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/resourceagent/logs
+ReadWritePaths=/opt/EEGAgent/log/ResourceAgent
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true

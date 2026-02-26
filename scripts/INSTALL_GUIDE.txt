@@ -1,0 +1,105 @@
+========================================================
+  ResourceAgent 설치 가이드
+========================================================
+
+[사전 준비]
+
+  1. 이 폴더를 PC의 적절한 위치에 압축 해제합니다.
+     예: C:\Temp\install_package_windows\
+
+  2. 관리자 권한이 필요합니다.
+
+
+[설치 방법]
+
+  1. install.bat 파일을 우클릭 → "관리자 권한으로 실행"
+
+     * 기본 설치 경로: D:\EARS\EEGAgent
+     * 하드웨어 센서(온도, 팬, GPU 등)가 필요 없으면 이것만으로 완료됩니다.
+
+  2. 하드웨어 센서 수집이 필요한 경우:
+     명령 프롬프트를 관리자 권한으로 열고 다음을 실행합니다.
+
+       install.bat /lhmhelper
+
+     이 옵션은 LhmHelper와 PawnIO 드라이버를 함께 설치합니다.
+     (재부팅 불필요)
+
+  3. 설치 경로를 변경하려면:
+
+       install.bat /basepath E:\MyPath\EEGAgent
+       install.bat /basepath E:\MyPath\EEGAgent /lhmhelper
+
+
+[설치 확인]
+
+  설치가 완료되면 다음 메시지가 표시됩니다:
+
+    ResourceAgent installed and running successfully!
+      BasePath: D:\EARS\EEGAgent
+      Binary:   D:\EARS\EEGAgent\bin\x86\resourceagent.exe
+      Config:   D:\EARS\EEGAgent\conf\ResourceAgent\
+      Logs:     D:\EARS\EEGAgent\log\ResourceAgent\
+
+  또는 명령 프롬프트에서 확인:
+
+    sc.exe query ResourceAgent
+
+
+[제거 방법]
+
+  명령 프롬프트를 관리자 권한으로 열고:
+
+    install.bat /uninstall
+
+  서비스 중지 → PawnIO 드라이버 제거 → 파일 삭제 순으로 진행됩니다.
+  (ARSAgent 파일은 삭제되지 않습니다)
+
+
+[설치 후 폴더 구조]
+
+  D:\EARS\EEGAgent\
+  ├── bin\x86\
+  │   └── resourceagent.exe        ← 모니터링 에이전트
+  ├── conf\ResourceAgent\
+  │   ├── ResourceAgent.json       ← 메인 설정
+  │   ├── Monitor.json             ← 수집 항목 설정 (변경 시 자동 반영)
+  │   └── Logging.json             ← 로그 설정 (변경 시 자동 반영)
+  ├── log\ResourceAgent\
+  │   ├── ResourceAgent.log        ← 에이전트 로그
+  │   └── metrics.jsonl            ← 수집 메트릭 (file sender 사용 시)
+  └── tools\lhm-helper\            ← /lhmhelper 옵션 사용 시
+      ├── LhmHelper.exe
+      └── PawnIO_setup.exe
+
+
+[문제 해결]
+
+  "This script requires Administrator privileges" 오류:
+    → install.bat를 우클릭 → "관리자 권한으로 실행"
+
+  "resourceagent.exe not found in package" 오류:
+    → 패키지가 올바르게 압축 해제되었는지 확인하세요.
+       bin\x86\resourceagent.exe 파일이 있어야 합니다.
+
+  "PawnIO driver installation failed" 오류:
+    → 다른 하드웨어 모니터링 프로그램이 실행 중이면 종료 후 재시도
+
+  서비스가 시작되지 않을 때:
+    → 로그 확인: D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log
+    → 설정 파일 확인: conf\ResourceAgent\ResourceAgent.json
+
+
+[참고]
+
+  * 설정 파일(conf\ResourceAgent\*.json)은 대상 경로에 이미
+    존재하면 덮어쓰지 않습니다. 바이너리만 업데이트됩니다.
+
+  * Monitor.json, Logging.json은 서비스 재시작 없이
+    파일 수정만으로 자동 반영됩니다 (Hot Reload).
+
+  * ResourceAgent.json 변경은 서비스 재시작이 필요합니다:
+      sc.exe stop ResourceAgent
+      sc.exe start ResourceAgent
+
+========================================================
