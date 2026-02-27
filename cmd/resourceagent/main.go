@@ -47,6 +47,8 @@ func main() {
 	// Absolute config path (e.g. D:\EARS\EEGAgent\conf\ResourceAgent\ResourceAgent.json)
 	// means service mode — extract basePath (3 levels up from config file) and chdir.
 	// Relative path means interactive/dev mode — basePath stays as ".".
+	const startupErrorLogDir = "log/ResourceAgent"
+
 	if filepath.IsAbs(*configPath) {
 		basePath := filepath.Dir(filepath.Dir(filepath.Dir(*configPath)))
 		if err := os.Chdir(basePath); err != nil {
@@ -66,6 +68,7 @@ func main() {
 	cfg, mc, lc, err := config.LoadSplit(*configPath, *monitorPath, *loggingPath)
 	if err != nil {
 		service.ReportStartupError("ResourceAgent", err)
+		service.WriteStartupErrorFile(startupErrorLogDir, err)
 		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
@@ -73,6 +76,7 @@ func main() {
 	// Initialize logger from Logging.json
 	if err := logger.Init(*lc); err != nil {
 		service.ReportStartupError("ResourceAgent", err)
+		service.WriteStartupErrorFile(startupErrorLogDir, err)
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}

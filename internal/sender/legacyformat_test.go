@@ -651,8 +651,8 @@ func TestConvertToEARSRows_ProcessWatch(t *testing.T) {
 	}
 
 	assertRow(t, rows[0], "process_watch", 1234, "mes.exe", "required", 1)
-	assertRow(t, rows[1], "process_watch", 0, "scada.exe", "required", 0)
-	assertRow(t, rows[2], "process_watch", 5678, "torrent.exe", "forbidden", 1)
+	assertRow(t, rows[1], "process_watch", 0, "scada.exe", "required_alert", 0)
+	assertRow(t, rows[2], "process_watch", 5678, "torrent.exe", "forbidden_alert", 1)
 	assertRow(t, rows[3], "process_watch", 0, "teamviewer.exe", "forbidden", 0)
 }
 

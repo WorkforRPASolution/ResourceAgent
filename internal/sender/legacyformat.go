@@ -380,16 +380,28 @@ func convertProcessWatch(data *collector.MetricData) []EARSRow {
 		if s.Running {
 			value = 1.0
 		}
+		metric := processWatchMetric(s.Type, s.Running)
 		rows = append(rows, EARSRow{
 			Timestamp: data.Timestamp,
 			Category:  "process_watch",
 			PID:       int(s.PID),
 			ProcName:  s.Name,
-			Metric:    s.Type,
+			Metric:    metric,
 			Value:     value,
 		})
 	}
 	return rows
+}
+
+// processWatchMetric returns the EARS metric name with _alert suffix for anomalous states.
+//   - required + NOT running → required_alert
+//   - forbidden + running   → forbidden_alert
+func processWatchMetric(typ string, running bool) string {
+	isAlert := (typ == "required" && !running) || (typ == "forbidden" && running)
+	if isAlert {
+		return typ + "_alert"
+	}
+	return typ
 }
 
 func convertUptime(data *collector.MetricData) []EARSRow {
