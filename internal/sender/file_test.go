@@ -77,7 +77,7 @@ func TestFileSender_Send_JSONFormat(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
@@ -96,7 +96,7 @@ func TestFileSender_Send_JSONFormat(t *testing.T) {
 	if err := json.Unmarshal(bytes.TrimSpace(content), &result); err != nil {
 		t.Fatalf("output is not valid JSON: %v\ncontent: %s", err, content)
 	}
-	if result.Type != "cpu" {
+	if result.Type != "CPU" {
 		t.Errorf("expected type 'cpu', got %q", result.Type)
 	}
 }
@@ -128,7 +128,7 @@ func TestFileSender_Legacy_CPU(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
@@ -155,7 +155,7 @@ func TestFileSender_Legacy_Memory(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "memory",
+		Type:      "Memory",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000, UsedBytes: 12000000000},
 	}
@@ -188,7 +188,7 @@ func TestFileSender_Legacy_Disk(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "disk",
+		Type:      "Disk",
 		Timestamp: fileTestTimestamp,
 		Data: collector.DiskData{
 			Partitions: []collector.DiskPartition{
@@ -222,7 +222,7 @@ func TestFileSender_Legacy_Network(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "network",
+		Type:      "Network",
 		Timestamp: fileTestTimestamp,
 		Data: collector.NetworkData{
 			Interfaces: []collector.NetworkInterface{
@@ -271,7 +271,7 @@ func TestFileSender_Legacy_CPUProcess(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "cpu_process",
+		Type:      "CPUProcess",
 		Timestamp: fileTestTimestamp,
 		Data: collector.ProcessCPUData{
 			Processes: []collector.ProcessCPU{
@@ -305,7 +305,7 @@ func TestFileSender_Legacy_MemoryProcess(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "memory_process",
+		Type:      "MemoryProcess",
 		Timestamp: fileTestTimestamp,
 		Data: collector.ProcessMemoryData{
 			Processes: []collector.ProcessMemory{
@@ -335,7 +335,7 @@ func TestFileSender_Legacy_Temperature(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "temperature",
+		Type:      "Temperature",
 		Timestamp: fileTestTimestamp,
 		Data: collector.TemperatureData{
 			Sensors: []collector.TemperatureSensor{
@@ -376,7 +376,7 @@ func TestFileSender_Legacy_GPU(t *testing.T) {
 	coreClock := 2520.0
 	memClock := 1200.0
 	data := &collector.MetricData{
-		Type:      "gpu",
+		Type:      "GPU",
 		Timestamp: fileTestTimestamp,
 		Data: collector.GpuData{
 			Gpus: []collector.GpuSensor{
@@ -427,7 +427,7 @@ func TestFileSender_Legacy_Fan(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "fan",
+		Type:      "Fan",
 		Timestamp: fileTestTimestamp,
 		Data: collector.FanData{
 			Sensors: []collector.FanSensor{
@@ -457,7 +457,7 @@ func TestFileSender_Legacy_Voltage(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "voltage",
+		Type:      "Voltage",
 		Timestamp: fileTestTimestamp,
 		Data: collector.VoltageData{
 			Sensors: []collector.VoltageSensor{
@@ -487,7 +487,7 @@ func TestFileSender_Legacy_MotherboardTemp(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "motherboard_temp",
+		Type:      "MotherboardTemp",
 		Timestamp: fileTestTimestamp,
 		Data: collector.MotherboardTempData{
 			Sensors: []collector.MotherboardTempSensor{
@@ -520,7 +520,7 @@ func TestFileSender_Legacy_StorageSmart(t *testing.T) {
 	remainLife := 98.0
 	powerCycles := int64(150)
 	data := &collector.MetricData{
-		Type:      "storage_smart",
+		Type:      "StorageSmart",
 		Timestamp: fileTestTimestamp,
 		Data: collector.StorageSmartData{
 			Storages: []collector.StorageSmartSensor{
@@ -568,7 +568,7 @@ func TestFileSender_SetConsole_DisablesOutput(t *testing.T) {
 	s.SetConsole(false)
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
@@ -606,7 +606,7 @@ func TestFileSender_SetConsole_EnablesOutput(t *testing.T) {
 	os.Stdout = w
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
@@ -655,7 +655,7 @@ func TestFileSender_FileWriteNotBlockedByConsole(t *testing.T) {
 	go func() {
 		for i := 0; i < 200; i++ {
 			data := &collector.MetricData{
-				Type:      "temperature",
+				Type:      "Temperature",
 				Timestamp: fileTestTimestamp,
 				Data: collector.TemperatureData{
 					Sensors: []collector.TemperatureSensor{
@@ -726,7 +726,7 @@ func TestFileSender_Legacy_ClosedSender(t *testing.T) {
 	s.Close()
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5},
 	}
@@ -748,7 +748,7 @@ func TestFileSender_Legacy_GrokCompatible(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: fileTestTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
@@ -782,12 +782,12 @@ func TestFileSender_SendBatch_Legacy(t *testing.T) {
 
 	batch := []*collector.MetricData{
 		{
-			Type:      "cpu",
+			Type:      "CPU",
 			Timestamp: fileTestTimestamp,
 			Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 		},
 		{
-			Type:      "memory",
+			Type:      "Memory",
 			Timestamp: fileTestTimestamp,
 			Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000, UsedBytes: 12000000000},
 		},

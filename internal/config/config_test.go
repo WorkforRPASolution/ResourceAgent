@@ -480,23 +480,63 @@ func TestDefaultMonitorConfig(t *testing.T) {
 		t.Fatal("expected non-nil Collectors map")
 	}
 
+	if len(mc.Collectors) != 0 {
+		t.Errorf("expected empty Collectors map, got %d entries", len(mc.Collectors))
+	}
+}
+
+func TestMonitorConfig_ApplyDefaults(t *testing.T) {
+	mc := DefaultMonitorConfig()
+	defaults := map[string]CollectorConfig{
+		"cpu":    {Enabled: true, Interval: 10e9},
+		"memory": {Enabled: true, Interval: 10e9},
+	}
+	mc.ApplyDefaults(defaults)
+
+	if len(mc.Collectors) != 2 {
+		t.Fatalf("expected 2 collectors after ApplyDefaults, got %d", len(mc.Collectors))
+	}
 	cpu, ok := mc.Collectors["cpu"]
 	if !ok {
-		t.Fatal("expected 'cpu' collector in defaults")
+		t.Fatal("expected 'cpu' collector after ApplyDefaults")
 	}
 	if !cpu.Enabled {
 		t.Error("expected cpu.Enabled=true")
 	}
 }
 
+func TestMonitorConfig_ApplyDefaults_DoesNotOverwrite(t *testing.T) {
+	mc := &MonitorConfig{
+		Collectors: map[string]CollectorConfig{
+			"cpu": {Enabled: false, Interval: 5e9},
+		},
+	}
+	defaults := map[string]CollectorConfig{
+		"cpu":    {Enabled: true, Interval: 10e9},
+		"memory": {Enabled: true, Interval: 10e9},
+	}
+	mc.ApplyDefaults(defaults)
+
+	cpu := mc.Collectors["cpu"]
+	if cpu.Enabled {
+		t.Error("ApplyDefaults should not overwrite existing 'cpu' entry")
+	}
+	if cpu.Interval != 5e9 {
+		t.Errorf("expected cpu.Interval=5s preserved, got %v", cpu.Interval)
+	}
+	if _, ok := mc.Collectors["memory"]; !ok {
+		t.Error("expected 'memory' to be added by ApplyDefaults")
+	}
+}
+
 func TestParseMonitor(t *testing.T) {
 	input := `{
 		"Collectors": {
-			"cpu": {
+			"CPU": {
 				"Enabled": true,
 				"Interval": "5s"
 			},
-			"memory": {
+			"Memory": {
 				"Enabled": false,
 				"Interval": "20s"
 			}
@@ -508,23 +548,23 @@ func TestParseMonitor(t *testing.T) {
 		t.Fatalf("ParseMonitor failed: %v", err)
 	}
 
-	cpu, ok := mc.Collectors["cpu"]
+	cpu, ok := mc.Collectors["CPU"]
 	if !ok {
-		t.Fatal("expected 'cpu' collector")
+		t.Fatal("expected 'CPU' collector")
 	}
 	if !cpu.Enabled {
-		t.Error("expected cpu.Enabled=true")
+		t.Error("expected CPU.Enabled=true")
 	}
 	if cpu.Interval != 5*1e9 {
-		t.Errorf("expected cpu.Interval=5s, got %v", cpu.Interval)
+		t.Errorf("expected CPU.Interval=5s, got %v", cpu.Interval)
 	}
 
-	mem, ok := mc.Collectors["memory"]
+	mem, ok := mc.Collectors["Memory"]
 	if !ok {
-		t.Fatal("expected 'memory' collector")
+		t.Fatal("expected 'Memory' collector")
 	}
 	if mem.Enabled {
-		t.Error("expected memory.Enabled=false")
+		t.Error("expected Memory.Enabled=false")
 	}
 }
 
@@ -534,33 +574,38 @@ func TestParseMonitor_EmptyJSON(t *testing.T) {
 		t.Fatalf("ParseMonitor failed: %v", err)
 	}
 
-	// Should have defaults
-	if _, ok := mc.Collectors["cpu"]; !ok {
-		t.Error("expected default 'cpu' collector after parsing empty JSON")
+	// Should have empty defaults (registry applies defaults externally)
+	if len(mc.Collectors) != 0 {
+		t.Errorf("expected empty collectors after parsing empty JSON, got %d", len(mc.Collectors))
 	}
 }
 
 func TestMonitorConfig_Merge(t *testing.T) {
-	base := DefaultMonitorConfig()
+	base := &MonitorConfig{
+		Collectors: map[string]CollectorConfig{
+			"CPU":    {Enabled: true, Interval: 10e9},
+			"Memory": {Enabled: true, Interval: 10e9},
+		},
+	}
 	other := &MonitorConfig{
 		Collectors: map[string]CollectorConfig{
-			"cpu": {Enabled: false, Interval: 5e9},
+			"CPU": {Enabled: false, Interval: 5e9},
 		},
 	}
 
 	base.Merge(other)
 
-	cpu := base.Collectors["cpu"]
+	cpu := base.Collectors["CPU"]
 	if cpu.Enabled {
-		t.Error("expected cpu.Enabled=false after merge")
+		t.Error("expected CPU.Enabled=false after merge")
 	}
 	if cpu.Interval != 5e9 {
-		t.Errorf("expected cpu.Interval=5s after merge, got %v", cpu.Interval)
+		t.Errorf("expected CPU.Interval=5s after merge, got %v", cpu.Interval)
 	}
 
-	// memory should still exist from defaults
-	if _, ok := base.Collectors["memory"]; !ok {
-		t.Error("expected 'memory' collector preserved after merge")
+	// Memory should still exist from base
+	if _, ok := base.Collectors["Memory"]; !ok {
+		t.Error("expected 'Memory' collector preserved after merge")
 	}
 }
 
@@ -620,7 +665,7 @@ func TestLoadSplit_ThreeFiles(t *testing.T) {
 	}`
 	monitorJSON := `{
 		"Collectors": {
-			"cpu": {"Enabled": true, "Interval": "3s"}
+			"CPU": {"Enabled": true, "Interval": "3s"}
 		}
 	}`
 	loggingJSON := `{
@@ -646,12 +691,12 @@ func TestLoadSplit_ThreeFiles(t *testing.T) {
 	}
 
 	// MonitorConfig assertions
-	cpu, ok := mc.Collectors["cpu"]
+	cpu, ok := mc.Collectors["CPU"]
 	if !ok {
-		t.Fatal("expected 'cpu' collector")
+		t.Fatal("expected 'CPU' collector")
 	}
 	if cpu.Interval != 3e9 {
-		t.Errorf("expected cpu.Interval=3s, got %v", cpu.Interval)
+		t.Errorf("expected CPU.Interval=3s, got %v", cpu.Interval)
 	}
 
 	// LoggingConfig assertions

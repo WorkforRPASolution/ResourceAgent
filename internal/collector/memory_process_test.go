@@ -29,8 +29,8 @@ func TestMemoryProcessCollector_Collect_WithWatchProcesses(t *testing.T) {
 		t.Fatalf("Collect failed: %v", err)
 	}
 
-	if metric.Type != "memory_process" {
-		t.Errorf("Type = %q, want %q", metric.Type, "memory_process")
+	if metric.Type != "MemoryProcess" {
+		t.Errorf("Type = %q, want %q", metric.Type, "MemoryProcess")
 	}
 
 	data, ok := metric.Data.(ProcessMemoryData)

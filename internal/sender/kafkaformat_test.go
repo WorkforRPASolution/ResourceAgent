@@ -13,7 +13,7 @@ import (
 
 func newTestMetricData() *collector.MetricData {
 	return &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: time.Date(2026, 2, 24, 10, 30, 45, 0, time.UTC),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
@@ -113,8 +113,8 @@ func TestWrapMetricData_RawContainsOriginalData(t *testing.T) {
 		t.Fatalf("raw field is not valid MetricData JSON: %v", err)
 	}
 
-	if rawData.Type != "cpu" {
-		t.Errorf("raw type: expected cpu, got %s", rawData.Type)
+	if rawData.Type != "CPU" {
+		t.Errorf("raw type: expected CPU, got %s", rawData.Type)
 	}
 	if rawData.AgentID != "test-agent" {
 		t.Errorf("raw agent_id: expected test-agent, got %s", rawData.AgentID)
@@ -141,7 +141,7 @@ func TestWrapMetricData_ESIDFormat(t *testing.T) {
 	esid := wrapper.Records[0].Value.ESID
 	// Expected format: "{eqpid}_{type}_{timestamp}"
 	// Timestamp format: 20060102150405
-	expectedESID := fmt.Sprintf("EQP001_cpu_%s", data.Timestamp.Format("20060102150405"))
+	expectedESID := fmt.Sprintf("EQP001_CPU_%s", data.Timestamp.Format("20060102150405"))
 	if esid != expectedESID {
 		t.Errorf("ESID: expected %s, got %s", expectedESID, esid)
 	}
@@ -154,7 +154,7 @@ func TestWrapMetricData_ESIDFormat(t *testing.T) {
 	if parts[0] != "EQP001" {
 		t.Errorf("ESID first part should be EqpID, got %s", parts[0])
 	}
-	if parts[1] != "cpu" {
+	if parts[1] != "CPU" {
 		t.Errorf("ESID second part should be metric type, got %s", parts[1])
 	}
 }
@@ -162,7 +162,7 @@ func TestWrapMetricData_ESIDFormat(t *testing.T) {
 func TestWrapMetricData_DiffIsReasonable(t *testing.T) {
 	// Use current time so diff should be very small
 	data := &collector.MetricData{
-		Type:      "memory",
+		Type:      "Memory",
 		Timestamp: time.Now(),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
@@ -250,7 +250,7 @@ func TestKafkaMessageWrapper2_JSONStructure(t *testing.T) {
 
 func newTestCPUMetricData() *collector.MetricData {
 	return &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: time.Date(2026, 2, 24, 10, 30, 45, 123000000, time.UTC),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
@@ -260,7 +260,7 @@ func newTestCPUMetricData() *collector.MetricData {
 
 func newTestMemoryMetricData() *collector.MetricData {
 	return &collector.MetricData{
-		Type:      "memory",
+		Type:      "Memory",
 		Timestamp: time.Date(2026, 2, 24, 10, 30, 45, 123000000, time.UTC),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
@@ -377,7 +377,7 @@ func TestWrapMetricDataLegacy_ESIDFormat(t *testing.T) {
 
 	tsMs := data.Timestamp.UnixMilli()
 	for i, rec := range wrapper.Records {
-		expected := fmt.Sprintf("PROCESS1:EQP001-memory-%d-%d", tsMs, i)
+		expected := fmt.Sprintf("PROCESS1:EQP001-Memory-%d-%d", tsMs, i)
 		if rec.Value.ESID != expected {
 			t.Errorf("record[%d] ESID: expected %s, got %s", i, expected, rec.Value.ESID)
 		}
@@ -511,7 +511,7 @@ func TestWrapMetricDataJSON_ESIDFormat(t *testing.T) {
 	for i, v := range values {
 		var kv KafkaValue
 		json.Unmarshal(v, &kv)
-		expected := fmt.Sprintf("PROCESS1:EQP001-memory-%d-%d", tsMs, i)
+		expected := fmt.Sprintf("PROCESS1:EQP001-Memory-%d-%d", tsMs, i)
 		if kv.ESID != expected {
 			t.Errorf("value[%d] ESID: expected %s, got %s", i, expected, kv.ESID)
 		}

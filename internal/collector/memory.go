@@ -17,7 +17,7 @@ type MemoryCollector struct {
 // NewMemoryCollector creates a new memory collector.
 func NewMemoryCollector() *MemoryCollector {
 	return &MemoryCollector{
-		BaseCollector: NewBaseCollector("memory"),
+		BaseCollector: NewBaseCollector("Memory"),
 	}
 }
 

@@ -17,7 +17,7 @@ type UptimeCollector struct {
 // NewUptimeCollector creates a new uptime collector.
 func NewUptimeCollector() *UptimeCollector {
 	return &UptimeCollector{
-		BaseCollector: NewBaseCollector("uptime"),
+		BaseCollector: NewBaseCollector("Uptime"),
 	}
 }
 

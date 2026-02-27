@@ -17,8 +17,15 @@ type MotherboardTempCollector struct {
 // NewMotherboardTempCollector creates a new motherboard temperature collector.
 func NewMotherboardTempCollector() *MotherboardTempCollector {
 	return &MotherboardTempCollector{
-		BaseCollector: NewBaseCollector("motherboard_temp"),
+		BaseCollector: NewBaseCollector("MotherboardTemp"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the motherboard temperature collector.
+func (c *MotherboardTempCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

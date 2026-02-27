@@ -94,31 +94,31 @@ func (r EARSRow) ToParsedData(process string) ParsedDataList {
 // ConvertToEARSRows converts MetricData to EARS rows based on the metric type.
 func ConvertToEARSRows(data *collector.MetricData) []EARSRow {
 	switch data.Type {
-	case "cpu":
+	case "CPU":
 		return convertCPU(data)
-	case "memory":
+	case "Memory":
 		return convertMemory(data)
-	case "disk":
+	case "Disk":
 		return convertDisk(data)
-	case "network":
+	case "Network":
 		return convertNetwork(data)
-	case "cpu_process":
+	case "CPUProcess":
 		return convertCPUProcess(data)
-	case "memory_process":
+	case "MemoryProcess":
 		return convertMemoryProcess(data)
-	case "temperature":
+	case "Temperature":
 		return convertTemperature(data)
-	case "gpu":
+	case "GPU":
 		return convertGPU(data)
-	case "fan":
+	case "Fan":
 		return convertFan(data)
-	case "voltage":
+	case "Voltage":
 		return convertVoltage(data)
-	case "motherboard_temp":
+	case "MotherboardTemp":
 		return convertMotherboardTemp(data)
-	case "storage_smart":
+	case "StorageSmart":
 		return convertStorageSmart(data)
-	case "uptime":
+	case "Uptime":
 		return convertUptime(data)
 	case "ProcessWatch":
 		return convertProcessWatch(data)

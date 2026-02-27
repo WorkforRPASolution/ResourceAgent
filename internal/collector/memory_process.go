@@ -21,9 +21,17 @@ type MemoryProcessCollector struct {
 // NewMemoryProcessCollector creates a new memory process collector.
 func NewMemoryProcessCollector() *MemoryProcessCollector {
 	return &MemoryProcessCollector{
-		BaseCollector: NewBaseCollector("memory_process"),
+		BaseCollector: NewBaseCollector("MemoryProcess"),
 		topN:          10,
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the memory process collector.
+func (c *MemoryProcessCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	cfg.TopN = 10
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

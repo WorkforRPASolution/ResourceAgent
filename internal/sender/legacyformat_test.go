@@ -43,7 +43,7 @@ func TestFormatJSONTimestamp(t *testing.T) {
 
 func TestConvertToEARSRows_CPU(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: testTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
@@ -57,7 +57,7 @@ func TestConvertToEARSRows_CPU(t *testing.T) {
 
 func TestConvertToEARSRows_Memory(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "memory",
+		Type:      "Memory",
 		Timestamp: testTimestamp,
 		Data:      collector.MemoryData{UsagePercent: 75.0, TotalBytes: 16000000000, UsedBytes: 12000000000},
 	}
@@ -72,7 +72,7 @@ func TestConvertToEARSRows_Memory(t *testing.T) {
 
 func TestConvertToEARSRows_Disk(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "disk",
+		Type:      "Disk",
 		Timestamp: testTimestamp,
 		Data: collector.DiskData{
 			Partitions: []collector.DiskPartition{
@@ -91,7 +91,7 @@ func TestConvertToEARSRows_Disk(t *testing.T) {
 
 func TestConvertToEARSRows_Network(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "network",
+		Type:      "Network",
 		Timestamp: testTimestamp,
 		Data: collector.NetworkData{
 			Interfaces: []collector.NetworkInterface{
@@ -118,7 +118,7 @@ func TestConvertToEARSRows_Network(t *testing.T) {
 
 func TestConvertToEARSRows_CPUProcess(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "cpu_process",
+		Type:      "CPUProcess",
 		Timestamp: testTimestamp,
 		Data: collector.ProcessCPUData{
 			Processes: []collector.ProcessCPU{
@@ -137,7 +137,7 @@ func TestConvertToEARSRows_CPUProcess(t *testing.T) {
 
 func TestConvertToEARSRows_MemoryProcess(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "memory_process",
+		Type:      "MemoryProcess",
 		Timestamp: testTimestamp,
 		Data: collector.ProcessMemoryData{
 			Processes: []collector.ProcessMemory{
@@ -154,7 +154,7 @@ func TestConvertToEARSRows_MemoryProcess(t *testing.T) {
 
 func TestConvertToEARSRows_Temperature(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "temperature",
+		Type:      "Temperature",
 		Timestamp: testTimestamp,
 		Data: collector.TemperatureData{
 			Sensors: []collector.TemperatureSensor{
@@ -181,7 +181,7 @@ func TestConvertToEARSRows_GPU(t *testing.T) {
 	memClock := 1200.0
 
 	data := &collector.MetricData{
-		Type:      "gpu",
+		Type:      "GPU",
 		Timestamp: testTimestamp,
 		Data: collector.GpuData{
 			Gpus: []collector.GpuSensor{
@@ -208,7 +208,7 @@ func TestConvertToEARSRows_GPU(t *testing.T) {
 func TestConvertToEARSRows_GPU_NilFields(t *testing.T) {
 	temp := 75.0
 	data := &collector.MetricData{
-		Type:      "gpu",
+		Type:      "GPU",
 		Timestamp: testTimestamp,
 		Data: collector.GpuData{
 			Gpus: []collector.GpuSensor{
@@ -225,7 +225,7 @@ func TestConvertToEARSRows_GPU_NilFields(t *testing.T) {
 
 func TestConvertToEARSRows_Fan(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "fan",
+		Type:      "Fan",
 		Timestamp: testTimestamp,
 		Data: collector.FanData{
 			Sensors: []collector.FanSensor{
@@ -242,7 +242,7 @@ func TestConvertToEARSRows_Fan(t *testing.T) {
 
 func TestConvertToEARSRows_Voltage(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "voltage",
+		Type:      "Voltage",
 		Timestamp: testTimestamp,
 		Data: collector.VoltageData{
 			Sensors: []collector.VoltageSensor{
@@ -259,7 +259,7 @@ func TestConvertToEARSRows_Voltage(t *testing.T) {
 
 func TestConvertToEARSRows_MotherboardTemp(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "motherboard_temp",
+		Type:      "MotherboardTemp",
 		Timestamp: testTimestamp,
 		Data: collector.MotherboardTempData{
 			Sensors: []collector.MotherboardTempSensor{
@@ -284,7 +284,7 @@ func TestConvertToEARSRows_StorageSmart(t *testing.T) {
 	totalWritten := int64(50000000000)
 
 	data := &collector.MetricData{
-		Type:      "storage_smart",
+		Type:      "StorageSmart",
 		Timestamp: testTimestamp,
 		Data: collector.StorageSmartData{
 			Storages: []collector.StorageSmartSensor{
@@ -311,7 +311,7 @@ func TestConvertToEARSRows_StorageSmart(t *testing.T) {
 
 func TestConvertToEARSRows_StorageSmart_NilFields(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "storage_smart",
+		Type:      "StorageSmart",
 		Timestamp: testTimestamp,
 		Data: collector.StorageSmartData{
 			Storages: []collector.StorageSmartSensor{
@@ -327,7 +327,7 @@ func TestConvertToEARSRows_StorageSmart_NilFields(t *testing.T) {
 
 func TestConvertToEARSRows_Uptime(t *testing.T) {
 	data := &collector.MetricData{
-		Type:      "uptime",
+		Type:      "Uptime",
 		Timestamp: testTimestamp,
 		Data: collector.UptimeData{
 			BootTimeUnix:  1740614400,
@@ -496,7 +496,7 @@ func TestToParsedData_JSONMarshal(t *testing.T) {
 func TestConvertToEARSRows_PointerData(t *testing.T) {
 	cpuData := &collector.CPUData{UsagePercent: 55.0, CoreCount: 8}
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: testTimestamp,
 		Data:      cpuData, // pointer type
 	}

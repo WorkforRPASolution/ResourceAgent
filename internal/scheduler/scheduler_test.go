@@ -60,6 +60,13 @@ func (m *mockCollector) Enabled() bool {
 	return m.enabled
 }
 
+func (m *mockCollector) DefaultConfig() config.CollectorConfig {
+	return config.CollectorConfig{
+		Enabled:  true,
+		Interval: m.interval,
+	}
+}
+
 func (m *mockCollector) collectCount() int32 {
 	return atomic.LoadInt32(&m.calls)
 }

@@ -21,6 +21,12 @@ type Collector interface {
 
 	// Interval returns the collection interval for this collector.
 	Interval() time.Duration
+
+	// Enabled returns whether the collector is enabled.
+	Enabled() bool
+
+	// DefaultConfig returns the default CollectorConfig for this collector.
+	DefaultConfig() config.CollectorConfig
 }
 
 // BaseCollector provides common functionality for all collectors.
@@ -53,6 +59,14 @@ func (b *BaseCollector) SetInterval(d time.Duration) {
 // SetEnabled sets whether the collector is enabled.
 func (b *BaseCollector) SetEnabled(enabled bool) {
 	b.enabled = enabled
+}
+
+// DefaultConfig returns the default CollectorConfig for this collector.
+func (b *BaseCollector) DefaultConfig() config.CollectorConfig {
+	return config.CollectorConfig{
+		Enabled:  true,
+		Interval: b.interval,
+	}
 }
 
 // NewBaseCollector creates a new BaseCollector with the given name.

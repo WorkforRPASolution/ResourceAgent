@@ -17,8 +17,8 @@ func TestUptimeCollector_Collect(t *testing.T) {
 		t.Fatalf("Collect failed: %v", err)
 	}
 
-	if metric.Type != "uptime" {
-		t.Errorf("Type = %q, want %q", metric.Type, "uptime")
+	if metric.Type != "Uptime" {
+		t.Errorf("Type = %q, want %q", metric.Type, "Uptime")
 	}
 
 	data, ok := metric.Data.(UptimeData)
@@ -58,8 +58,8 @@ func TestUptimeCollector_Collect(t *testing.T) {
 func TestUptimeCollector_Configure(t *testing.T) {
 	c := NewUptimeCollector()
 
-	if c.Name() != "uptime" {
-		t.Errorf("Name = %q, want %q", c.Name(), "uptime")
+	if c.Name() != "Uptime" {
+		t.Errorf("Name = %q, want %q", c.Name(), "Uptime")
 	}
 
 	// Default interval is 10s (BaseCollector default)

@@ -18,7 +18,7 @@ type CPUCollector struct {
 // NewCPUCollector creates a new CPU collector.
 func NewCPUCollector() *CPUCollector {
 	return &CPUCollector{
-		BaseCollector: NewBaseCollector("cpu"),
+		BaseCollector: NewBaseCollector("CPU"),
 	}
 }
 

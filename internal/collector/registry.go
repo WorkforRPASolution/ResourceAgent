@@ -77,46 +77,23 @@ func (r *Registry) EnabledCollectors() []Collector {
 
 	var result []Collector
 	for _, c := range r.collectors {
-		var enabled bool
-
-		switch bc := c.(type) {
-		case *CPUCollector:
-			enabled = bc.Enabled()
-		case *MemoryCollector:
-			enabled = bc.Enabled()
-		case *DiskCollector:
-			enabled = bc.Enabled()
-		case *NetworkCollector:
-			enabled = bc.Enabled()
-		case *TemperatureCollector:
-			enabled = bc.Enabled()
-		case *CPUProcessCollector:
-			enabled = bc.Enabled()
-		case *MemoryProcessCollector:
-			enabled = bc.Enabled()
-		case *FanCollector:
-			enabled = bc.Enabled()
-		case *GpuCollector:
-			enabled = bc.Enabled()
-		case *StorageSmartCollector:
-			enabled = bc.Enabled()
-		case *VoltageCollector:
-			enabled = bc.Enabled()
-		case *MotherboardTempCollector:
-			enabled = bc.Enabled()
-		case *UptimeCollector:
-			enabled = bc.Enabled()
-		case *ProcessWatchCollector:
-			enabled = bc.Enabled()
-		default:
-			enabled = true // Default: assume enabled if not determinable
-		}
-
-		if enabled {
+		if c.Enabled() {
 			result = append(result, c)
 		}
 	}
 	return result
+}
+
+// DefaultConfigs returns the default CollectorConfig for all registered collectors.
+func (r *Registry) DefaultConfigs() map[string]config.CollectorConfig {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	configs := make(map[string]config.CollectorConfig, len(r.collectors))
+	for _, c := range r.collectors {
+		configs[c.Name()] = c.DefaultConfig()
+	}
+	return configs
 }
 
 // DefaultRegistry creates a registry with all default collectors pre-registered.

@@ -40,8 +40,8 @@ func TestCPUProcessCollector_Collect_WithWatchProcesses(t *testing.T) {
 		t.Fatalf("Collect failed: %v", err)
 	}
 
-	if metric.Type != "cpu_process" {
-		t.Errorf("Type = %q, want %q", metric.Type, "cpu_process")
+	if metric.Type != "CPUProcess" {
+		t.Errorf("Type = %q, want %q", metric.Type, "CPUProcess")
 	}
 
 	data, ok := metric.Data.(ProcessCPUData)

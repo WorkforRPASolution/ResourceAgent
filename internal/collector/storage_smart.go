@@ -17,8 +17,15 @@ type StorageSmartCollector struct {
 // NewStorageSmartCollector creates a new S.M.A.R.T collector.
 func NewStorageSmartCollector() *StorageSmartCollector {
 	return &StorageSmartCollector{
-		BaseCollector: NewBaseCollector("storage_smart"),
+		BaseCollector: NewBaseCollector("StorageSmart"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the storage S.M.A.R.T collector.
+func (c *StorageSmartCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 60 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

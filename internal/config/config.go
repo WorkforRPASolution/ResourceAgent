@@ -282,61 +282,21 @@ type MonitorConfig struct {
 	Collectors map[string]CollectorConfig `json:"Collectors"`
 }
 
-// DefaultMonitorConfig returns a MonitorConfig with sensible defaults.
+// DefaultMonitorConfig returns a MonitorConfig with empty defaults.
+// Use ApplyDefaults() with registry-provided defaults for full initialization.
 func DefaultMonitorConfig() *MonitorConfig {
 	return &MonitorConfig{
-		Collectors: map[string]CollectorConfig{
-			"cpu": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"memory": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"disk": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"network": {
-				Enabled:  true,
-				Interval: 10 * time.Second,
-			},
-			"temperature": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"cpu_process": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-				TopN:     10,
-			},
-			"memory_process": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-				TopN:     10,
-			},
-			"fan": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"gpu": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"storage_smart": {
-				Enabled:  true,
-				Interval: 60 * time.Second,
-			},
-			"voltage": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-			"motherboard_temp": {
-				Enabled:  true,
-				Interval: 30 * time.Second,
-			},
-		},
+		Collectors: make(map[string]CollectorConfig),
+	}
+}
+
+// ApplyDefaults fills in missing collector entries from the provided defaults.
+// Existing entries are not overwritten.
+func (mc *MonitorConfig) ApplyDefaults(defaults map[string]CollectorConfig) {
+	for name, defCfg := range defaults {
+		if _, exists := mc.Collectors[name]; !exists {
+			mc.Collectors[name] = defCfg
+		}
 	}
 }
 

@@ -38,7 +38,7 @@ func newTestKafkaRestSender(t *testing.T, handler http.HandlerFunc) (*KafkaRestS
 
 func newCPUData() *collector.MetricData {
 	return &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: time.Now(),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
@@ -157,11 +157,11 @@ func TestKafkaRestSender_SendBatch(t *testing.T) {
 	defer s.Close()
 
 	batch := []*collector.MetricData{
-		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
+		{Type: "CPU", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
 			Data: collector.CPUData{UsagePercent: 50.0, CoreCount: 4}},
-		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
+		{Type: "CPU", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
 			Data: collector.CPUData{UsagePercent: 60.0, CoreCount: 4}},
-		{Type: "cpu", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
+		{Type: "CPU", Timestamp: time.Now(), AgentID: "a", Hostname: "h",
 			Data: collector.CPUData{UsagePercent: 70.0, CoreCount: 4}},
 	}
 
@@ -223,7 +223,7 @@ func TestKafkaRestSender_Send_LegacyPlainTextRaw(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "cpu",
+		Type:      "CPU",
 		Timestamp: time.Date(2026, 2, 24, 10, 30, 45, 123000000, time.UTC),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",
@@ -262,7 +262,7 @@ func TestKafkaRestSender_Send_MemoryMultipleRecords(t *testing.T) {
 	defer s.Close()
 
 	data := &collector.MetricData{
-		Type:      "memory",
+		Type:      "Memory",
 		Timestamp: time.Now(),
 		AgentID:   "test-agent",
 		Hostname:  "test-host",

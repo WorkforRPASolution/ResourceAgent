@@ -17,8 +17,15 @@ type GpuCollector struct {
 // NewGpuCollector creates a new GPU collector.
 func NewGpuCollector() *GpuCollector {
 	return &GpuCollector{
-		BaseCollector: NewBaseCollector("gpu"),
+		BaseCollector: NewBaseCollector("GPU"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the GPU collector.
+func (c *GpuCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

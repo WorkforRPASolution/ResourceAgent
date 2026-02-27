@@ -17,8 +17,15 @@ type TemperatureCollector struct {
 // NewTemperatureCollector creates a new temperature collector.
 func NewTemperatureCollector() *TemperatureCollector {
 	return &TemperatureCollector{
-		BaseCollector: NewBaseCollector("temperature"),
+		BaseCollector: NewBaseCollector("Temperature"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the temperature collector.
+func (c *TemperatureCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

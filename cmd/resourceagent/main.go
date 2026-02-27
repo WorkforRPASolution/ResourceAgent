@@ -226,6 +226,9 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	// Create collector registry with default collectors
 	registry := collector.DefaultRegistry()
 
+	// Apply registry defaults to MonitorConfig (fills in collectors not in Monitor.json)
+	mc.ApplyDefaults(registry.DefaultConfigs())
+
 	// Configure collectors from MonitorConfig
 	if err := registry.Configure(mc.Collectors); err != nil {
 		return fmt.Errorf("failed to configure collectors: %w", err)
@@ -288,6 +291,8 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 		defer watcherMu.Unlock()
 
 		log.Info().Msg("Applying monitor configuration changes")
+
+		newMC.ApplyDefaults(registry.DefaultConfigs())
 
 		if err := registry.Configure(newMC.Collectors); err != nil {
 			log.Error().Err(err).Msg("Failed to update collector configurations")

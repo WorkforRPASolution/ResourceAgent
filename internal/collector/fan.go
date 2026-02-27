@@ -17,8 +17,15 @@ type FanCollector struct {
 // NewFanCollector creates a new fan speed collector.
 func NewFanCollector() *FanCollector {
 	return &FanCollector{
-		BaseCollector: NewBaseCollector("fan"),
+		BaseCollector: NewBaseCollector("Fan"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the fan collector.
+func (c *FanCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

@@ -19,8 +19,15 @@ type DiskCollector struct {
 // NewDiskCollector creates a new disk collector.
 func NewDiskCollector() *DiskCollector {
 	return &DiskCollector{
-		BaseCollector: NewBaseCollector("disk"),
+		BaseCollector: NewBaseCollector("Disk"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the disk collector.
+func (c *DiskCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

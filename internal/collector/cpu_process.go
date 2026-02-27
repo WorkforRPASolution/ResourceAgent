@@ -24,10 +24,18 @@ type CPUProcessCollector struct {
 // NewCPUProcessCollector creates a new CPU process collector.
 func NewCPUProcessCollector() *CPUProcessCollector {
 	return &CPUProcessCollector{
-		BaseCollector: NewBaseCollector("cpu_process"),
+		BaseCollector: NewBaseCollector("CPUProcess"),
 		topN:          10,
 		numCPU:        float64(runtime.NumCPU()),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the CPU process collector.
+func (c *CPUProcessCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	cfg.TopN = 10
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

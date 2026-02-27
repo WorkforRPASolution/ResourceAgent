@@ -17,8 +17,15 @@ type VoltageCollector struct {
 // NewVoltageCollector creates a new voltage collector.
 func NewVoltageCollector() *VoltageCollector {
 	return &VoltageCollector{
-		BaseCollector: NewBaseCollector("voltage"),
+		BaseCollector: NewBaseCollector("Voltage"),
 	}
+}
+
+// DefaultConfig returns the default CollectorConfig for the voltage collector.
+func (c *VoltageCollector) DefaultConfig() config.CollectorConfig {
+	cfg := c.BaseCollector.DefaultConfig()
+	cfg.Interval = 30 * time.Second
+	return cfg
 }
 
 // Configure applies the configuration to the collector.

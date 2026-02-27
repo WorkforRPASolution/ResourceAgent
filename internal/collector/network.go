@@ -25,7 +25,7 @@ type NetworkCollector struct {
 // NewNetworkCollector creates a new network collector.
 func NewNetworkCollector() *NetworkCollector {
 	return &NetworkCollector{
-		BaseCollector: NewBaseCollector("network"),
+		BaseCollector: NewBaseCollector("Network"),
 		lastStats:     make(map[string]net.IOCountersStat),
 	}
 }
