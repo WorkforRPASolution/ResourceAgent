@@ -165,6 +165,25 @@ category:uptime,pid:0,proc:@system,metric:boot_time_unix,value:1740614400
 category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440.5
 ```
 
+### process_watch
+
+필수/금지 프로세스마다 1개 row 생성. 실행 중이면 `value=1`, 미실행이면 `value=0`.
+
+| proc | metric | 설명 | value | 알람 조건 |
+|------|--------|------|-------|----------|
+| `{프로세스명}` | `required` | 필수 프로세스 실행 여부 | `1`=실행 중, `0`=미실행 | value=0 시 알람 (프로세스 다운) |
+| `{프로세스명}` | `forbidden` | 금지 프로세스 실행 여부 | `1`=실행 중, `0`=미실행 | value=1 시 알람 (비인가 프로세스) |
+
+- pid: 실행 중이면 해당 PID, 미실행이면 `0`
+
+**출력 예시:**
+```
+category:process_watch,pid:1234,proc:mes_client.exe,metric:required,value:1
+category:process_watch,pid:0,proc:scada_hmi.exe,metric:required,value:0
+category:process_watch,pid:5678,proc:teamviewer.exe,metric:forbidden,value:1
+category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
+```
+
 ---
 
 ## 프로세스 메트릭 (proc={프로세스명}, pid={PID})
@@ -220,6 +239,10 @@ category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440.5
 2026-02-25 10:30:45,123 category:storage_smart,pid:0,proc:@system,metric:nvme0_total_bytes_written,value:50000000000
 2026-02-25 10:30:45,123 category:uptime,pid:0,proc:@system,metric:boot_time_unix,value:1740614400
 2026-02-25 10:30:45,123 category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
+2026-02-25 10:30:45,123 category:process_watch,pid:1234,proc:mes_client.exe,metric:required,value:1
+2026-02-25 10:30:45,123 category:process_watch,pid:0,proc:scada_hmi.exe,metric:required,value:0
+2026-02-25 10:30:45,123 category:process_watch,pid:5678,proc:teamviewer.exe,metric:forbidden,value:1
+2026-02-25 10:30:45,123 category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 2026-02-25 10:30:45,123 category:cpu,pid:1234,proc:python.exe,metric:used_pct,value:12.5
 2026-02-25 10:30:45,123 category:cpu,pid:5678,proc:java.exe,metric:used_pct,value:8.3
 2026-02-25 10:30:45,123 category:memory,pid:1234,proc:python.exe,metric:used,value:104857600

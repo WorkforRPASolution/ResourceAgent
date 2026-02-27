@@ -43,7 +43,7 @@ ConfigManager ──► Scheduler ──► Collectors ──► Sender (Kafka)
 
 ### 핵심 인터페이스
 
-- **Collector**: 특정 자원 메트릭 수집 (CPU, Memory, Disk, Network, Temperature, Uptime 등 13종)
+- **Collector**: 특정 자원 메트릭 수집 (CPU, Memory, Disk, Network, Temperature, Uptime, ProcessWatch 등 14종)
 - **Sender**: Kafka로 메트릭 전송
 - **ConfigManager**: 설정 로드, 변경 감지, Hot Reload 처리
 

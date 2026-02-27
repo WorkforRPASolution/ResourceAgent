@@ -631,5 +631,98 @@ func TestToLegacyString_SpecialCharsInMetric(t *testing.T) {
 	}
 }
 
+func TestConvertToEARSRows_ProcessWatch(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "ProcessWatch",
+		Timestamp: testTimestamp,
+		Data: collector.ProcessWatchData{
+			Statuses: []collector.ProcessWatchStatus{
+				{Name: "mes.exe", PID: 1234, Running: true, Type: "required"},
+				{Name: "scada.exe", PID: 0, Running: false, Type: "required"},
+				{Name: "torrent.exe", PID: 5678, Running: true, Type: "forbidden"},
+				{Name: "teamviewer.exe", PID: 0, Running: false, Type: "forbidden"},
+			},
+		},
+	}
+
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 4 {
+		t.Fatalf("expected 4 rows, got %d", len(rows))
+	}
+
+	assertRow(t, rows[0], "process_watch", 1234, "mes.exe", "required", 1)
+	assertRow(t, rows[1], "process_watch", 0, "scada.exe", "required", 0)
+	assertRow(t, rows[2], "process_watch", 5678, "torrent.exe", "forbidden", 1)
+	assertRow(t, rows[3], "process_watch", 0, "teamviewer.exe", "forbidden", 0)
+}
+
+func TestConvertToEARSRows_ProcessWatch_Empty(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "ProcessWatch",
+		Timestamp: testTimestamp,
+		Data:      collector.ProcessWatchData{Statuses: []collector.ProcessWatchStatus{}},
+	}
+
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 0 {
+		t.Fatalf("expected 0 rows, got %d", len(rows))
+	}
+}
+
+func TestConvertToEARSRows_ProcessWatch_LegacyString(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "ProcessWatch",
+		Timestamp: testTimestamp,
+		Data: collector.ProcessWatchData{
+			Statuses: []collector.ProcessWatchStatus{
+				{Name: "mes.exe", PID: 1234, Running: true, Type: "required"},
+			},
+		},
+	}
+
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
+	}
+
+	legacy := rows[0].ToLegacyString()
+	expected := "2026-02-24 10:30:45,123 category:process_watch,pid:1234,proc:mes.exe,metric:required,value:1"
+	if legacy != expected {
+		t.Errorf("ToLegacyString:\n  got:  %q\n  want: %q", legacy, expected)
+	}
+}
+
+func TestConvertToEARSRows_ProcessWatch_JSONRoundtrip(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "ProcessWatch",
+		Timestamp: testTimestamp,
+		Data: collector.ProcessWatchData{
+			Statuses: []collector.ProcessWatchStatus{
+				{Name: "mes.exe", PID: 1234, Running: true, Type: "required"},
+			},
+		},
+	}
+
+	// JSON roundtrip: marshal then unmarshal
+	b, err := json.Marshal(data.Data)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var roundtripped collector.MetricData
+	roundtripped.Type = "ProcessWatch"
+	roundtripped.Timestamp = testTimestamp
+	var pwData collector.ProcessWatchData
+	if err := json.Unmarshal(b, &pwData); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	roundtripped.Data = pwData
+
+	rows := ConvertToEARSRows(&roundtripped)
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row after roundtrip, got %d", len(rows))
+	}
+	assertRow(t, rows[0], "process_watch", 1234, "mes.exe", "required", 1)
+}
+
 // Suppress unused import warning
 var _ = fmt.Sprintf

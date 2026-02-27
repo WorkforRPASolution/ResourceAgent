@@ -106,6 +106,8 @@ func (r *Registry) EnabledCollectors() []Collector {
 			enabled = bc.Enabled()
 		case *UptimeCollector:
 			enabled = bc.Enabled()
+		case *ProcessWatchCollector:
+			enabled = bc.Enabled()
 		default:
 			enabled = true // Default: assume enabled if not determinable
 		}
@@ -135,6 +137,7 @@ func DefaultRegistry() *Registry {
 	_ = r.Register(NewVoltageCollector())
 	_ = r.Register(NewMotherboardTempCollector())
 	_ = r.Register(NewUptimeCollector())
+	_ = r.Register(NewProcessWatchCollector())
 
 	return r
 }

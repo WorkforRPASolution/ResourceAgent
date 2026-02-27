@@ -63,6 +63,12 @@
     "uptime": {
       "Enabled": true,
       "Interval": "300s"
+    },
+    "ProcessWatch": {
+      "Enabled": true,
+      "Interval": "60s",
+      "RequiredProcesses": [],
+      "ForbiddenProcesses": []
     }
   }
 }

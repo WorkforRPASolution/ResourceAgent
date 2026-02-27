@@ -24,6 +24,7 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
   - [Motherboard Temperature Collector](#motherboard-temperature-collector)
 - [시스템 Collectors](#시스템-collectors)
   - [Uptime Collector](#uptime-collector)
+  - [ProcessWatch Collector](#processwatch-collector)
 - [플랫폼별 지원 현황](#플랫폼별-지원-현황)
 - [전체 설정 예시](#전체-설정-예시)
 
@@ -31,7 +32,7 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
 
 ## 개요
 
-ResourceAgent는 13개의 수집기를 제공합니다:
+ResourceAgent는 14개의 수집기를 제공합니다:
 
 | Collector | 설명 | 플랫폼 |
 |-----------|------|--------|
@@ -48,6 +49,7 @@ ResourceAgent는 13개의 수집기를 제공합니다:
 | voltage | 전압 센서 | Windows (LHM) |
 | motherboard_temp | 메인보드 온도 | Windows (LHM) |
 | uptime | 시스템 부팅 시각 및 가동 시간 | Windows, Linux |
+| process_watch | 필수/금지 프로세스 감시 | Windows, Linux |
 
 > **LHM**: LibreHardwareMonitor 기반 (Windows 전용, 관리자 권한 필요)
 
@@ -104,6 +106,7 @@ ResourceAgent는 13개의 수집기를 제공합니다:
 | **voltage** | 60s | PSU 전압은 매우 안정적, 급격한 변화 드묾 |
 | **motherboard_temp** | 60s | 주변 온도/방열로 천천히 변화 |
 | **storage_smart** | 300s (5분) | S.M.A.R.T 값은 시간/일 단위로 변화, I/O 부하 감소 |
+| **process_watch** | 60s | 프로세스 상태 변화 감시, 1분이면 충분 |
 
 ### 주기별 그룹
 
@@ -114,7 +117,7 @@ ResourceAgent는 13개의 수집기를 제공합니다:
 │  30s (중간)        │  disk, temperature, fan, gpu,              │
 │                    │  cpu_process, memory_process               │
 ├─────────────────────────────────────────────────────────────────┤
-│  60s (저빈도)      │  voltage, motherboard_temp                 │
+│  60s (저빈도)      │  voltage, motherboard_temp, process_watch   │
 ├─────────────────────────────────────────────────────────────────┤
 │  300s (최저빈도)   │  storage_smart                             │
 └─────────────────────────────────────────────────────────────────┘
@@ -128,9 +131,9 @@ ResourceAgent는 13개의 수집기를 제공합니다:
 |------|----------|---------------|---------------|
 | 10s | 3개 | 1,080 | 10,800,000 |
 | 30s | 6개 | 720 | 7,200,000 |
-| 60s | 2개 | 120 | 1,200,000 |
+| 60s | 3개 | 180 | 1,800,000 |
 | 300s | 1개 | 12 | 120,000 |
-| **합계** | **12개** | **1,932** | **~19,320,000** |
+| **합계** | **13개** | **1,992** | **~19,920,000** |
 
 > **참고**: 실제 메시지 크기는 평균 500B~2KB, 시간당 약 10~40GB 데이터 발생
 
@@ -1046,6 +1049,107 @@ category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
 
 ---
 
+### ProcessWatch Collector
+
+공장 PC에서 반드시 실행되어야 하는 필수 프로세스와, 실행되면 안 되는 금지 프로세스를 감시합니다.
+
+#### 설정
+
+| 필드 | 타입 | 설명 | 기본값 |
+|------|------|------|--------|
+| `enabled` | boolean | 활성화 여부 | `true` |
+| `interval` | string | 수집 주기 | `"60s"` |
+| `required_processes` | []string | 반드시 실행 중이어야 하는 프로세스 이름 | `[]` |
+| `forbidden_processes` | []string | 실행되면 안 되는 프로세스 이름 | `[]` |
+
+```json
+{
+  "collectors": {
+    "process_watch": {
+      "enabled": true,
+      "interval": "60s",
+      "required_processes": ["mes_client.exe", "scada_hmi.exe", "plc_driver.exe"],
+      "forbidden_processes": ["teamviewer.exe", "anydesk.exe", "chrome.exe"]
+    }
+  }
+}
+```
+
+#### 동작 원리
+
+- **필수 프로세스 (required)**: 목록의 각 프로세스가 실행 중인지 확인. `value=1`이면 정상(실행 중), `value=0`이면 알람(프로세스 다운)
+- **금지 프로세스 (forbidden)**: 목록의 각 프로세스가 실행 중인지 확인. `value=1`이면 알람(비인가 프로세스 감지), `value=0`이면 정상(미실행)
+
+#### 출력 예시
+
+```json
+{
+  "type": "process_watch",
+  "timestamp": "2026-02-27T10:00:00Z",
+  "data": {
+    "processes": [
+      {
+        "name": "mes_client.exe",
+        "pid": 1234,
+        "type": "required",
+        "running": true
+      },
+      {
+        "name": "scada_hmi.exe",
+        "pid": 0,
+        "type": "required",
+        "running": false
+      },
+      {
+        "name": "teamviewer.exe",
+        "pid": 5678,
+        "type": "forbidden",
+        "running": true
+      }
+    ]
+  }
+}
+```
+
+#### EARS 출력
+
+```
+category:process_watch,pid:1234,proc:mes_client.exe,metric:required,value:1
+category:process_watch,pid:0,proc:scada_hmi.exe,metric:required,value:0
+category:process_watch,pid:5678,proc:teamviewer.exe,metric:forbidden,value:1
+category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
+```
+
+#### 알람 조건
+
+| 타입 | value | 의미 | 알람 |
+|------|-------|------|------|
+| required | 1 | 실행 중 | 정상 |
+| required | 0 | 미실행 | 알람 (프로세스 다운) |
+| forbidden | 1 | 실행 중 | 알람 (비인가 프로세스) |
+| forbidden | 0 | 미실행 | 정상 |
+
+#### 사용 사례
+
+- **공장 MES/SCADA 필수 프로세스 감시**: 핵심 프로세스 다운 시 즉시 알림
+- **비인가 소프트웨어 탐지**: 원격 제어 프로그램, 개인 브라우저 등 사용 금지 프로세스 감지
+- **보안 컴플라이언스**: 운영 정책에 따른 프로세스 허용/차단 모니터링
+
+#### 권장 주기
+
+| 환경 | 주기 | 이유 |
+|------|------|------|
+| 프로덕션 | 60s (1분) | 프로세스 상태 변경은 즉각적이지만, 너무 빈번한 수집은 불필요 |
+| 보안 중시 | 30s | 비인가 프로세스 빠른 탐지 |
+
+#### 플랫폼
+
+- **Windows**: `gopsutil/process` (Windows API)
+- **Linux**: `gopsutil/process` (`/proc`)
+- **macOS**: `gopsutil/process` (개발/테스트용)
+
+---
+
 ## 플랫폼별 지원 현황
 
 | Collector | Windows | Linux | macOS |
@@ -1063,6 +1167,7 @@ category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
 | voltage | ✓ (LHM) | - | - |
 | motherboard_temp | ✓ (LHM) | - | - |
 | uptime | ✓ | ✓ | ✓ |
+| process_watch | ✓ | ✓ | ✓ |
 
 > Linux/macOS에서 LHM 기반 수집기는 빈 데이터를 반환합니다 (에러 아님).
 
@@ -1092,7 +1197,8 @@ category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
     "storage_smart": { "enabled": false },
     "voltage": { "enabled": false },
     "motherboard_temp": { "enabled": false },
-    "uptime": { "enabled": false }
+    "uptime": { "enabled": false },
+    "process_watch": { "enabled": false }
   }
 }
 ```
@@ -1173,6 +1279,12 @@ category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
     "uptime": {
       "enabled": true,
       "interval": "300s"
+    },
+    "process_watch": {
+      "enabled": true,
+      "interval": "60s",
+      "required_processes": ["mes.exe", "scada.exe"],
+      "forbidden_processes": ["teamviewer.exe"]
     }
   },
   "logging": {
@@ -1222,7 +1334,20 @@ category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
     "storage_smart": { "enabled": false },
     "voltage": { "enabled": false },
     "motherboard_temp": { "enabled": false },
-    "uptime": { "enabled": false }
+    "uptime": { "enabled": false },
+    "process_watch": {
+      "enabled": true,
+      "interval": "30s",
+      "required_processes": [
+        "mes_client.exe",
+        "scada_hmi.exe",
+        "plc_driver.exe"
+      ],
+      "forbidden_processes": [
+        "teamviewer.exe",
+        "anydesk.exe"
+      ]
+    }
   }
 }
 ```

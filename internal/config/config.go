@@ -70,7 +70,9 @@ type CollectorConfig struct {
 	Disks          []string      `json:"Disks,omitempty"`
 	Interfaces     []string      `json:"Interfaces,omitempty"`
 	IncludeZones   []string      `json:"IncludeZones,omitempty"`
-	WatchProcesses []string      `json:"WatchProcesses,omitempty"`
+	WatchProcesses     []string `json:"WatchProcesses,omitempty"`
+	RequiredProcesses  []string `json:"RequiredProcesses,omitempty"`
+	ForbiddenProcesses []string `json:"ForbiddenProcesses,omitempty"`
 }
 
 // DefaultRedisPassword is used when Password is empty in config.
@@ -363,6 +365,12 @@ func (mc *MonitorConfig) Merge(other *MonitorConfig) {
 			}
 			if len(collectorCfg.WatchProcesses) > 0 {
 				existing.WatchProcesses = collectorCfg.WatchProcesses
+			}
+			if len(collectorCfg.RequiredProcesses) > 0 {
+				existing.RequiredProcesses = collectorCfg.RequiredProcesses
+			}
+			if len(collectorCfg.ForbiddenProcesses) > 0 {
+				existing.ForbiddenProcesses = collectorCfg.ForbiddenProcesses
 			}
 			mc.Collectors[name] = existing
 		} else {

@@ -203,6 +203,19 @@ type MotherboardTempSensor struct {
 	Temperature float64 `json:"temperature_celsius"`
 }
 
+// ProcessWatchData contains process watch results for required and forbidden processes.
+type ProcessWatchData struct {
+	Statuses []ProcessWatchStatus `json:"statuses"`
+}
+
+// ProcessWatchStatus represents the status of a single watched process.
+type ProcessWatchStatus struct {
+	Name    string `json:"name"`
+	PID     int32  `json:"pid"`
+	Running bool   `json:"running"`
+	Type    string `json:"type"` // "required" or "forbidden"
+}
+
 // UptimeData contains system uptime and boot time metrics.
 type UptimeData struct {
 	BootTimeUnix  int64   `json:"boot_time_unix"`

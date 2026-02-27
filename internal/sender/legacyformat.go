@@ -120,6 +120,8 @@ func ConvertToEARSRows(data *collector.MetricData) []EARSRow {
 		return convertStorageSmart(data)
 	case "uptime":
 		return convertUptime(data)
+	case "ProcessWatch":
+		return convertProcessWatch(data)
 	default:
 		return nil
 	}
@@ -363,6 +365,29 @@ func convertStorageSmart(data *collector.MetricData) []EARSRow {
 		if s.TotalBytesWritten != nil {
 			rows = append(rows, systemRow(data.Timestamp, "storage_smart", s.Name+"_total_bytes_written", float64(*s.TotalBytesWritten)))
 		}
+	}
+	return rows
+}
+
+func convertProcessWatch(data *collector.MetricData) []EARSRow {
+	d, ok := unmarshalData[collector.ProcessWatchData](data.Data)
+	if !ok {
+		return nil
+	}
+	rows := make([]EARSRow, 0, len(d.Statuses))
+	for _, s := range d.Statuses {
+		value := 0.0
+		if s.Running {
+			value = 1.0
+		}
+		rows = append(rows, EARSRow{
+			Timestamp: data.Timestamp,
+			Category:  "process_watch",
+			PID:       int(s.PID),
+			ProcName:  s.Name,
+			Metric:    s.Type,
+			Value:     value,
+		})
 	}
 	return rows
 }
