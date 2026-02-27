@@ -152,6 +152,19 @@ GPU마다 non-nil 필드당 1개 row 생성. metric 이름은 `{GPU이름}_{필�
 | `{Name}_power_on_hours` | 총 가동 시간 | 시간 | `nvme0_power_on_hours` = `8760` |
 | `{Name}_total_bytes_written` | 총 기록량 | bytes | `nvme0_total_bytes_written` = `50000000000` |
 
+### uptime
+
+| metric | 설명 | 단위 | 값 범위 | 예시 |
+|--------|------|------|---------|------|
+| `boot_time_unix` | 마지막 부팅 시각 | Unix timestamp (초) | — | `1740614400` |
+| `uptime_minutes` | 부팅 이후 경과 시간 | 분 | 0~ | `1440.5` |
+
+**출력 예시:**
+```
+category:uptime,pid:0,proc:@system,metric:boot_time_unix,value:1740614400
+category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440.5
+```
+
 ---
 
 ## 프로세스 메트릭 (proc={프로세스명}, pid={PID})
@@ -205,6 +218,8 @@ GPU마다 non-nil 필드당 1개 row 생성. metric 이름은 `{GPU이름}_{필�
 2026-02-25 10:30:45,123 category:storage_smart,pid:0,proc:@system,metric:nvme0_unsafe_shutdowns,value:3
 2026-02-25 10:30:45,123 category:storage_smart,pid:0,proc:@system,metric:nvme0_power_on_hours,value:8760
 2026-02-25 10:30:45,123 category:storage_smart,pid:0,proc:@system,metric:nvme0_total_bytes_written,value:50000000000
+2026-02-25 10:30:45,123 category:uptime,pid:0,proc:@system,metric:boot_time_unix,value:1740614400
+2026-02-25 10:30:45,123 category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
 2026-02-25 10:30:45,123 category:cpu,pid:1234,proc:python.exe,metric:used_pct,value:12.5
 2026-02-25 10:30:45,123 category:cpu,pid:5678,proc:java.exe,metric:used_pct,value:8.3
 2026-02-25 10:30:45,123 category:memory,pid:1234,proc:python.exe,metric:used,value:104857600

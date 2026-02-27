@@ -325,6 +325,24 @@ func TestConvertToEARSRows_StorageSmart_NilFields(t *testing.T) {
 	}
 }
 
+func TestConvertToEARSRows_Uptime(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "uptime",
+		Timestamp: testTimestamp,
+		Data: collector.UptimeData{
+			BootTimeUnix:  1740614400,
+			BootTimeStr:   "2025-02-27T09:00:00",
+			UptimeMinutes: 1440.5,
+		},
+	}
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	assertRow(t, rows[0], "uptime", 0, "@system", "boot_time_unix", 1740614400)
+	assertRow(t, rows[1], "uptime", 0, "@system", "uptime_minutes", 1440.5)
+}
+
 func TestConvertToEARSRows_UnknownType(t *testing.T) {
 	data := &collector.MetricData{
 		Type:      "unknown_type",

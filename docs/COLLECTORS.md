@@ -22,6 +22,8 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
   - [Storage S.M.A.R.T Collector](#storage-smart-collector)
   - [Voltage Collector](#voltage-collector)
   - [Motherboard Temperature Collector](#motherboard-temperature-collector)
+- [시스템 Collectors](#시스템-collectors)
+  - [Uptime Collector](#uptime-collector)
 - [플랫폼별 지원 현황](#플랫폼별-지원-현황)
 - [전체 설정 예시](#전체-설정-예시)
 
@@ -29,7 +31,7 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
 
 ## 개요
 
-ResourceAgent는 12개의 수집기를 제공합니다:
+ResourceAgent는 13개의 수집기를 제공합니다:
 
 | Collector | 설명 | 플랫폼 |
 |-----------|------|--------|
@@ -45,6 +47,7 @@ ResourceAgent는 12개의 수집기를 제공합니다:
 | storage_smart | S.M.A.R.T 디스크 상태 | Windows (LHM) |
 | voltage | 전압 센서 | Windows (LHM) |
 | motherboard_temp | 메인보드 온도 | Windows (LHM) |
+| uptime | 시스템 부팅 시각 및 가동 시간 | Windows, Linux |
 
 > **LHM**: LibreHardwareMonitor 기반 (Windows 전용, 관리자 권한 필요)
 
@@ -992,6 +995,57 @@ PSU(전원 공급 장치) 전압을 수집합니다.
 
 ---
 
+## 시스템 Collectors
+
+### Uptime Collector
+
+시스템 부팅 시각과 가동 경과 시간을 수집합니다.
+
+#### 설정
+
+```json
+{
+  "uptime": {
+    "Enabled": true,
+    "Interval": "300s"
+  }
+}
+```
+
+#### 출력 데이터
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `boot_time_unix` | int64 | 마지막 부팅 시각 (Unix timestamp, 초) |
+| `boot_time` | string | 마지막 부팅 시각 (로컬 시간, ISO 8601) |
+| `uptime_minutes` | float64 | 부팅 이후 경과 시간 (분) |
+
+#### EARS 출력
+
+```
+category:uptime,pid:0,proc:@system,metric:boot_time_unix,value:1740614400
+category:uptime,pid:0,proc:@system,metric:uptime_minutes,value:1440
+```
+
+#### Grafana 표시
+
+`boot_time_unix` 값은 Grafana에서 Unit을 **"Datetime > From (Unix seconds)"**로 설정하면 로컬 타임존에 맞는 날짜/시각 텍스트로 표시됩니다.
+
+#### 권장 주기
+
+| 환경 | 주기 | 이유 |
+|------|------|------|
+| 프로덕션 | 300s (5분) | 재부팅은 드물게 발생, 자주 수집할 필요 없음 |
+| 디버깅 | 60s (1분) | 재부팅 감지 빠르게 |
+
+#### 플랫폼
+
+- **Windows**: `gopsutil/host.BootTime()` (Windows API)
+- **Linux**: `gopsutil/host.BootTime()` (`/proc/uptime`)
+- **macOS**: `gopsutil/host.BootTime()` (sysctl)
+
+---
+
 ## 플랫폼별 지원 현황
 
 | Collector | Windows | Linux | macOS |
@@ -1008,6 +1062,7 @@ PSU(전원 공급 장치) 전압을 수집합니다.
 | storage_smart | ✓ (LHM) | - | - |
 | voltage | ✓ (LHM) | - | - |
 | motherboard_temp | ✓ (LHM) | - | - |
+| uptime | ✓ | ✓ | ✓ |
 
 > Linux/macOS에서 LHM 기반 수집기는 빈 데이터를 반환합니다 (에러 아님).
 
@@ -1036,7 +1091,8 @@ PSU(전원 공급 장치) 전압을 수집합니다.
     "gpu": { "enabled": false },
     "storage_smart": { "enabled": false },
     "voltage": { "enabled": false },
-    "motherboard_temp": { "enabled": false }
+    "motherboard_temp": { "enabled": false },
+    "uptime": { "enabled": false }
   }
 }
 ```
@@ -1113,6 +1169,10 @@ PSU(전원 공급 장치) 전압을 수집합니다.
     "motherboard_temp": {
       "enabled": true,
       "interval": "30s"
+    },
+    "uptime": {
+      "enabled": true,
+      "interval": "300s"
     }
   },
   "logging": {
@@ -1161,7 +1221,8 @@ PSU(전원 공급 장치) 전압을 수집합니다.
     "gpu": { "enabled": false },
     "storage_smart": { "enabled": false },
     "voltage": { "enabled": false },
-    "motherboard_temp": { "enabled": false }
+    "motherboard_temp": { "enabled": false },
+    "uptime": { "enabled": false }
   }
 }
 ```

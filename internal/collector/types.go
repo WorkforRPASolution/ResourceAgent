@@ -202,3 +202,10 @@ type MotherboardTempSensor struct {
 	Name        string  `json:"name"`
 	Temperature float64 `json:"temperature_celsius"`
 }
+
+// UptimeData contains system uptime and boot time metrics.
+type UptimeData struct {
+	BootTimeUnix  int64   `json:"boot_time_unix"`
+	BootTimeStr   string  `json:"boot_time"`
+	UptimeMinutes float64 `json:"uptime_minutes"`
+}

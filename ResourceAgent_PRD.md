@@ -123,6 +123,15 @@
 | 플랫폼 | Windows (WMI/OpenHardwareMonitor), Linux (/sys/class/thermal, lm-sensors) |
 | 비고 | 하드웨어/드라이버 지원에 따라 수집 불가할 수 있음 |
 
+#### 4.1.8 Uptime
+
+| 항목 | 요구사항 |
+|------|----------|
+| 수집 데이터 | 마지막 부팅 시각 (Unix timestamp), 부팅 이후 경과 시간 (분) |
+| 수집 주기 | 설정 가능 (기본 300초) |
+| 플랫폼 | Windows, Linux |
+| 비고 | gopsutil host.BootTime() 사용, 재부팅 감지 및 가동 시간 추적 |
+
 ### 4.2 설정 관리 기능
 
 | 항목 | 요구사항 |

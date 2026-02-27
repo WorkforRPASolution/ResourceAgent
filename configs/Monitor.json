@@ -59,6 +59,10 @@
       "Enabled": true,
       "Interval": "60s",
       "IncludeZones": []
+    },
+    "uptime": {
+      "Enabled": true,
+      "Interval": "300s"
     }
   }
 }

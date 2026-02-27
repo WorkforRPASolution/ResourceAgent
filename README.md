@@ -4,7 +4,7 @@
 
 ## 주요 기능
 
-- **12종 메트릭 수집**: CPU, Memory, Disk, Network, Temperature, Fan, GPU, Voltage, Motherboard Temperature, Storage S.M.A.R.T, 프로세스 CPU/Memory
+- **13종 메트릭 수집**: CPU, Memory, Disk, Network, Temperature, Fan, GPU, Voltage, Motherboard Temperature, Storage S.M.A.R.T, Uptime, 프로세스 CPU/Memory
 - **Windows 하드웨어 모니터링**: LibreHardwareMonitor (LhmHelper) 연동으로 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.R.T 수집
 - **유연한 전송 방식**: `file`, `kafka`, `kafkarest` 3가지 sender 지원
 - **EARS 호환 포맷**: ARSAgent 호환 legacy 평문 및 JSON 파싱 포맷 지원
@@ -472,7 +472,7 @@ tail -f log/ResourceAgent/metrics.jsonl
 ```
 
 > EARS legacy 포맷 상세 명세는 [`docs/EARS-METRICS-REFERENCE.md`](docs/EARS-METRICS-REFERENCE.md) 참조.
-> 12종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
+> 13종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
 
 ## 운영
 
