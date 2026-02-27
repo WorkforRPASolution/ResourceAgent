@@ -23,7 +23,9 @@ type ProcessWatchCollector struct {
 // NewProcessWatchCollector creates a new process watch collector.
 func NewProcessWatchCollector() *ProcessWatchCollector {
 	return &ProcessWatchCollector{
-		BaseCollector: NewBaseCollector("ProcessWatch"),
+		BaseCollector:  NewBaseCollector("ProcessWatch"),
+		requiredMatcher:  NewProcessMatcher(nil),
+		forbiddenMatcher: NewProcessMatcher(nil),
 	}
 }
 
@@ -42,10 +44,15 @@ func (c *ProcessWatchCollector) Configure(cfg config.CollectorConfig) error {
 
 // Collect checks the running status of all watched processes.
 func (c *ProcessWatchCollector) Collect(ctx context.Context) (*MetricData, error) {
+	// Skip entirely when both lists are empty (no-op)
+	if !c.requiredMatcher.HasWatchList() && !c.forbiddenMatcher.HasWatchList() {
+		return nil, nil
+	}
+
 	// Build a map of matched process name → PID from running processes
 	pidMap := make(map[string]int32) // lowered/original name → PID
 
-	if c.requiredMatcher.HasWatchList() || c.forbiddenMatcher.HasWatchList() {
+	{
 		procs, err := process.ProcessesWithContext(ctx)
 		if err != nil {
 			return nil, err

@@ -45,13 +45,15 @@ type rawKafkaConfig struct {
 }
 
 type rawCollectorConfig struct {
-	Enabled        bool     `json:"Enabled"`
-	Interval       string   `json:"Interval"`
-	TopN           int      `json:"TopN,omitempty"`
-	Disks          []string `json:"Disks,omitempty"`
-	Interfaces     []string `json:"Interfaces,omitempty"`
-	IncludeZones   []string `json:"IncludeZones,omitempty"`
-	WatchProcesses []string `json:"WatchProcesses,omitempty"`
+	Enabled            bool     `json:"Enabled"`
+	Interval           string   `json:"Interval"`
+	TopN               int      `json:"TopN,omitempty"`
+	Disks              []string `json:"Disks,omitempty"`
+	Interfaces         []string `json:"Interfaces,omitempty"`
+	IncludeZones       []string `json:"IncludeZones,omitempty"`
+	WatchProcesses     []string `json:"WatchProcesses,omitempty"`
+	RequiredProcesses  []string `json:"RequiredProcesses,omitempty"`
+	ForbiddenProcesses []string `json:"ForbiddenProcesses,omitempty"`
 }
 
 type rawLoggingConfig struct {
@@ -164,12 +166,14 @@ func convertRawKafka(raw *rawKafkaConfig) (*KafkaConfig, error) {
 
 func convertRawCollector(name string, raw *rawCollectorConfig) (*CollectorConfig, error) {
 	coll := &CollectorConfig{
-		Enabled:        raw.Enabled,
-		TopN:           raw.TopN,
-		Disks:          raw.Disks,
-		Interfaces:     raw.Interfaces,
-		IncludeZones:   raw.IncludeZones,
-		WatchProcesses: raw.WatchProcesses,
+		Enabled:            raw.Enabled,
+		TopN:               raw.TopN,
+		Disks:              raw.Disks,
+		Interfaces:         raw.Interfaces,
+		IncludeZones:       raw.IncludeZones,
+		WatchProcesses:     raw.WatchProcesses,
+		RequiredProcesses:  raw.RequiredProcesses,
+		ForbiddenProcesses: raw.ForbiddenProcesses,
 	}
 
 	if raw.Interval != "" {

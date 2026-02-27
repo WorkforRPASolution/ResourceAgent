@@ -50,13 +50,8 @@ func TestProcessWatchCollector_EmptyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect failed: %v", err)
 	}
-
-	data, ok := metric.Data.(ProcessWatchData)
-	if !ok {
-		t.Fatalf("Data is not ProcessWatchData: %T", metric.Data)
-	}
-	if len(data.Statuses) != 0 {
-		t.Errorf("expected 0 statuses for empty config, got %d", len(data.Statuses))
+	if metric != nil {
+		t.Errorf("expected nil metric for empty watch lists, got %+v", metric)
 	}
 }
 
@@ -130,6 +125,25 @@ func TestProcessWatchCollector_CollectWithCurrentProcess(t *testing.T) {
 	}
 	if forbStatus.PID != 0 {
 		t.Errorf("forbidden PID = %d, want 0", forbStatus.PID)
+	}
+}
+
+func TestProcessWatchCollector_CollectWithoutConfigure(t *testing.T) {
+	// Simulates the case where Monitor.json doesn't have a ProcessWatch entry:
+	// DefaultRegistry registers the collector but Configure() is never called.
+	// This must NOT panic (nil pointer dereference on matchers).
+	c := NewProcessWatchCollector()
+	// Do NOT call Configure — this is the bug scenario
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	metric, err := c.Collect(ctx)
+	if err != nil {
+		t.Fatalf("Collect without Configure should not fail: %v", err)
+	}
+	if metric != nil {
+		t.Errorf("expected nil metric without Configure (empty lists), got %+v", metric)
 	}
 }
 
