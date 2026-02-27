@@ -6,17 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/net/proxy"
-
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
 	"resourceagent/internal/logger"
+	"resourceagent/internal/network"
 )
 
 const (
@@ -28,8 +26,7 @@ const (
 // KafkaRestSender sends metrics to Kafka via the KafkaRest HTTP proxy.
 type KafkaRestSender struct {
 	client       *http.Client
-	baseURL      string
-	topic        string
+	url          string // cached: baseURL + "/topics/" + topic
 	eqpInfo      *config.EqpInfoConfig
 	timeDiffFunc func() int64
 	mu           sync.RWMutex
@@ -40,17 +37,9 @@ type KafkaRestSender struct {
 func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConfig,
 	socksCfg config.SOCKSConfig, timeDiffFunc func() int64) (*KafkaRestSender, error) {
 
-	transport := &http.Transport{}
-
-	if socksCfg.Host != "" && socksCfg.Port > 0 {
-		proxyAddr := fmt.Sprintf("%s:%d", socksCfg.Host, socksCfg.Port)
-		socksDialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create SOCKS5 dialer for KafkaRest: %w", err)
-		}
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return socksDialer.Dial(network, addr)
-		}
+	transport, err := network.NewHTTPTransport(socksCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP transport for KafkaRest: %w", err)
 	}
 
 	client := &http.Client{
@@ -58,10 +47,11 @@ func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConf
 		Timeout:   10 * time.Second,
 	}
 
+	baseURL := ensureHTTPScheme(kafkaRestAddr)
+
 	return &KafkaRestSender{
 		client:       client,
-		baseURL:      ensureHTTPScheme(kafkaRestAddr),
-		topic:        topic,
+		url:          baseURL + "/topics/" + topic,
 		eqpInfo:      eqpInfo,
 		timeDiffFunc: timeDiffFunc,
 	}, nil
@@ -84,8 +74,6 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 		return fmt.Errorf("failed to wrap metric data: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/topics/%s", s.baseURL, s.topic)
-
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
@@ -96,7 +84,7 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 			}
 		}
 
-		lastErr = s.doPost(ctx, url, body)
+		lastErr = s.doPost(ctx, s.url, body)
 		if lastErr == nil {
 			return nil
 		}

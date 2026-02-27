@@ -16,11 +16,10 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/xdg-go/scram"
-	"golang.org/x/net/proxy"
-
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
 	"resourceagent/internal/logger"
+	"resourceagent/internal/network"
 )
 
 var (
@@ -149,8 +148,7 @@ func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo
 
 	// SOCKS5 proxy support
 	if socksCfg.Host != "" && socksCfg.Port > 0 {
-		proxyAddr := fmt.Sprintf("%s:%d", socksCfg.Host, socksCfg.Port)
-		socksDialer, proxyErr := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
+		socksDialer, proxyErr := network.NewSOCKS5Dialer(socksCfg.Host, socksCfg.Port)
 		if proxyErr != nil {
 			return nil, fmt.Errorf("failed to create SOCKS5 dialer for Kafka: %w", proxyErr)
 		}

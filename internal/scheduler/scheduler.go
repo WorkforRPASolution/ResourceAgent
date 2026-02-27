@@ -24,12 +24,13 @@ type Scheduler struct {
 	hostname string
 	tags     map[string]string
 
-	mu        sync.Mutex
-	running   bool
-	cancel    context.CancelFunc
-	parentCtx context.Context
-	wg        sync.WaitGroup
-	log       logger.Config
+	mu            sync.Mutex
+	running       bool
+	cancel        context.CancelFunc
+	parentCtx     context.Context
+	wg            sync.WaitGroup
+	log           logger.Config
+	reconfigureMu sync.Mutex // serializes concurrent Reconfigure calls
 }
 
 // New creates a new scheduler with the given components.
@@ -177,7 +178,13 @@ func (s *Scheduler) collect(ctx context.Context, c collector.Collector) {
 }
 
 // Reconfigure stops all collector goroutines and restarts them with current settings.
+// Unlike Stop()+Start(), this keeps running=true throughout to prevent concurrent
+// Start() calls from entering during the restart window.
+// Concurrent calls are serialized by reconfigureMu.
 func (s *Scheduler) Reconfigure() {
+	s.reconfigureMu.Lock()
+	defer s.reconfigureMu.Unlock()
+
 	s.mu.Lock()
 	if !s.running {
 		s.mu.Unlock()
@@ -185,10 +192,28 @@ func (s *Scheduler) Reconfigure() {
 	}
 	s.cancel()
 	parentCtx := s.parentCtx
-	s.running = false
 	s.mu.Unlock()
 
 	s.wg.Wait()
-	s.Start(parentCtx)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.running {
+		return // Stop() was called while we were waiting
+	}
+
+	log := logger.WithComponent("scheduler")
+	log.Info().Msg("Reconfiguring scheduler")
+
+	ctx, cancel := context.WithCancel(parentCtx)
+	s.cancel = cancel
+
+	collectors := s.registry.EnabledCollectors()
+	log.Info().Int("enabled_count", len(collectors)).Msg("Enabled collectors count after reconfigure")
+	for _, c := range collectors {
+		log.Info().Str("collector", c.Name()).Msg("Collector is enabled")
+		s.wg.Add(1)
+		go s.runCollector(ctx, c)
+	}
 }
 

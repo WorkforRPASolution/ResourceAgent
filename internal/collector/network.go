@@ -42,29 +42,39 @@ func (c *NetworkCollector) Configure(cfg config.CollectorConfig) error {
 
 // Collect gathers network metrics.
 func (c *NetworkCollector) Collect(ctx context.Context) (*MetricData, error) {
+	// OS syscalls outside lock
 	counters, err := net.IOCountersWithContext(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 
+	conns, err := net.ConnectionsWithContext(ctx, "inet")
+	if err != nil {
+		// Non-fatal: return metrics without TCP counts
+		conns = nil
+	}
+
+	// Snapshot previous state under lock
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	prevStats := c.lastStats
+	prevCollect := c.lastCollect
+	c.mu.Unlock()
 
 	now := time.Now()
-	elapsed := now.Sub(c.lastCollect).Seconds()
+	elapsed := now.Sub(prevCollect).Seconds()
 	if elapsed <= 0 {
 		elapsed = 1
 	}
 
+	// Rate calculation outside lock
 	var interfaces []NetworkInterface
+	newStats := make(map[string]net.IOCountersStat, len(counters))
 
 	for _, counter := range counters {
-		// Skip if specific interfaces are configured and this one isn't in the list
 		if len(c.interfaces) > 0 && !c.shouldInclude(counter.Name) {
 			continue
 		}
 
-		// Skip loopback and virtual interfaces
 		if c.shouldSkip(counter.Name) {
 			continue
 		}
@@ -81,12 +91,10 @@ func (c *NetworkCollector) Collect(ctx context.Context) (*MetricData, error) {
 			DropsOut:    counter.Dropout,
 		}
 
-		// Calculate rates if we have previous data
-		if prev, ok := c.lastStats[counter.Name]; ok && c.lastCollect.Unix() > 0 {
+		if prev, ok := prevStats[counter.Name]; ok && prevCollect.Unix() > 0 {
 			bytesSentDiff := float64(counter.BytesSent - prev.BytesSent)
 			bytesRecvDiff := float64(counter.BytesRecv - prev.BytesRecv)
 
-			// Handle counter wraparound
 			if bytesSentDiff >= 0 {
 				iface.BytesSentRate = bytesSentDiff / elapsed
 			}
@@ -95,20 +103,16 @@ func (c *NetworkCollector) Collect(ctx context.Context) (*MetricData, error) {
 			}
 		}
 
-		// Store current stats for next rate calculation
-		c.lastStats[counter.Name] = counter
-
+		newStats[counter.Name] = counter
 		interfaces = append(interfaces, iface)
 	}
 
+	// Update state under lock
+	c.mu.Lock()
+	c.lastStats = newStats
 	c.lastCollect = now
+	c.mu.Unlock()
 
-	// Collect TCP connection counts
-	conns, err := net.ConnectionsWithContext(ctx, "inet")
-	if err != nil {
-		// Non-fatal: return metrics without TCP counts
-		conns = nil
-	}
 	inbound, outbound := classifyTCPConnections(conns)
 
 	return &MetricData{

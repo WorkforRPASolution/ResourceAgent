@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"container/heap"
 	"context"
 	"sort"
 	"time"
@@ -9,6 +10,32 @@ import (
 
 	"resourceagent/internal/config"
 )
+
+// memQuickInfo holds minimal per-process data from the 1st pass.
+type memQuickInfo struct {
+	proc          *process.Process
+	memoryPercent float32
+	name          string
+	rss           uint64
+	vms           uint64
+	swap          uint64
+	watched       bool
+}
+
+// memMinHeap is a min-heap of memQuickInfo ordered by memoryPercent (lowest at top).
+type memMinHeap []memQuickInfo
+
+func (h memMinHeap) Len() int            { return len(h) }
+func (h memMinHeap) Less(i, j int) bool   { return h[i].memoryPercent < h[j].memoryPercent }
+func (h memMinHeap) Swap(i, j int)        { h[i], h[j] = h[j], h[i] }
+func (h *memMinHeap) Push(x interface{})  { *h = append(*h, x.(memQuickInfo)) }
+func (h *memMinHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[:n-1]
+	return item
+}
 
 // MemoryProcessCollector collects per-process memory usage metrics.
 type MemoryProcessCollector struct {
@@ -62,17 +89,11 @@ func (c *MemoryProcessCollector) Collect(ctx context.Context) (*MetricData, erro
 		return nil, err
 	}
 
-	// 1st Pass: Memory% + Name + MemInfo only (3 syscalls per process)
-	type quickInfo struct {
-		proc          *process.Process
-		memoryPercent float32
-		name          string
-		rss           uint64
-		vms           uint64
-		swap          uint64
-		watched       bool
-	}
-	quickList := make([]quickInfo, 0, len(procs))
+	// 1st Pass: Memory% + Name + MemInfo only (3 syscalls per process).
+	// Watched processes go to watchedList; non-watched go directly into a min-heap
+	// of size remainingSlots for O(n log k) TopN selection.
+	var watchedList []memQuickInfo
+	h := &memMinHeap{}
 
 	for _, p := range procs {
 		select {
@@ -96,28 +117,30 @@ func (c *MemoryProcessCollector) Collect(ctx context.Context) (*MetricData, erro
 			continue
 		}
 
-		watched := c.matcher.IsWatched(name)
-
-		quickList = append(quickList, quickInfo{
+		q := memQuickInfo{
 			proc:          p,
 			memoryPercent: memPercent,
 			name:          name,
 			rss:           memInfo.RSS,
 			vms:           memInfo.VMS,
 			swap:          memInfo.Swap,
-			watched:       watched,
-		})
-	}
+			watched:       c.matcher.IsWatched(name),
+		}
 
-	// Separate watched and non-watched processes
-	var watchedList []quickInfo
-	var nonWatchedList []quickInfo
-
-	for _, q := range quickList {
 		if q.watched {
 			watchedList = append(watchedList, q)
 		} else {
-			nonWatchedList = append(nonWatchedList, q)
+			// Min-heap: keep top remainingSlots items
+			remainingSlots := c.topN - len(watchedList)
+			if remainingSlots <= 0 {
+				continue
+			}
+			if h.Len() < remainingSlots {
+				heap.Push(h, q)
+			} else if q.memoryPercent > (*h)[0].memoryPercent {
+				(*h)[0] = q
+				heap.Fix(h, 0)
+			}
 		}
 	}
 
@@ -126,30 +149,31 @@ func (c *MemoryProcessCollector) Collect(ctx context.Context) (*MetricData, erro
 		return watchedList[i].memoryPercent > watchedList[j].memoryPercent
 	})
 
-	// Sort non-watched by memory descending
-	sort.Slice(nonWatchedList, func(i, j int) bool {
-		return nonWatchedList[i].memoryPercent > nonWatchedList[j].memoryPercent
-	})
-
-	// Calculate remaining slots for non-watched processes
-	remainingSlots := c.topN - len(watchedList)
-	if remainingSlots < 0 {
-		remainingSlots = 0
+	// Extract heap items sorted descending
+	heapItems := make([]memQuickInfo, h.Len())
+	for i := h.Len() - 1; i >= 0; i-- {
+		heapItems[i] = heap.Pop(h).(memQuickInfo)
 	}
-
-	// Take top N from non-watched
-	if len(nonWatchedList) > remainingSlots {
-		nonWatchedList = nonWatchedList[:remainingSlots]
-	}
-
-	// Combine: watched first, then top N non-watched
-	selectedList := make([]quickInfo, 0, len(watchedList)+len(nonWatchedList))
-	selectedList = append(selectedList, watchedList...)
-	selectedList = append(selectedList, nonWatchedList...)
 
 	// 2nd Pass: detailed info only for selected processes (2 syscalls per process)
-	processList := make([]ProcessMemory, 0, len(selectedList))
-	for _, q := range selectedList {
+	processList := make([]ProcessMemory, 0, len(watchedList)+len(heapItems))
+	for _, q := range watchedList {
+		username, _ := q.proc.UsernameWithContext(ctx)
+		createTime, _ := q.proc.CreateTimeWithContext(ctx)
+
+		processList = append(processList, ProcessMemory{
+			PID:           q.proc.Pid,
+			Name:          q.name,
+			MemoryPercent: float64(q.memoryPercent),
+			RSS:           q.rss,
+			VMS:           q.vms,
+			Swap:          q.swap,
+			Username:      username,
+			CreateTime:    createTime,
+			Watched:       q.watched,
+		})
+	}
+	for _, q := range heapItems {
 		username, _ := q.proc.UsernameWithContext(ctx)
 		createTime, _ := q.proc.CreateTimeWithContext(ctx)
 

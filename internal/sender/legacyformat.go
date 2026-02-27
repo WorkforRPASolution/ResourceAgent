@@ -2,7 +2,6 @@ package sender
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -31,12 +30,30 @@ const (
 
 // FormatLegacyTimestamp formats to "2006-01-02 15:04:05,000" (Grok TIMESTAMP_ISO8601 compatible).
 func FormatLegacyTimestamp(t time.Time) string {
-	return fmt.Sprintf("%s,%03d", t.Format(legacyTimeFmt), t.Nanosecond()/1e6)
+	var b strings.Builder
+	b.Grow(23) // "2006-01-02 15:04:05,000"
+	b.WriteString(t.Format(legacyTimeFmt))
+	b.WriteByte(',')
+	writeMillis(&b, t)
+	return b.String()
 }
 
 // FormatJSONTimestamp formats to "2006-01-02T15:04:05.000" (JSON mapper compatible).
 func FormatJSONTimestamp(t time.Time) string {
-	return fmt.Sprintf("%s.%03d", t.Format(jsonTimeFmt), t.Nanosecond()/1e6)
+	var b strings.Builder
+	b.Grow(23) // "2006-01-02T15:04:05.000"
+	b.WriteString(t.Format(jsonTimeFmt))
+	b.WriteByte('.')
+	writeMillis(&b, t)
+	return b.String()
+}
+
+// writeMillis writes zero-padded milliseconds (000-999) to the builder.
+func writeMillis(b *strings.Builder, t time.Time) {
+	ms := t.Nanosecond() / 1e6
+	b.WriteByte(byte('0' + ms/100))
+	b.WriteByte(byte('0' + (ms/10)%10))
+	b.WriteByte(byte('0' + ms%10))
 }
 
 // sanitizeName replaces special characters in field values
@@ -58,9 +75,20 @@ func formatValue(v float64) string {
 
 // ToLegacyString returns the ARSAgent-compatible plain text format for Grok parsing.
 func (r EARSRow) ToLegacyString() string {
-	return fmt.Sprintf("%s category:%s,pid:%d,proc:%s,metric:%s,value:%s",
-		FormatLegacyTimestamp(r.Timestamp), r.Category, r.PID,
-		sanitizeName(r.ProcName), sanitizeName(r.Metric), formatValue(r.Value))
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString(FormatLegacyTimestamp(r.Timestamp))
+	b.WriteString(" category:")
+	b.WriteString(r.Category)
+	b.WriteString(",pid:")
+	b.WriteString(strconv.Itoa(r.PID))
+	b.WriteString(",proc:")
+	b.WriteString(sanitizeName(r.ProcName))
+	b.WriteString(",metric:")
+	b.WriteString(sanitizeName(r.Metric))
+	b.WriteString(",value:")
+	b.WriteString(formatValue(r.Value))
+	return b.String()
 }
 
 // ParsedData represents a typed key-value pair for the JSON mapper pipeline.

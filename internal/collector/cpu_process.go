@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"container/heap"
 	"context"
 	"runtime"
 	"sort"
@@ -10,6 +11,29 @@ import (
 
 	"resourceagent/internal/config"
 )
+
+// cpuQuickInfo holds minimal per-process data from the 1st pass.
+type cpuQuickInfo struct {
+	proc       *process.Process
+	cpuPercent float64
+	name       string
+	watched    bool
+}
+
+// cpuMinHeap is a min-heap of cpuQuickInfo ordered by cpuPercent (lowest at top).
+type cpuMinHeap []cpuQuickInfo
+
+func (h cpuMinHeap) Len() int            { return len(h) }
+func (h cpuMinHeap) Less(i, j int) bool   { return h[i].cpuPercent < h[j].cpuPercent }
+func (h cpuMinHeap) Swap(i, j int)        { h[i], h[j] = h[j], h[i] }
+func (h *cpuMinHeap) Push(x interface{})  { *h = append(*h, x.(cpuQuickInfo)) }
+func (h *cpuMinHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[:n-1]
+	return item
+}
 
 // CPUProcessCollector collects per-process CPU usage metrics.
 type CPUProcessCollector struct {
@@ -75,14 +99,11 @@ func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) 
 		return nil, nil
 	}
 
-	// 1st Pass: CPU% + Name only (2 syscalls per process)
-	type quickInfo struct {
-		proc       *process.Process
-		cpuPercent float64
-		name       string
-		watched    bool
-	}
-	quickList := make([]quickInfo, 0, len(procs))
+	// 1st Pass: CPU% + Name only (2 syscalls per process).
+	// Watched processes go to watchedList; non-watched go directly into a min-heap
+	// of size remainingSlots for O(n log k) TopN selection.
+	var watchedList []cpuQuickInfo
+	h := &cpuMinHeap{}
 
 	for _, p := range procs {
 		select {
@@ -102,25 +123,27 @@ func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) 
 			continue
 		}
 
-		watched := c.matcher.IsWatched(name)
-
-		quickList = append(quickList, quickInfo{
+		q := cpuQuickInfo{
 			proc:       p,
 			cpuPercent: cpuPercent,
 			name:       name,
-			watched:    watched,
-		})
-	}
+			watched:    c.matcher.IsWatched(name),
+		}
 
-	// Separate watched and non-watched processes
-	var watchedList []quickInfo
-	var nonWatchedList []quickInfo
-
-	for _, q := range quickList {
 		if q.watched {
 			watchedList = append(watchedList, q)
 		} else {
-			nonWatchedList = append(nonWatchedList, q)
+			// Min-heap: keep top remainingSlots items
+			remainingSlots := c.topN - len(watchedList)
+			if remainingSlots <= 0 {
+				continue
+			}
+			if h.Len() < remainingSlots {
+				heap.Push(h, q)
+			} else if q.cpuPercent > (*h)[0].cpuPercent {
+				(*h)[0] = q
+				heap.Fix(h, 0)
+			}
 		}
 	}
 
@@ -129,30 +152,28 @@ func (c *CPUProcessCollector) Collect(ctx context.Context) (*MetricData, error) 
 		return watchedList[i].cpuPercent > watchedList[j].cpuPercent
 	})
 
-	// Sort non-watched by CPU descending
-	sort.Slice(nonWatchedList, func(i, j int) bool {
-		return nonWatchedList[i].cpuPercent > nonWatchedList[j].cpuPercent
-	})
-
-	// Calculate remaining slots for non-watched processes
-	remainingSlots := c.topN - len(watchedList)
-	if remainingSlots < 0 {
-		remainingSlots = 0
+	// Extract heap items sorted descending
+	heapItems := make([]cpuQuickInfo, h.Len())
+	for i := h.Len() - 1; i >= 0; i-- {
+		heapItems[i] = heap.Pop(h).(cpuQuickInfo)
 	}
-
-	// Take top N from non-watched
-	if len(nonWatchedList) > remainingSlots {
-		nonWatchedList = nonWatchedList[:remainingSlots]
-	}
-
-	// Combine: watched first, then top N non-watched
-	selectedList := make([]quickInfo, 0, len(watchedList)+len(nonWatchedList))
-	selectedList = append(selectedList, watchedList...)
-	selectedList = append(selectedList, nonWatchedList...)
 
 	// 2nd Pass: detailed info only for selected processes (2 syscalls per process)
-	processList := make([]ProcessCPU, 0, len(selectedList))
-	for _, q := range selectedList {
+	processList := make([]ProcessCPU, 0, len(watchedList)+len(heapItems))
+	for _, q := range watchedList {
+		username, _ := q.proc.UsernameWithContext(ctx)
+		createTime, _ := q.proc.CreateTimeWithContext(ctx)
+
+		processList = append(processList, ProcessCPU{
+			PID:        q.proc.Pid,
+			Name:       q.name,
+			CPUPercent: q.cpuPercent,
+			Username:   username,
+			CreateTime: createTime,
+			Watched:    q.watched,
+		})
+	}
+	for _, q := range heapItems {
 		username, _ := q.proc.UsernameWithContext(ctx)
 		createTime, _ := q.proc.CreateTimeWithContext(ctx)
 

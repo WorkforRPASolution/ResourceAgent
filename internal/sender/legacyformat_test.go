@@ -724,5 +724,34 @@ func TestConvertToEARSRows_ProcessWatch_JSONRoundtrip(t *testing.T) {
 	assertRow(t, rows[0], "process_watch", 1234, "mes.exe", "required", 1)
 }
 
+// --- Benchmarks ---
+
+func BenchmarkToLegacyString(b *testing.B) {
+	row := EARSRow{
+		Timestamp: testTimestamp,
+		Category:  "cpu",
+		PID:       1234,
+		ProcName:  "python.exe",
+		Metric:    "used_pct",
+		Value:     12.5,
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = row.ToLegacyString()
+	}
+}
+
+func BenchmarkFormatLegacyTimestamp(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FormatLegacyTimestamp(testTimestamp)
+	}
+}
+
+func BenchmarkFormatJSONTimestamp(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = FormatJSONTimestamp(testTimestamp)
+	}
+}
+
 // Suppress unused import warning
 var _ = fmt.Sprintf

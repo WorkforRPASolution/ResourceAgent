@@ -1,10 +1,15 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
+	"time"
 
 	"golang.org/x/net/proxy"
+
+	"resourceagent/internal/config"
 )
 
 // NewSOCKS5Dialer creates a SOCKS5 proxy dialer.
@@ -30,4 +35,26 @@ func DialerFunc(host string, port int) func(network, addr string) (net.Conn, err
 		}
 		return dialer.Dial(network, addr)
 	}
+}
+
+// NewHTTPTransport creates an http.Transport with connection pool settings
+// and optional SOCKS5 proxy support.
+func NewHTTPTransport(socksCfg config.SOCKSConfig) (*http.Transport, error) {
+	transport := &http.Transport{
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	}
+
+	if socksCfg.Host != "" && socksCfg.Port > 0 {
+		dialer, err := NewSOCKS5Dialer(socksCfg.Host, socksCfg.Port)
+		if err != nil {
+			return nil, fmt.Errorf("SOCKS5 dialer: %w", err)
+		}
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.Dial(network, addr)
+		}
+	}
+
+	return transport, nil
 }

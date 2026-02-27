@@ -239,6 +239,45 @@ func TestReconfigure_WhileNotRunning(t *testing.T) {
 	}
 }
 
+func TestReconfigure_ConcurrentSafety(t *testing.T) {
+	mc := newMockCollector("test_concurrent", 50*time.Millisecond, true)
+	snd := &mockSender{}
+	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
+
+	sched := New(source, snd, "agent1", "host1", nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_ = sched.Start(ctx)
+	time.Sleep(80 * time.Millisecond)
+
+	// Launch 2 concurrent Reconfigure calls
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			sched.Reconfigure()
+		}()
+	}
+	wg.Wait()
+
+	// Scheduler should still be running and collecting
+	if !sched.IsRunning() {
+		t.Fatal("scheduler should still be running after concurrent Reconfigure")
+	}
+
+	mc.resetCount()
+	time.Sleep(150 * time.Millisecond)
+
+	if mc.collectCount() < 1 {
+		t.Error("expected at least 1 collection after concurrent Reconfigure")
+	}
+
+	sched.Stop()
+}
+
 func TestReconfigure_PreservesParentContext(t *testing.T) {
 	mc := newMockCollector("test_temp", 50*time.Millisecond, true)
 	snd := &mockSender{}
