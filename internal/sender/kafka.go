@@ -190,7 +190,9 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 		key, values, err := WrapMetricDataJSON(data, s.eqpInfo, s.timeDiffFunc())
 		if err != nil {
 			if errors.Is(err, ErrNoRows) {
-				return nil // Skip: collector produced valid but empty data
+				log := logger.WithComponent("kafka-sender")
+				log.Debug().Str("type", data.Type).Str("agent_id", data.AgentID).Msg("Skipping empty metric data (no rows)")
+				return nil
 			}
 			return fmt.Errorf("failed to wrap metric data as JSON: %w", err)
 		}

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -91,11 +92,14 @@ type LhmProvider struct {
 	helperFound bool
 
 	// Daemon process state
-	cmd        *exec.Cmd
-	stdin      io.WriteCloser
-	stdout     *bufio.Reader
-	stderr     io.ReadCloser
-	processErr chan error
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout *bufio.Reader
+	stderr io.ReadCloser
+
+	// Process exit signaling — channel is CLOSED (not drained) on exit,
+	// making it safe for multiple reads.
+	processExit chan struct{}
 
 	// Restart backoff
 	consecutiveFailures int
@@ -192,8 +196,11 @@ func (p *LhmProvider) GetData(ctx context.Context) (*LhmData, error) {
 		return p.data, nil
 	}
 
+	log := logger.WithComponent("lhm-provider")
+
 	// Check if process is alive; restart if dead
 	if !p.isProcessAlive() {
+		log.Warn().Msg("LhmHelper process is dead, attempting restart")
 		if err := p.restartWithBackoff(); err != nil {
 			return nil, err
 		}
@@ -202,14 +209,14 @@ func (p *LhmProvider) GetData(ctx context.Context) (*LhmData, error) {
 	// Request data from daemon
 	data, err := p.doRequestWithTimeout(ctx)
 	if err != nil {
-		log := logger.WithComponent("lhm-provider")
-		log.Warn().Err(err).Msg("LhmHelper request failed, will restart on next call")
+		log.Warn().Err(err).Msg("LhmHelper request failed, stopping process for restart on next call")
 		p.consecutiveFailures++
 		p.stopProcess()
 		return nil, fmt.Errorf("LhmHelper request failed: %w", err)
 	}
 
 	if data.Error != "" {
+		log.Warn().Str("error", data.Error).Msg("LhmHelper returned error in data")
 		return nil, fmt.Errorf("LhmHelper error: %s", data.Error)
 	}
 
@@ -217,6 +224,13 @@ func (p *LhmProvider) GetData(ctx context.Context) (*LhmData, error) {
 	p.data = data
 	p.lastUpdate = time.Now()
 	p.consecutiveFailures = 0
+
+	log.Debug().
+		Int("sensors", len(data.Sensors)).
+		Int("fans", len(data.Fans)).
+		Int("gpus", len(data.Gpus)).
+		Int("storages", len(data.Storages)).
+		Msg("LhmHelper data refreshed")
 
 	return data, nil
 }
@@ -261,12 +275,15 @@ func (p *LhmProvider) startProcess() error {
 	p.stdin = stdin
 	p.stdout = bufio.NewReaderSize(stdout, 256*1024) // 256KB buffer for large JSON
 	p.stderr = stderr
-	p.processErr = make(chan error, 1)
+	p.processExit = make(chan struct{})
 
-	// Monitor process exit in background
+	// Monitor process exit in background.
+	// Capture exitCh by value so a restart creating a new channel won't
+	// cause this goroutine to close the wrong (new) channel.
+	exitCh := p.processExit
 	go func() {
-		waitErr := cmd.Wait()
-		p.processErr <- waitErr
+		cmd.Wait()
+		close(exitCh)
 	}()
 
 	// Forward stderr to Go logger in background
@@ -280,11 +297,13 @@ func (p *LhmProvider) startProcess() error {
 	// Validate with an initial request
 	initialData, err := p.doRequest()
 	if err != nil {
+		log.Error().Err(err).Msg("LhmHelper initial collection failed")
 		p.stopProcess()
 		return fmt.Errorf("LhmHelper initial collection failed: %w", err)
 	}
 
 	if initialData.Error != "" {
+		log.Error().Str("error", initialData.Error).Msg("LhmHelper initialization error")
 		p.stopProcess()
 		return fmt.Errorf("LhmHelper initialization error: %s", initialData.Error)
 	}
@@ -322,23 +341,27 @@ func (p *LhmProvider) stopProcess() {
 		p.stdin = nil
 	}
 
-	// Wait for process to exit with timeout
-	select {
-	case <-p.processErr:
-		log.Info().Int("pid", pid).Msg("LhmHelper daemon stopped")
-	case <-time.After(5 * time.Second):
-		log.Warn().Int("pid", pid).Msg("LhmHelper daemon did not exit in time, killing")
-		p.cmd.Process.Kill()
-		<-p.processErr
-	}
-
-	p.cmd = nil
-	p.stdout = nil
-
+	// Close stderr to unblock drainStderr goroutine before waiting on process exit.
+	// cmd.Wait() closes pipe read ends, but closing early is safe and prevents
+	// potential deadlock if drainStderr is blocked.
 	if p.stderr != nil {
 		p.stderr.Close()
 		p.stderr = nil
 	}
+
+	// Wait for process to exit with timeout.
+	// processExit is a closed channel after process exits, safe for multiple reads.
+	select {
+	case <-p.processExit:
+		log.Info().Int("pid", pid).Msg("LhmHelper daemon stopped")
+	case <-time.After(5 * time.Second):
+		log.Warn().Int("pid", pid).Msg("LhmHelper daemon did not exit in time, killing")
+		p.cmd.Process.Kill()
+		<-p.processExit
+	}
+
+	p.cmd = nil
+	p.stdout = nil
 }
 
 // drainStderr reads LhmHelper stderr and forwards to Go logger.
@@ -351,9 +374,13 @@ func (p *LhmProvider) drainStderr(r io.Reader) {
 }
 
 // doRequest writes a request to stdin and reads a JSON response line from stdout.
+// Must be called while p.mu is held (or during startup before any concurrent access).
 func (p *LhmProvider) doRequest() (*LhmData, error) {
 	if p.stdin == nil {
 		return nil, fmt.Errorf("LhmHelper stdin is closed")
+	}
+	if p.stdout == nil {
+		return nil, fmt.Errorf("LhmHelper stdout is closed")
 	}
 
 	// Send request
@@ -369,14 +396,23 @@ func (p *LhmProvider) doRequest() (*LhmData, error) {
 
 	var data LhmData
 	if err := json.Unmarshal(line, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse LhmHelper response: %w", err)
+		return nil, fmt.Errorf("failed to parse LhmHelper response (%d bytes): %w", len(line), err)
 	}
 
 	return &data, nil
 }
 
-// doRequestWithTimeout wraps doRequest with a deadline.
+// doRequestWithTimeout wraps pipe I/O with a deadline.
+// Captures pipe references to avoid data races if stopProcess runs after timeout.
 func (p *LhmProvider) doRequestWithTimeout(ctx context.Context) (*LhmData, error) {
+	// Capture pipe references while lock is held (called from GetData).
+	// This prevents data race if timeout fires and stopProcess sets p.stdin/p.stdout = nil.
+	stdin := p.stdin
+	stdout := p.stdout
+	if stdin == nil || stdout == nil {
+		return nil, fmt.Errorf("LhmHelper pipes not available")
+	}
+
 	type result struct {
 		data *LhmData
 		err  error
@@ -384,8 +420,25 @@ func (p *LhmProvider) doRequestWithTimeout(ctx context.Context) (*LhmData, error
 
 	ch := make(chan result, 1)
 	go func() {
-		d, e := p.doRequest()
-		ch <- result{d, e}
+		// Use captured references, not p.stdin/p.stdout
+		if _, err := stdin.Write([]byte("collect\n")); err != nil {
+			ch <- result{nil, fmt.Errorf("failed to write to LhmHelper stdin: %w", err)}
+			return
+		}
+
+		line, err := stdout.ReadBytes('\n')
+		if err != nil {
+			ch <- result{nil, fmt.Errorf("failed to read from LhmHelper stdout: %w", err)}
+			return
+		}
+
+		var data LhmData
+		if err := json.Unmarshal(line, &data); err != nil {
+			ch <- result{nil, fmt.Errorf("failed to parse LhmHelper response (%d bytes): %w", len(line), err)}
+			return
+		}
+
+		ch <- result{&data, nil}
 	}()
 
 	select {
@@ -399,13 +452,14 @@ func (p *LhmProvider) doRequestWithTimeout(ctx context.Context) (*LhmData, error
 }
 
 // isProcessAlive checks if the daemon process is still running.
+// Uses a closed channel (processExit) so multiple calls return the same result.
 func (p *LhmProvider) isProcessAlive() bool {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return false
 	}
 
 	select {
-	case <-p.processErr:
+	case <-p.processExit:
 		return false
 	default:
 		return true
@@ -424,7 +478,8 @@ func (p *LhmProvider) restartWithBackoff() error {
 	}
 	backoff := time.Duration(backoffSeconds) * time.Second
 
-	// Wait if not enough time has passed
+	// Wait if not enough time has passed.
+	// Release mutex during sleep to allow Stop() to proceed.
 	elapsed := time.Since(p.lastStartAttempt)
 	if elapsed < backoff {
 		wait := backoff - elapsed
@@ -433,10 +488,18 @@ func (p *LhmProvider) restartWithBackoff() error {
 			Dur("backoff_wait", wait).
 			Msg("LhmHelper restart backoff")
 
+		p.mu.Unlock()
 		select {
 		case <-time.After(wait):
 		case <-p.ctx.Done():
+			p.mu.Lock()
 			return fmt.Errorf("LhmHelper restart cancelled: %w", p.ctx.Err())
+		}
+		p.mu.Lock()
+
+		// Re-check state after re-acquiring lock (Stop may have been called)
+		if !p.started {
+			return fmt.Errorf("LhmHelper stopped during restart backoff")
 		}
 	}
 
@@ -467,7 +530,7 @@ func (p *LhmProvider) findLhmHelper() (string, error) {
 		filepath.Join(".", "utils", "lhm-helper", "LhmHelper.exe"),
 	}
 
-	if exePath, err := exec.LookPath("ResourceAgent.exe"); err == nil {
+	if exePath, err := os.Executable(); err == nil {
 		exeDir := filepath.Dir(exePath)
 		candidates = append(candidates,
 			filepath.Join(exeDir, "LhmHelper.exe"),

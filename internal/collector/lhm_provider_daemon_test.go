@@ -147,11 +147,13 @@ func TestDaemonProcessCrash(t *testing.T) {
 	p.lastUpdate = time.Time{}
 	p.mu.Unlock()
 
-	// Process will crash on second doRequest (fake daemon exits after responding once).
-	// The crash daemon responds to the first stdin line (during startProcess initial request),
-	// then the second stdin line triggers a response followed by exit.
-	// Wait a moment for the crash to propagate.
-	time.Sleep(100 * time.Millisecond)
+	// Crash daemon exits immediately after first response (during startProcess).
+	// Wait for the process to actually exit before calling GetData.
+	select {
+	case <-p.processExit:
+	case <-time.After(5 * time.Second):
+		t.Fatal("crash daemon did not exit in time")
+	}
 
 	// Now switch env to normal so restart succeeds
 	t.Setenv("FAKE_DAEMON_MODE", "normal")
@@ -260,11 +262,11 @@ func TestDaemonTimeout(t *testing.T) {
 	p.stdin = stdin
 	p.stdout = makeBufferedReader(stdout)
 	p.stderr = stderr
-	p.processErr = make(chan error, 1)
+	p.processExit = make(chan struct{})
 
 	go func() {
-		err := cmd.Wait()
-		p.processErr <- err
+		cmd.Wait()
+		close(p.processExit)
 	}()
 
 	// doRequestWithTimeout should fail

@@ -104,14 +104,10 @@ func main() {
 			b, _ := json.Marshal(sampleData)
 			fmt.Println(string(b))
 		case "crash":
-			if requestCount == 1 {
-				b, _ := json.Marshal(sampleData)
-				fmt.Println(string(b))
-			}
-			// Exit after first response (simulates crash)
-			if requestCount >= 2 {
-				os.Exit(1)
-			}
+			// Respond once then exit immediately (simulates crash after first response)
+			b, _ := json.Marshal(sampleData)
+			fmt.Println(string(b))
+			os.Exit(1)
 		case "error":
 			b, _ := json.Marshal(errorData)
 			fmt.Println(string(b))
