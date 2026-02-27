@@ -128,11 +128,19 @@ D:\EARS\EEGAgent\                         ← basePath (ManagerAgent FTP home)
 - Windows: LibreHardwareMonitor (LhmHelper.exe) - PawnIO 드라이버 사용
 - Linux: `/sys/class/thermal/thermal_zone*/temp` 또는 lm-sensors (gopsutil)
 
-#### Windows 온도 수집 구조
+#### Windows 온도 수집 구조 (Daemon 모드)
 
 ```
-ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → PawnIO Driver → MSR
+ResourceAgent (Go)                         LhmHelper.exe --daemon (C#)
+  LhmProvider.Start()  ─── spawn ──────►  computer.Open() (1회)
+  LhmProvider.GetData() ── "collect\n" ►  hardware.Update() → JSON stdout
+                        ◄─ JSON line ──   (반복, stdin EOF 시 종료)
+  LhmProvider.Stop()   ── stdin close ►   computer.Close()
 ```
+
+- **Daemon 모드**: `computer.Open()/Close()` 1회만 수행하여 PawnIO 드라이버 핸들 누적 방지
+- **프로세스 관리**: Go LhmProvider가 시작/감시/재시작 (지수 백오프: 1s~60s)
+- **하위호환**: `--daemon` 플래그 없으면 기존 one-shot 모드로 동작
 
 **LhmHelper 빌드**:
 ```bash
@@ -156,14 +164,15 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 1. ConfigManager가 JSON 설정 로드 및 변경 감시
 2. sender_type != "file" 이면: IP 감지 → Redis EQP_INFO 조회 → ServiceDiscovery → KafkaRest/Topic 결정
-3. Scheduler가 설정된 주기로 Collector 등록
-4. Collector가 스케줄에 따라 메트릭 수집
-5. Sender가 메트릭 전송:
+3. LhmProvider가 LhmHelper.exe를 daemon 모드(`--daemon`)로 시작 (Windows만, 실패 시 non-fatal)
+4. Scheduler가 설정된 주기로 Collector 등록
+5. Collector가 스케줄에 따라 메트릭 수집 (LHM 기반 collector는 LhmProvider 공유 캐시 사용)
+6. Sender가 메트릭 전송:
    - **kafkarest**: MetricData → EARSRow[] → `sanitizeName()` 적용 → 평문 raw (Grok 호환) → HTTP POST (`KafkaMessageWrapper2`)
    - **kafka**: MetricData → EARSRow[] → JSON raw (ParsedDataList, sanitize 미적용) → sarama produce (`KafkaValue`)
    - **file**: MetricData JSON 그대로 파일에 기록
    - **ESID**: `{Process}:{EqpID}-{metricType}-{timestamp_ms}-{counter}` — metricType으로 타입 간 중복 방지
-6. 로컬 버퍼링 없음 - 네트워크 단절 시 데이터 유실 허용
+7. 로컬 버퍼링 없음 - 네트워크 단절 시 데이터 유실 허용
 
 ## 서비스 설치
 

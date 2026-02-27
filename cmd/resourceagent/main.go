@@ -211,6 +211,14 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	}
 	// --- END Redis EQP_INFO + ServiceDiscovery + TimeDiff ---
 
+	// Start LhmHelper daemon (Windows: manages long-running LhmHelper.exe process,
+	// Unix: no-op). Non-fatal: LHM-based collectors return empty data on failure.
+	lhmProvider := collector.GetLhmProvider()
+	if err := lhmProvider.Start(ctx); err != nil {
+		log.Warn().Err(err).Msg("LhmHelper daemon failed to start, LHM-based collectors will return empty data")
+	}
+	defer lhmProvider.Stop()
+
 	// Create collector registry with default collectors
 	registry := collector.DefaultRegistry()
 

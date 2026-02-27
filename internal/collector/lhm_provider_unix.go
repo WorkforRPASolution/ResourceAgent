@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// Start is a no-op on Unix systems. LhmHelper is Windows-only.
+func (p *LhmProvider) Start(ctx context.Context) error {
+	return nil
+}
+
+// Stop is a no-op on Unix systems.
+func (p *LhmProvider) Stop() {}
+
 // LhmData represents the complete JSON output from LhmHelper.exe.
 // On Unix systems, this returns empty data as LhmHelper is Windows-only.
 type LhmData struct {
