@@ -21,6 +21,7 @@ type rawConfig struct {
 	SOCKSProxy              SOCKSConfig                   `json:"SocksProxy"`
 	ServiceDiscoveryPort    int                           `json:"ServiceDiscoveryPort"`
 	ResourceMonitorTopic    string                        `json:"ResourceMonitorTopic"`
+	TimeDiffSyncInterval    int                           `json:"TimeDiffSyncInterval"`
 }
 
 type rawKafkaConfig struct {
@@ -114,6 +115,7 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg.SOCKSProxy = raw.SOCKSProxy
 	cfg.ServiceDiscoveryPort = raw.ServiceDiscoveryPort
 	cfg.ResourceMonitorTopic = raw.ResourceMonitorTopic
+	cfg.TimeDiffSyncInterval = raw.TimeDiffSyncInterval
 
 	return cfg, nil
 }
