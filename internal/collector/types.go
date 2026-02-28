@@ -6,10 +6,9 @@ import "time"
 type MetricData struct {
 	Type      string            `json:"type"`
 	Timestamp time.Time         `json:"timestamp"`
-	AgentID   string            `json:"agent_id"`
-	Hostname  string            `json:"hostname"`
-	Tags      map[string]string `json:"tags,omitempty"`
-	Data      interface{}       `json:"data"`
+	AgentID  string      `json:"agent_id"`
+	Hostname string      `json:"hostname"`
+	Data     interface{} `json:"data"`
 }
 
 // CPUData contains overall CPU usage metrics.

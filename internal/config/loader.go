@@ -11,7 +11,6 @@ import (
 
 // rawConfig is used for JSON unmarshaling with duration strings.
 type rawConfig struct {
-	Agent      AgentConfig    `json:"Agent"`
 	SenderType string         `json:"SenderType"`
 	File       FileConfig     `json:"File"`
 	Kafka      rawKafkaConfig `json:"Kafka"`
@@ -96,7 +95,6 @@ func Parse(data []byte) (*Config, error) {
 
 func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg := &Config{
-		Agent:      raw.Agent,
 		SenderType: raw.SenderType,
 		File:       raw.File,
 	}
@@ -303,11 +301,8 @@ func LoadSplit(configPath, monitorPath, loggingPath string) (*Config, *MonitorCo
 	return cfg, mc, lc, nil
 }
 
-// GetHostname returns the configured hostname or the system hostname.
-func GetHostname(cfg *Config) string {
-	if cfg.Agent.Hostname != "" {
-		return cfg.Agent.Hostname
-	}
+// GetHostname returns the system hostname.
+func GetHostname() string {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return "unknown"
@@ -315,13 +310,10 @@ func GetHostname(cfg *Config) string {
 	return hostname
 }
 
-// GetAgentID returns the agent ID with priority: EqpInfo.EqpID > Agent.ID > hostname.
+// GetAgentID returns the agent ID: EqpInfo.EqpID if available, otherwise hostname.
 func GetAgentID(cfg *Config) string {
 	if cfg.EqpInfo != nil && cfg.EqpInfo.EqpID != "" {
 		return cfg.EqpInfo.EqpID
 	}
-	if cfg.Agent.ID != "" {
-		return cfg.Agent.ID
-	}
-	return GetHostname(cfg)
+	return GetHostname()
 }

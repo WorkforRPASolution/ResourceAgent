@@ -8,7 +8,6 @@ import (
 
 // Config is the root configuration structure.
 type Config struct {
-	Agent      AgentConfig                `json:"Agent"`
 	SenderType string                     `json:"SenderType"` // "kafka", "kafkarest", or "file"
 	Kafka      KafkaConfig                `json:"Kafka"`
 	File       FileConfig                 `json:"File"`
@@ -31,13 +30,6 @@ type FileConfig struct {
 	Console    bool   `json:"Console"`
 	Pretty     bool   `json:"Pretty"`
 	Format     string `json:"Format"` // Output format: "json" or "legacy" (default: "legacy")
-}
-
-// AgentConfig contains general agent settings.
-type AgentConfig struct {
-	ID       string            `json:"ID"`
-	Hostname string            `json:"Hostname"`
-	Tags     map[string]string `json:"Tags"`
 }
 
 // KafkaConfig contains Kafka connection settings.
@@ -112,10 +104,6 @@ type EqpInfoConfig struct {
 // DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		Agent: AgentConfig{
-			ID:   "",
-			Tags: make(map[string]string),
-		},
 		SenderType: "kafka", // default for backward compatibility
 		File: FileConfig{
 			FilePath:   "log/ResourceAgent/metrics.jsonl",
@@ -150,17 +138,6 @@ func DefaultConfig() *Config {
 func (c *Config) Merge(other *Config) {
 	if other == nil {
 		return
-	}
-
-	// Merge Agent config
-	if other.Agent.ID != "" {
-		c.Agent.ID = other.Agent.ID
-	}
-	if other.Agent.Hostname != "" {
-		c.Agent.Hostname = other.Agent.Hostname
-	}
-	for k, v := range other.Agent.Tags {
-		c.Agent.Tags[k] = v
 	}
 
 	// Merge SenderType

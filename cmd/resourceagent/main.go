@@ -352,7 +352,7 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	log := logger.WithComponent("main")
 
 	agentID := config.GetAgentID(cfg)
-	hostname := config.GetHostname(cfg)
+	hostname := config.GetHostname()
 
 	log.Info().
 		Str("agent_id", agentID).
@@ -394,7 +394,7 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	}()
 
 	// Phase 5: Scheduler
-	sched := scheduler.New(registry, snd, infra.agentID, hostname, cfg.Agent.Tags)
+	sched := scheduler.New(registry, snd, infra.agentID, hostname)
 	if err := sched.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}

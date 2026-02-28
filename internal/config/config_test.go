@@ -176,9 +176,6 @@ func TestParse_WithPrivateIPAddressPattern(t *testing.T) {
 
 func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	input := `{
-		"Agent": {
-			"ID": "test-agent"
-		},
 		"SenderType": "file",
 		"Kafka": {
 			"Brokers": ["broker1:9092"],
@@ -205,10 +202,6 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	}
 	if cfg.PrivateIPAddressPattern != "" {
 		t.Errorf("expected PrivateIPAddressPattern='', got %q", cfg.PrivateIPAddressPattern)
-	}
-
-	if cfg.Agent.ID != "test-agent" {
-		t.Errorf("expected Agent.ID='test-agent', got %q", cfg.Agent.ID)
 	}
 	if cfg.SenderType != "file" {
 		t.Errorf("expected SenderType='file', got %q", cfg.SenderType)
@@ -410,9 +403,6 @@ func TestResolveTopic_EmptyMode(t *testing.T) {
 
 func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	input := `{
-		"Agent": {
-			"ID": "full-test"
-		},
 		"VirtualAddressList": "10.0.0.1,10.0.0.2",
 		"ServiceDiscoveryPort": 60009,
 		"ResourceMonitorTopic": "model",
@@ -462,9 +452,6 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	}
 	if cfg.SOCKSProxy.Port != 8080 {
 		t.Errorf("SOCKSProxy.Port: got %d", cfg.SOCKSProxy.Port)
-	}
-	if cfg.Agent.ID != "full-test" {
-		t.Errorf("Agent.ID: got %q", cfg.Agent.ID)
 	}
 	if cfg.Kafka.Topic != "metrics" {
 		t.Errorf("Kafka.Topic: got %q", cfg.Kafka.Topic)
@@ -659,7 +646,6 @@ func TestLoadSplit_ThreeFiles(t *testing.T) {
 	dir := t.TempDir()
 
 	configJSON := `{
-		"Agent": {"ID": "split-test"},
 		"SenderType": "file",
 		"File": {"FilePath": "out.jsonl"}
 	}`
@@ -683,9 +669,6 @@ func TestLoadSplit_ThreeFiles(t *testing.T) {
 	}
 
 	// Config assertions
-	if cfg.Agent.ID != "split-test" {
-		t.Errorf("expected Agent.ID='split-test', got %q", cfg.Agent.ID)
-	}
 	if cfg.SenderType != "file" {
 		t.Errorf("expected SenderType='file', got %q", cfg.SenderType)
 	}

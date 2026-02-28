@@ -22,7 +22,6 @@ type Scheduler struct {
 	sender   sender.Sender
 	agentID  string
 	hostname string
-	tags     map[string]string
 
 	mu            sync.Mutex
 	running       bool
@@ -34,13 +33,12 @@ type Scheduler struct {
 }
 
 // New creates a new scheduler with the given components.
-func New(registry CollectorSource, s sender.Sender, agentID, hostname string, tags map[string]string) *Scheduler {
+func New(registry CollectorSource, s sender.Sender, agentID, hostname string) *Scheduler {
 	return &Scheduler{
 		registry: registry,
 		sender:   s,
 		agentID:  agentID,
 		hostname: hostname,
-		tags:     tags,
 	}
 }
 
@@ -157,7 +155,6 @@ func (s *Scheduler) collect(ctx context.Context, c collector.Collector) {
 	// Enrich metric data with agent information
 	data.AgentID = s.agentID
 	data.Hostname = s.hostname
-	data.Tags = s.tags
 
 	// Send to Kafka
 	sendCtx, sendCancel := context.WithTimeout(ctx, 10*time.Second)

@@ -121,7 +121,7 @@ func TestReconfigure_IntervalChange(t *testing.T) {
 	snd := &mockSender{}
 	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
 
-	sched := New(source, snd, "agent1", "host1", nil)
+	sched := New(source, snd, "agent1", "host1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -161,7 +161,7 @@ func TestReconfigure_DisableCollector(t *testing.T) {
 	snd := &mockSender{}
 	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
 
-	sched := New(source, snd, "agent1", "host1", nil)
+	sched := New(source, snd, "agent1", "host1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -196,7 +196,7 @@ func TestReconfigure_EnableCollector(t *testing.T) {
 	snd := &mockSender{}
 	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
 
-	sched := New(source, snd, "agent1", "host1", nil)
+	sched := New(source, snd, "agent1", "host1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -229,7 +229,7 @@ func TestReconfigure_WhileNotRunning(t *testing.T) {
 	snd := &mockSender{}
 	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
 
-	sched := New(source, snd, "agent1", "host1", nil)
+	sched := New(source, snd, "agent1", "host1")
 
 	// Reconfigure without Start - should not panic
 	sched.Reconfigure()
@@ -244,7 +244,7 @@ func TestReconfigure_ConcurrentSafety(t *testing.T) {
 	snd := &mockSender{}
 	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
 
-	sched := New(source, snd, "agent1", "host1", nil)
+	sched := New(source, snd, "agent1", "host1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -283,7 +283,7 @@ func TestReconfigure_PreservesParentContext(t *testing.T) {
 	snd := &mockSender{}
 	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
 
-	sched := New(source, snd, "agent1", "host1", nil)
+	sched := New(source, snd, "agent1", "host1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 

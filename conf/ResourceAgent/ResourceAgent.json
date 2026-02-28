@@ -1,12 +1,4 @@
 {
-  "Agent": {
-    "ID": "",
-    "Hostname": "",
-    "Tags": {
-      "environment": "production",
-      "location": "factory-1"
-    }
-  },
   "SenderType": "kafka",
   "File": {
     "FilePath": "log/ResourceAgent/metrics.jsonl",
