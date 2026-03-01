@@ -30,7 +30,12 @@ func NewSender(cfg *config.Config, timeDiffFunc func() int64) (Sender, error) {
 			Msg("Creating KafkaRest sender")
 		return NewKafkaRestSender(cfg.KafkaRestAddress, topic, cfg.EqpInfo, cfg.SOCKSProxy, timeDiffFunc)
 	case "kafka":
-		return NewKafkaSender(cfg.Kafka, cfg.SOCKSProxy, cfg.EqpInfo, timeDiffFunc)
+		topic := config.ResolveTopic(cfg.ResourceMonitorTopic, cfg.EqpInfo)
+		log.Info().
+			Strs("brokers", cfg.Kafka.Brokers).
+			Str("topic", topic).
+			Msg("Creating Kafka sender")
+		return NewKafkaSender(cfg.Kafka, topic, cfg.SOCKSProxy, cfg.EqpInfo, timeDiffFunc)
 	case "file":
 		return NewFileSender(cfg.File)
 	default:

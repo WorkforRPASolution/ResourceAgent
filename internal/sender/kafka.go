@@ -67,7 +67,7 @@ type KafkaSender struct {
 }
 
 // NewKafkaSender creates a new Kafka sender with the given configuration.
-func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo *config.EqpInfoConfig, timeDiffFunc func() int64) (*KafkaSender, error) {
+func NewKafkaSender(cfg config.KafkaConfig, topic string, socksCfg config.SOCKSConfig, eqpInfo *config.EqpInfoConfig, timeDiffFunc func() int64) (*KafkaSender, error) {
 	saramaConfig := sarama.NewConfig()
 
 	// Producer settings
@@ -163,7 +163,7 @@ func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo
 
 	sender := &KafkaSender{
 		producer:     producer,
-		topic:        cfg.Topic,
+		topic:        topic,
 		eqpInfo:      eqpInfo,
 		timeDiffFunc: timeDiffFunc,
 	}
