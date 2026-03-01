@@ -15,67 +15,60 @@ import (
 // (e.g., no fan sensors detected). Callers should skip sending silently.
 var ErrNoRows = errors.New("no EARS rows produced")
 
-// KafkaValue is the value structure for Kafka direct messages (JSON mapper pipeline).
-// Unlike KafkaValue2, it has no "process" field — EARS_PROCESS is in ParsedDataList.
-type KafkaValue struct {
-	Line  string `json:"line"`
-	EqpID string `json:"eqpid"`
-	Model string `json:"model"`
-	Diff  int64  `json:"diff"`
-	ESID  string `json:"esid"`
-	Raw   string `json:"raw"` // ParsedDataList JSON string
+// RawFormatter formats an EARSRow into the raw string for a KafkaValue.
+type RawFormatter interface {
+	FormatRaw(row EARSRow, process string) (string, error)
 }
 
-// KafkaValue2 is the value structure for the production Kafka message format.
-type KafkaValue2 struct {
+// GrokRawFormatter produces plain text for the KafkaRest/Grok pipeline.
+type GrokRawFormatter struct{}
+
+func (f GrokRawFormatter) FormatRaw(row EARSRow, _ string) (string, error) {
+	return row.ToLegacyString(), nil
+}
+
+// JSONRawFormatter produces ParsedDataList JSON for the Kafka direct/JSON mapper pipeline.
+type JSONRawFormatter struct{}
+
+func (f JSONRawFormatter) FormatRaw(row EARSRow, process string) (string, error) {
+	pdl := row.ToParsedData(process)
+	b, err := json.Marshal(pdl)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal ParsedDataList: %w", err)
+	}
+	return string(b), nil
+}
+
+// KafkaValue is the value structure for Kafka messages.
+// Both the KafkaRest (Grok) and Kafka direct (JSON mapper) pipelines use this struct.
+// The "process" field is safe to include for Kafka direct consumers because
+// json4s (KafkaToElastic) ignores extra fields.
+type KafkaValue struct {
 	Process string `json:"process"`
 	Line    string `json:"line"`
 	EqpID   string `json:"eqpid"`
 	Model   string `json:"model"`
 	Diff    int64  `json:"diff"`
 	ESID    string `json:"esid"`
-	Raw     string `json:"raw"` // MetricData JSON string
+	Raw     string `json:"raw"`
 }
 
-// KafkaMessage2 is a single record in the production Kafka message format.
+// KafkaMessage2 is a single record in the Kafka REST message format.
 type KafkaMessage2 struct {
-	Key   string      `json:"key"`
-	Value KafkaValue2 `json:"value"`
+	Key   string     `json:"key"`
+	Value KafkaValue `json:"value"`
 }
 
-// KafkaMessageWrapper2 is the production-compatible Kafka message wrapper.
+// KafkaMessageWrapper2 is the Kafka REST message wrapper for HTTP transport.
 type KafkaMessageWrapper2 struct {
 	Records []KafkaMessage2 `json:"records"`
 }
 
-// WrapMetricData wraps a MetricData into KafkaMessageWrapper2 format.
-// The raw MetricData is JSON-serialized and placed in the "raw" field.
-// Returns the wrapper JSON bytes.
-func WrapMetricData(data *collector.MetricData, eqpInfo *config.EqpInfoConfig) ([]byte, error) {
-	// Serialize the original metric data as the "raw" field
-	rawJSON, err := json.Marshal(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal metric data for wrapping: %w", err)
-	}
-
-	wrapper := KafkaMessageWrapper2{
-		Records: []KafkaMessage2{
-			{
-				Key: eqpInfo.EqpID,
-				Value: KafkaValue2{
-					Process: eqpInfo.Process,
-					Line:    eqpInfo.Line,
-					EqpID:   eqpInfo.EqpID,
-					Model:   eqpInfo.EqpModel,
-					Diff:    time.Now().UnixMilli() - data.Timestamp.UnixMilli(),
-					ESID:    fmt.Sprintf("%s_%s_%s", eqpInfo.EqpID, data.Type, data.Timestamp.Format("20060102150405")),
-					Raw:     string(rawJSON),
-				},
-			},
-		},
-	}
-
-	return json.Marshal(wrapper)
+// KafkaRecord is an intermediate record produced by PrepareRecords.
+type KafkaRecord struct {
+	Key       string
+	Value     KafkaValue
+	Timestamp time.Time
 }
 
 // generateESID creates an ESID in the format: {Process}:{EqpID}-{metricType}-{timestamp_ms}-{counter}
@@ -83,68 +76,36 @@ func generateESID(process, eqpID, metricType string, timestampMs int64, counter 
 	return fmt.Sprintf("%s:%s-%s-%d-%d", process, eqpID, metricType, timestampMs, counter)
 }
 
-// WrapMetricDataLegacy creates KafkaMessageWrapper2 with plain text raw (for KafkaRest/Grok).
-// Returns multiple records, one per EARS row.
-func WrapMetricDataLegacy(data *collector.MetricData, eqpInfo *config.EqpInfoConfig, timeDiff int64) ([]byte, error) {
+// PrepareRecords converts MetricData into KafkaRecords using the given formatter.
+func PrepareRecords(data *collector.MetricData, eqpInfo *config.EqpInfoConfig, timeDiff int64, formatter RawFormatter) ([]KafkaRecord, error) {
 	rows := ConvertToEARSRows(data)
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("%w: metric type %q", ErrNoRows, data.Type)
 	}
 
 	tsMs := data.Timestamp.UnixMilli()
-	records := make([]KafkaMessage2, 0, len(rows))
+	records := make([]KafkaRecord, 0, len(rows))
+
 	for i, row := range rows {
-		records = append(records, KafkaMessage2{
+		raw, err := formatter.FormatRaw(row, eqpInfo.Process)
+		if err != nil {
+			return nil, fmt.Errorf("failed to format raw for row %d: %w", i, err)
+		}
+
+		records = append(records, KafkaRecord{
 			Key: eqpInfo.EqpID,
-			Value: KafkaValue2{
+			Value: KafkaValue{
 				Process: eqpInfo.Process,
 				Line:    eqpInfo.Line,
 				EqpID:   eqpInfo.EqpID,
 				Model:   eqpInfo.EqpModel,
 				Diff:    timeDiff,
 				ESID:    generateESID(eqpInfo.Process, eqpInfo.EqpID, data.Type, tsMs, i),
-				Raw:     row.ToLegacyString(),
+				Raw:     raw,
 			},
+			Timestamp: data.Timestamp,
 		})
 	}
 
-	wrapper := KafkaMessageWrapper2{Records: records}
-	return json.Marshal(wrapper)
-}
-
-// WrapMetricDataJSON creates KafkaValue messages with ParsedDataList raw (for Kafka direct/JSON mapper).
-// Returns the key and multiple KafkaValue JSONs, one per EARS row.
-func WrapMetricDataJSON(data *collector.MetricData, eqpInfo *config.EqpInfoConfig, timeDiff int64) (string, [][]byte, error) {
-	rows := ConvertToEARSRows(data)
-	if len(rows) == 0 {
-		return "", nil, fmt.Errorf("%w: metric type %q", ErrNoRows, data.Type)
-	}
-
-	tsMs := data.Timestamp.UnixMilli()
-	key := eqpInfo.EqpID
-	values := make([][]byte, 0, len(rows))
-
-	for i, row := range rows {
-		pdl := row.ToParsedData(eqpInfo.Process)
-		rawJSON, err := json.Marshal(pdl)
-		if err != nil {
-			return "", nil, fmt.Errorf("failed to marshal ParsedDataList: %w", err)
-		}
-
-		kv := KafkaValue{
-			Line:  eqpInfo.Line,
-			EqpID: eqpInfo.EqpID,
-			Model: eqpInfo.EqpModel,
-			Diff:  timeDiff,
-			ESID:  generateESID(eqpInfo.Process, eqpInfo.EqpID, data.Type, tsMs, i),
-			Raw:   string(rawJSON),
-		}
-		b, err := json.Marshal(kv)
-		if err != nil {
-			return "", nil, fmt.Errorf("failed to marshal KafkaValue: %w", err)
-		}
-		values = append(values, b)
-	}
-
-	return key, values, nil
+	return records, nil
 }
