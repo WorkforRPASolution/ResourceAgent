@@ -25,7 +25,6 @@ type rawConfig struct {
 
 type rawKafkaConfig struct {
 	Brokers        []string `json:"Brokers"`
-	Topic          string   `json:"Topic"`
 	Compression    string   `json:"Compression"`
 	RequiredAcks   int      `json:"RequiredAcks"`
 	MaxRetries     int      `json:"MaxRetries"`
@@ -121,7 +120,6 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 func convertRawKafka(raw *rawKafkaConfig) (*KafkaConfig, error) {
 	kafka := &KafkaConfig{
 		Brokers:       raw.Brokers,
-		Topic:         raw.Topic,
 		Compression:   raw.Compression,
 		RequiredAcks:  raw.RequiredAcks,
 		MaxRetries:    raw.MaxRetries,

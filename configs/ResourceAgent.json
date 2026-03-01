@@ -17,7 +17,6 @@
   },
   "Kafka": {
     "Brokers": ["localhost:9092"],
-    "Topic": "factory-metrics",
     "Compression": "snappy",
     "RequiredAcks": 1,
     "MaxRetries": 3,

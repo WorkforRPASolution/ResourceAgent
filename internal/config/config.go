@@ -35,7 +35,6 @@ type FileConfig struct {
 // KafkaConfig contains Kafka connection settings.
 type KafkaConfig struct {
 	Brokers        []string      `json:"Brokers"`
-	Topic          string        `json:"Topic"`
 	Compression    string        `json:"Compression"`
 	RequiredAcks   int           `json:"RequiredAcks"`
 	MaxRetries     int           `json:"MaxRetries"`
@@ -114,7 +113,6 @@ func DefaultConfig() *Config {
 		},
 		Kafka: KafkaConfig{
 			Brokers:        []string{"localhost:9092"},
-			Topic:          "factory-metrics",
 			Compression:    "snappy",
 			RequiredAcks:   1,
 			MaxRetries:     3,
@@ -164,9 +162,6 @@ func (c *Config) Merge(other *Config) {
 	// Merge Kafka config
 	if len(other.Kafka.Brokers) > 0 {
 		c.Kafka.Brokers = other.Kafka.Brokers
-	}
-	if other.Kafka.Topic != "" {
-		c.Kafka.Topic = other.Kafka.Topic
 	}
 	if other.Kafka.Compression != "" {
 		c.Kafka.Compression = other.Kafka.Compression
