@@ -428,24 +428,24 @@ func TestToParsedData_Structure(t *testing.T) {
 	}
 	pdl := row.ToParsedData("PROCESS1")
 
-	if pdl.Timestamp != "2026-02-24T10:30:45.123" {
-		t.Errorf("timestamp: expected 2026-02-24T10:30:45.123, got %s", pdl.Timestamp)
+	if pdl.ISOTimestamp != "2026-02-24T10:30:45.123" {
+		t.Errorf("iso_timestamp: expected 2026-02-24T10:30:45.123, got %s", pdl.ISOTimestamp)
 	}
-	if len(pdl.Data) != 6 {
-		t.Fatalf("expected 6 ParsedData entries, got %d", len(pdl.Data))
+	if len(pdl.Parsed) != 6 {
+		t.Fatalf("expected 6 ParsedData entries, got %d", len(pdl.Parsed))
 	}
 
 	expected := []ParsedData{
-		{Name: "EARS_PROCESS", Value: "PROCESS1", Type: "String"},
-		{Name: "EARS_CATEGORY", Value: "cpu", Type: "String"},
-		{Name: "EARS_PID", Value: "0", Type: "Int"},
-		{Name: "EARS_PROCNAME", Value: "@system", Type: "String"},
-		{Name: "EARS_METRIC", Value: "total_used_pct", Type: "String"},
-		{Name: "EARS_VALUE", Value: "45.5", Type: "Double"},
+		{Field: "EARS_PROCESS", Value: "PROCESS1", DataFormat: "String"},
+		{Field: "EARS_CATEGORY", Value: "cpu", DataFormat: "String"},
+		{Field: "EARS_PID", Value: "0", DataFormat: "Integer"},
+		{Field: "EARS_PROCNAME", Value: "@system", DataFormat: "String"},
+		{Field: "EARS_METRIC", Value: "total_used_pct", DataFormat: "String"},
+		{Field: "EARS_VALUE", Value: "45.5", DataFormat: "Double"},
 	}
 	for i, e := range expected {
-		if pdl.Data[i] != e {
-			t.Errorf("Data[%d]: expected %+v, got %+v", i, e, pdl.Data[i])
+		if pdl.Parsed[i] != e {
+			t.Errorf("Parsed[%d]: expected %+v, got %+v", i, e, pdl.Parsed[i])
 		}
 	}
 }
@@ -471,17 +471,17 @@ func TestToParsedData_JSONMarshal(t *testing.T) {
 	if err := json.Unmarshal(b, &result); err != nil {
 		t.Fatalf("failed to unmarshal ParsedDataList: %v", err)
 	}
-	if result.Timestamp != pdl.Timestamp {
-		t.Errorf("timestamp mismatch after round-trip")
+	if result.ISOTimestamp != pdl.ISOTimestamp {
+		t.Errorf("iso_timestamp mismatch after round-trip")
 	}
-	if len(result.Data) != 6 {
-		t.Fatalf("expected 6 entries after round-trip, got %d", len(result.Data))
+	if len(result.Parsed) != 6 {
+		t.Fatalf("expected 6 entries after round-trip, got %d", len(result.Parsed))
 	}
 
 	// Verify EARS_PROCESS is included
 	found := false
-	for _, d := range result.Data {
-		if d.Name == "EARS_PROCESS" && d.Value == "ARSAgent" {
+	for _, d := range result.Parsed {
+		if d.Field == "EARS_PROCESS" && d.Value == "ARSAgent" {
 			found = true
 			break
 		}

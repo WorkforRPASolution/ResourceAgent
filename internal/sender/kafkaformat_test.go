@@ -456,17 +456,17 @@ func TestWrapMetricDataJSON_RawIsParsedDataList(t *testing.T) {
 		t.Fatalf("raw is not valid ParsedDataList JSON: %v", err)
 	}
 
-	if pdl.Timestamp != "2026-02-24T10:30:45.123" {
-		t.Errorf("timestamp: expected 2026-02-24T10:30:45.123, got %s", pdl.Timestamp)
+	if pdl.ISOTimestamp != "2026-02-24T10:30:45.123" {
+		t.Errorf("iso_timestamp: expected 2026-02-24T10:30:45.123, got %s", pdl.ISOTimestamp)
 	}
-	if len(pdl.Data) != 6 {
-		t.Fatalf("expected 6 ParsedData, got %d", len(pdl.Data))
+	if len(pdl.Parsed) != 6 {
+		t.Fatalf("expected 6 ParsedData, got %d", len(pdl.Parsed))
 	}
 
 	// Verify EARS_PROCESS is in ParsedDataList
 	found := false
-	for _, d := range pdl.Data {
-		if d.Name == "EARS_PROCESS" && d.Value == "PROCESS1" && d.Type == "String" {
+	for _, d := range pdl.Parsed {
+		if d.Field == "EARS_PROCESS" && d.Value == "PROCESS1" && d.DataFormat == "String" {
 			found = true
 		}
 	}
