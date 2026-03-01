@@ -28,9 +28,22 @@ func NewSender(cfg *config.Config, timeDiffFunc func() int64) (Sender, error) {
 			Str("kafkarest_addr", cfg.KafkaRestAddress).
 			Str("topic", topic).
 			Msg("Creating KafkaRest sender")
-		return NewKafkaRestSender(cfg.KafkaRestAddress, topic, cfg.EqpInfo, cfg.SOCKSProxy, timeDiffFunc)
+		transport, err := NewHTTPTransport(cfg.KafkaRestAddress, cfg.SOCKSProxy)
+		if err != nil {
+			return nil, err
+		}
+		return NewKafkaSender(transport, topic, cfg.EqpInfo, timeDiffFunc, GrokRawFormatter{}), nil
 	case "kafka":
-		return NewKafkaSender(cfg.Kafka, cfg.SOCKSProxy, cfg.EqpInfo, timeDiffFunc)
+		topic := config.ResolveTopic(cfg.ResourceMonitorTopic, cfg.EqpInfo)
+		log.Info().
+			Strs("brokers", cfg.Kafka.Brokers).
+			Str("topic", topic).
+			Msg("Creating Kafka sender")
+		transport, err := NewSaramaTransport(cfg.Kafka, cfg.SOCKSProxy)
+		if err != nil {
+			return nil, err
+		}
+		return NewKafkaSender(transport, topic, cfg.EqpInfo, timeDiffFunc, JSONRawFormatter{}), nil
 	case "file":
 		return NewFileSender(cfg.File)
 	default:

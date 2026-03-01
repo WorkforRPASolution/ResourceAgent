@@ -3,15 +3,13 @@ package sender
 import (
 	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
-	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
 	"resourceagent/internal/logger"
 	"resourceagent/internal/network"
@@ -23,20 +21,14 @@ const (
 	retryDelay           = 500 * time.Millisecond
 )
 
-// KafkaRestSender sends metrics to Kafka via the KafkaRest HTTP proxy.
-type KafkaRestSender struct {
-	client       *http.Client
-	url          string // cached: baseURL + "/topics/" + topic
-	eqpInfo      *config.EqpInfoConfig
-	timeDiffFunc func() int64
-	mu           sync.RWMutex
-	closed       bool
+// HTTPTransport implements KafkaTransport via the KafkaRest HTTP proxy.
+type HTTPTransport struct {
+	client  *http.Client
+	baseURL string
 }
 
-// NewKafkaRestSender creates a new KafkaRest HTTP sender.
-func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConfig,
-	socksCfg config.SOCKSConfig, timeDiffFunc func() int64) (*KafkaRestSender, error) {
-
+// NewHTTPTransport creates a new HTTP-based Kafka REST transport.
+func NewHTTPTransport(kafkaRestAddr string, socksCfg config.SOCKSConfig) (*HTTPTransport, error) {
 	transport, err := network.NewHTTPTransport(socksCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP transport for KafkaRest: %w", err)
@@ -47,32 +39,29 @@ func NewKafkaRestSender(kafkaRestAddr, topic string, eqpInfo *config.EqpInfoConf
 		Timeout:   10 * time.Second,
 	}
 
-	baseURL := ensureHTTPScheme(kafkaRestAddr)
-
-	return &KafkaRestSender{
-		client:       client,
-		url:          baseURL + "/topics/" + topic,
-		eqpInfo:      eqpInfo,
-		timeDiffFunc: timeDiffFunc,
+	return &HTTPTransport{
+		client:  client,
+		baseURL: ensureHTTPScheme(kafkaRestAddr),
 	}, nil
 }
 
-// Send transmits a single metric to KafkaRest.
-func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) error {
-	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		return fmt.Errorf("sender is closed")
-	}
-	s.mu.RUnlock()
-
-	body, err := WrapMetricDataLegacy(data, s.eqpInfo, s.timeDiffFunc())
-	if err != nil {
-		if errors.Is(err, ErrNoRows) {
-			return nil // Skip: collector produced valid but empty data
+// Deliver sends records to the KafkaRest proxy as a KafkaMessageWrapper2 JSON POST.
+func (t *HTTPTransport) Deliver(ctx context.Context, topic string, records []KafkaRecord) error {
+	messages := make([]KafkaMessage2, len(records))
+	for i, rec := range records {
+		messages[i] = KafkaMessage2{
+			Key:   rec.Key,
+			Value: rec.Value,
 		}
-		return fmt.Errorf("failed to wrap metric data: %w", err)
 	}
+
+	wrapper := KafkaMessageWrapper2{Records: messages}
+	body, err := json.Marshal(wrapper)
+	if err != nil {
+		return fmt.Errorf("failed to marshal KafkaMessageWrapper2: %w", err)
+	}
+
+	url := t.baseURL + "/topics/" + topic
 
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -84,12 +73,12 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 			}
 		}
 
-		lastErr = s.doPost(ctx, s.url, body)
+		lastErr = t.doPost(ctx, url, body)
 		if lastErr == nil {
 			return nil
 		}
 
-		log := logger.WithComponent("kafkarest-sender")
+		log := logger.WithComponent("kafkarest-transport")
 		log.Warn().
 			Err(lastErr).
 			Int("attempt", attempt+1).
@@ -99,32 +88,19 @@ func (s *KafkaRestSender) Send(ctx context.Context, data *collector.MetricData) 
 	return fmt.Errorf("KafkaRest send failed after %d retries: %w", maxRetries, lastErr)
 }
 
-// SendBatch transmits multiple metric data items.
-func (s *KafkaRestSender) SendBatch(ctx context.Context, data []*collector.MetricData) error {
-	for _, d := range data {
-		if err := s.Send(ctx, d); err != nil {
-			return err
-		}
-	}
+// Close is a no-op for HTTP transport.
+func (t *HTTPTransport) Close() error {
 	return nil
 }
 
-// Close releases resources.
-func (s *KafkaRestSender) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.closed = true
-	return nil
-}
-
-func (s *KafkaRestSender) doPost(ctx context.Context, url string, body []byte) error {
+func (t *HTTPTransport) doPost(ctx context.Context, url string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", kafkaRestContentType)
 
-	resp, err := s.client.Do(req)
+	resp, err := t.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %w", err)
 	}

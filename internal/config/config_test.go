@@ -178,8 +178,7 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	input := `{
 		"SenderType": "file",
 		"Kafka": {
-			"Brokers": ["broker1:9092"],
-			"Topic": "test-topic"
+			"Brokers": ["broker1:9092"]
 		}
 	}`
 
@@ -417,7 +416,6 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 			"Port": 8080
 		},
 		"Kafka": {
-			"Topic": "metrics"
 		}
 	}`
 
@@ -452,9 +450,6 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	}
 	if cfg.SOCKSProxy.Port != 8080 {
 		t.Errorf("SOCKSProxy.Port: got %d", cfg.SOCKSProxy.Port)
-	}
-	if cfg.Kafka.Topic != "metrics" {
-		t.Errorf("Kafka.Topic: got %q", cfg.Kafka.Topic)
 	}
 }
 

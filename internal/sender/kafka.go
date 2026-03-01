@@ -56,18 +56,19 @@ func (x *XDGSCRAMClient) Done() bool {
 	return x.ClientConversation.Done()
 }
 
-// KafkaSender sends metrics to Kafka.
-type KafkaSender struct {
-	producer     sarama.AsyncProducer
-	topic        string
-	mu           sync.RWMutex
-	closed       bool
-	eqpInfo      *config.EqpInfoConfig // nil if Redis not configured
-	timeDiffFunc func() int64
+// KafkaTransport delivers records to Kafka.
+type KafkaTransport interface {
+	Deliver(ctx context.Context, topic string, records []KafkaRecord) error
+	Close() error
 }
 
-// NewKafkaSender creates a new Kafka sender with the given configuration.
-func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo *config.EqpInfoConfig, timeDiffFunc func() int64) (*KafkaSender, error) {
+// SaramaTransport implements KafkaTransport using the sarama async producer.
+type SaramaTransport struct {
+	producer sarama.AsyncProducer
+}
+
+// NewSaramaTransport creates a new sarama-based Kafka transport.
+func NewSaramaTransport(cfg config.KafkaConfig, socksCfg config.SOCKSConfig) (*SaramaTransport, error) {
 	saramaConfig := sarama.NewConfig()
 
 	// Producer settings
@@ -161,17 +162,69 @@ func NewKafkaSender(cfg config.KafkaConfig, socksCfg config.SOCKSConfig, eqpInfo
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
-	sender := &KafkaSender{
-		producer:     producer,
-		topic:        cfg.Topic,
+	t := &SaramaTransport{producer: producer}
+	go t.handleErrors()
+
+	return t, nil
+}
+
+// Deliver sends records to Kafka via the sarama async producer.
+func (t *SaramaTransport) Deliver(ctx context.Context, topic string, records []KafkaRecord) error {
+	for _, rec := range records {
+		valueBytes, err := json.Marshal(rec.Value)
+		if err != nil {
+			return fmt.Errorf("failed to marshal KafkaValue: %w", err)
+		}
+		msg := &sarama.ProducerMessage{
+			Topic:     topic,
+			Key:       sarama.StringEncoder(rec.Key),
+			Value:     sarama.ByteEncoder(valueBytes),
+			Timestamp: rec.Timestamp,
+		}
+		select {
+		case t.producer.Input() <- msg:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+// Close shuts down the sarama producer.
+func (t *SaramaTransport) Close() error {
+	return t.producer.Close()
+}
+
+func (t *SaramaTransport) handleErrors() {
+	log := logger.WithComponent("kafka-transport")
+	for err := range t.producer.Errors() {
+		log.Error().Err(err.Err).
+			Str("topic", err.Msg.Topic).
+			Interface("key", err.Msg.Key).
+			Msg("Failed to send message to Kafka")
+	}
+}
+
+// KafkaSender sends metrics to Kafka via a pluggable transport and formatter.
+type KafkaSender struct {
+	transport    KafkaTransport
+	topic        string
+	eqpInfo      *config.EqpInfoConfig
+	timeDiffFunc func() int64
+	formatter    RawFormatter
+	mu           sync.RWMutex
+	closed       bool
+}
+
+// NewKafkaSender creates a unified Kafka sender with the given transport and formatter.
+func NewKafkaSender(transport KafkaTransport, topic string, eqpInfo *config.EqpInfoConfig, timeDiffFunc func() int64, formatter RawFormatter) *KafkaSender {
+	return &KafkaSender{
+		transport:    transport,
+		topic:        topic,
 		eqpInfo:      eqpInfo,
 		timeDiffFunc: timeDiffFunc,
+		formatter:    formatter,
 	}
-
-	// Start error handler goroutine
-	go sender.handleErrors()
-
-	return sender, nil
 }
 
 // Send sends a single metric data to Kafka.
@@ -183,54 +236,17 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 	}
 	s.mu.RUnlock()
 
-	if s.eqpInfo != nil {
-		// JSON mapper format: multiple KafkaValue messages per MetricData
-		key, values, err := WrapMetricDataJSON(data, s.eqpInfo, s.timeDiffFunc())
-		if err != nil {
-			if errors.Is(err, ErrNoRows) {
-				log := logger.WithComponent("kafka-sender")
-				log.Debug().Str("type", data.Type).Str("agent_id", data.AgentID).Msg("Skipping empty metric data (no rows)")
-				return nil
-			}
-			return fmt.Errorf("failed to wrap metric data as JSON: %w", err)
-		}
-		for _, v := range values {
-			msg := &sarama.ProducerMessage{
-				Topic:     s.topic,
-				Key:       sarama.StringEncoder(key),
-				Value:     sarama.ByteEncoder(v),
-				Timestamp: data.Timestamp,
-			}
-			select {
-			case s.producer.Input() <- msg:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-		return nil
-	}
-
-	// Legacy format: raw MetricData (no eqpInfo)
-	jsonData, err := json.Marshal(data)
+	records, err := PrepareRecords(data, s.eqpInfo, s.timeDiffFunc(), s.formatter)
 	if err != nil {
-		return fmt.Errorf("failed to marshal metric data: %w", err)
+		if errors.Is(err, ErrNoRows) {
+			log := logger.WithComponent("kafka-sender")
+			log.Debug().Str("type", data.Type).Msg("Skipping empty metric data (no rows)")
+			return nil
+		}
+		return fmt.Errorf("failed to prepare records: %w", err)
 	}
 
-	msg := &sarama.ProducerMessage{
-		Topic:     s.topic,
-		Value:     sarama.ByteEncoder(jsonData),
-		Timestamp: data.Timestamp,
-	}
-	if data.AgentID != "" {
-		msg.Key = sarama.StringEncoder(data.AgentID)
-	}
-
-	select {
-	case s.producer.Input() <- msg:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return s.transport.Deliver(ctx, s.topic, records)
 }
 
 // SendBatch sends multiple metric data items to Kafka.
@@ -243,7 +259,7 @@ func (s *KafkaSender) SendBatch(ctx context.Context, data []*collector.MetricDat
 	return nil
 }
 
-// Close closes the Kafka producer.
+// Close closes the Kafka sender and its transport.
 func (s *KafkaSender) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -253,17 +269,7 @@ func (s *KafkaSender) Close() error {
 	}
 
 	s.closed = true
-	return s.producer.Close()
-}
-
-func (s *KafkaSender) handleErrors() {
-	log := logger.WithComponent("kafka-sender")
-	for err := range s.producer.Errors() {
-		log.Error().Err(err.Err).
-			Str("topic", err.Msg.Topic).
-			Interface("key", err.Msg.Key).
-			Msg("Failed to send message to Kafka")
-	}
+	return s.transport.Close()
 }
 
 func createTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {

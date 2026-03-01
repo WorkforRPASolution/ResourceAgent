@@ -15,7 +15,7 @@ import (
 	"resourceagent/internal/config"
 )
 
-func newTestKafkaRestSender(t *testing.T, handler http.HandlerFunc) (*KafkaRestSender, *httptest.Server) {
+func newTestHTTPSender(t *testing.T, handler http.HandlerFunc) (*KafkaSender, *httptest.Server) {
 	t.Helper()
 	server := httptest.NewServer(handler)
 
@@ -28,11 +28,12 @@ func newTestKafkaRestSender(t *testing.T, handler http.HandlerFunc) (*KafkaRestS
 		Index:    "42",
 	}
 
-	s, err := NewKafkaRestSender(server.URL, "tp_all_all_resource", eqpInfo, config.SOCKSConfig{}, func() int64 { return 0 })
+	transport, err := NewHTTPTransport(server.URL, config.SOCKSConfig{})
 	if err != nil {
-		t.Fatalf("failed to create KafkaRestSender: %v", err)
+		t.Fatalf("failed to create HTTPTransport: %v", err)
 	}
 
+	s := NewKafkaSender(transport, "tp_all_all_resource", eqpInfo, func() int64 { return 0 }, GrokRawFormatter{})
 	return s, server
 }
 
@@ -46,11 +47,11 @@ func newCPUData() *collector.MetricData {
 	}
 }
 
-func TestKafkaRestSender_Send_Success(t *testing.T) {
+func TestHTTPTransport_Send_Success(t *testing.T) {
 	var receivedBody []byte
 	var receivedContentType string
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		receivedContentType = r.Header.Get("Content-Type")
 		receivedBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
@@ -84,10 +85,10 @@ func TestKafkaRestSender_Send_Success(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_Send_TopicInURL(t *testing.T) {
+func TestHTTPTransport_Send_TopicInURL(t *testing.T) {
 	var receivedPath string
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
 		w.WriteHeader(http.StatusOK)
 	})
@@ -101,10 +102,10 @@ func TestKafkaRestSender_Send_TopicInURL(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_Send_RetryOnFailure(t *testing.T) {
+func TestHTTPTransport_Send_RetryOnFailure(t *testing.T) {
 	var attempts int32
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&attempts, 1)
 		if count <= 2 {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -125,10 +126,10 @@ func TestKafkaRestSender_Send_RetryOnFailure(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_Send_MaxRetriesExhausted(t *testing.T) {
+func TestHTTPTransport_Send_MaxRetriesExhausted(t *testing.T) {
 	var attempts int32
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&attempts, 1)
 		w.WriteHeader(http.StatusServiceUnavailable)
 	})
@@ -146,10 +147,10 @@ func TestKafkaRestSender_Send_MaxRetriesExhausted(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_SendBatch(t *testing.T) {
+func TestHTTPTransport_SendBatch(t *testing.T) {
 	var requests int32
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&requests, 1)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -175,8 +176,8 @@ func TestKafkaRestSender_SendBatch(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_Close(t *testing.T) {
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+func TestHTTPTransport_Close(t *testing.T) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	defer server.Close()
@@ -193,8 +194,8 @@ func TestKafkaRestSender_Close(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_ContextCancelled(t *testing.T) {
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+func TestHTTPTransport_ContextCancelled(t *testing.T) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(5 * time.Second)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -212,10 +213,10 @@ func TestKafkaRestSender_ContextCancelled(t *testing.T) {
 
 // --- Legacy format verification tests ---
 
-func TestKafkaRestSender_Send_LegacyPlainTextRaw(t *testing.T) {
+func TestHTTPTransport_Send_LegacyPlainTextRaw(t *testing.T) {
 	var receivedBody []byte
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		receivedBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -251,10 +252,10 @@ func TestKafkaRestSender_Send_LegacyPlainTextRaw(t *testing.T) {
 	}
 }
 
-func TestKafkaRestSender_Send_MemoryMultipleRecords(t *testing.T) {
+func TestHTTPTransport_Send_MemoryMultipleRecords(t *testing.T) {
 	var receivedBody []byte
 
-	s, server := newTestKafkaRestSender(t, func(w http.ResponseWriter, r *http.Request) {
+	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
 		receivedBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
 	})

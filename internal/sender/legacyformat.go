@@ -93,28 +93,28 @@ func (r EARSRow) ToLegacyString() string {
 
 // ParsedData represents a typed key-value pair for the JSON mapper pipeline.
 type ParsedData struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-	Type  string `json:"type"`
+	Field      string `json:"field"`
+	Value      string `json:"value"`
+	DataFormat string `json:"dataformat"`
 }
 
 // ParsedDataList is the container for ParsedData entries with a timestamp.
 type ParsedDataList struct {
-	Timestamp string       `json:"timestamp"`
-	Data      []ParsedData `json:"data"`
+	ISOTimestamp string       `json:"iso_timestamp"`
+	Parsed      []ParsedData `json:"parsed"`
 }
 
 // ToParsedData returns a ParsedDataList for the JSON mapper format.
 func (r EARSRow) ToParsedData(process string) ParsedDataList {
 	return ParsedDataList{
-		Timestamp: FormatJSONTimestamp(r.Timestamp),
-		Data: []ParsedData{
-			{Name: "EARS_PROCESS", Value: process, Type: "String"},
-			{Name: "EARS_CATEGORY", Value: r.Category, Type: "String"},
-			{Name: "EARS_PID", Value: strconv.Itoa(r.PID), Type: "Int"},
-			{Name: "EARS_PROCNAME", Value: r.ProcName, Type: "String"},
-			{Name: "EARS_METRIC", Value: r.Metric, Type: "String"},
-			{Name: "EARS_VALUE", Value: formatValue(r.Value), Type: "Double"},
+		ISOTimestamp: FormatJSONTimestamp(r.Timestamp),
+		Parsed: []ParsedData{
+			{Field: "EARS_PROCESS", Value: process, DataFormat: "String"},
+			{Field: "EARS_CATEGORY", Value: r.Category, DataFormat: "String"},
+			{Field: "EARS_PID", Value: strconv.Itoa(r.PID), DataFormat: "Integer"},
+			{Field: "EARS_PROCNAME", Value: r.ProcName, DataFormat: "String"},
+			{Field: "EARS_METRIC", Value: r.Metric, DataFormat: "String"},
+			{Field: "EARS_VALUE", Value: formatValue(r.Value), DataFormat: "Double"},
 		},
 	}
 }

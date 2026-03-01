@@ -169,7 +169,7 @@ dotnet publish -c Release -r win-x64 --self-contained
 5. Collector가 스케줄에 따라 메트릭 수집 (LHM 기반 collector는 LhmProvider 공유 캐시 사용)
 6. Sender가 메트릭 전송:
    - **kafkarest**: MetricData → EARSRow[] → `sanitizeName()` 적용 → 평문 raw (Grok 호환) → HTTP POST (`KafkaMessageWrapper2`)
-   - **kafka**: MetricData → EARSRow[] → JSON raw (ParsedDataList, sanitize 미적용) → sarama produce (`KafkaValue`)
+   - **kafka**: MetricData → EARSRow[] → JSON raw (ParsedDataList: `{iso_timestamp, parsed: [{field, value, dataformat}]}`, sanitize 미적용) → sarama produce (`KafkaValue`), 토픽은 kafkarest와 동일하게 `ResolveTopic` 사용
    - **file**: MetricData JSON 그대로 파일에 기록
    - **ESID**: `{Process}:{EqpID}-{metricType}-{timestamp_ms}-{counter}` — metricType으로 타입 간 중복 방지
 7. 로컬 버퍼링 없음 - 네트워크 단절 시 데이터 유실 허용
