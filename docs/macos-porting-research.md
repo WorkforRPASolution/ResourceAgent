@@ -585,7 +585,7 @@ mkdir -p /tmp/resourceagent-test/log/ResourceAgent
   "File": {
     "FilePath": "/tmp/resourceagent-test/log/ResourceAgent/metrics.jsonl",
     "MaxSizeMB": 10, "MaxBackups": 2,
-    "Console": true, "Pretty": false, "Format": "legacy"
+    "Console": true, "Pretty": false, "Format": "grok"
   }
 }
 ```

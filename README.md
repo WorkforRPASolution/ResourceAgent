@@ -7,7 +7,7 @@
 - **14종 메트릭 수집**: CPU, Memory, Disk, Network, Temperature, Fan, GPU, Voltage, Motherboard Temperature, Storage S.M.A.R.T, Uptime, ProcessWatch, 프로세스 CPU/Memory
 - **Windows 하드웨어 모니터링**: LibreHardwareMonitor (LhmHelper) 연동으로 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.R.T 수집
 - **유연한 전송 방식**: `file`, `kafka`, `kafkarest` 3가지 sender 지원
-- **EARS 호환 포맷**: ARSAgent 호환 legacy 평문 및 JSON 파싱 포맷 지원
+- **EARS 호환 포맷**: ARSAgent 호환 Grok 평문 및 JSON(ParsedDataList) 포맷 지원
 - **3분할 설정**: ResourceAgent.json / Monitor.json / Logging.json 독립 관리
 - **Hot Reload**: Monitor.json, Logging.json 변경 시 서비스 재시작 없이 자동 반영
 - **프로세스 모니터링**: CPU/Memory 상위 N개 프로세스 + 지정 프로세스 추적
@@ -100,7 +100,7 @@ go test ./internal/sender/...
     "MaxBackups": 3,
     "Console": true,
     "Pretty": false,
-    "Format": "legacy"
+    "Format": "grok"
   },
   "Kafka": {
     "Brokers": ["localhost:9092"],
@@ -168,7 +168,7 @@ go test ./internal/sender/...
 | 항목 | 설명 | 기본값 |
 |------|------|--------|
 | `SenderType` | 전송 방식 (`file`, `kafka`, `kafkarest`) | `kafka` |
-| `File.Format` | 파일 출력 형식 (`json`, `legacy`) | `legacy` |
+| `File.Format` | 파일 출력 형식 (`json`, `grok`, `legacy`→`grok` 자동 매핑) | `grok` |
 | `File.Console` | 콘솔에도 메트릭 출력 | `true` |
 | `Redis.Password` | Redis 접속 암호 (비어있으면 기본 암호 사용) | `visuallove` |
 | `Collectors.*.Enabled` | Collector 활성화 여부 | `true` |
@@ -182,8 +182,8 @@ go test ./internal/sender/...
 
 | SenderType | 전송 대상 | 포맷 | 인프라 연동 |
 |------------|-----------|------|:-----------:|
-| `file` | 로컬 파일 | JSON 또는 EARS legacy 평문 | - |
-| `kafkarest` | KafkaRest Proxy (HTTP) | EARS legacy 평문 | ServiceDiscovery, Redis |
+| `file` | 로컬 파일 | JSON(ParsedDataList) 또는 EARS Grok 평문 | - |
+| `kafkarest` | KafkaRest Proxy (HTTP) | EARS Grok 평문 | ServiceDiscovery, Redis |
 | `kafka` | Kafka 직접 연결 (sarama) | EARS JSON (ParsedData) 또는 MetricData JSON | Redis (optional) |
 
 ## CLI 플래그
@@ -433,8 +433,9 @@ Kafka/인프라 연결 없이 로컬에서 테스트하려면 `SenderType`을 `f
 ```
 
 `Format` 옵션:
-- `json` — MetricData JSON 형식 (구조화된 데이터)
-- `legacy` — EARS 평문 형식 (`category:cpu,pid:0,proc:@system,metric:total_used_pct,value:45.5`)
+- `json` — ParsedDataList JSON 형식 (Kafka direct/JSON mapper와 동일)
+- `grok` — EARS Grok 평문 형식 (`category:cpu,pid:0,proc:@system,metric:total_used_pct,value:45.5`)
+- `legacy` — `grok`의 별칭 (하위호환)
 
 ### 실행
 
@@ -458,12 +459,12 @@ tail -f log/ResourceAgent/metrics.jsonl
 
 ### 출력 예시
 
-**JSON 형식** (`Format: "json"`):
+**JSON 형식** (`Format: "json"`) — ParsedDataList (Kafka direct/JSON mapper와 동일):
 ```json
-{"type":"cpu","timestamp":"2026-02-25T10:30:45+09:00","agent_id":"my-pc","hostname":"my-pc","data":{"usage_percent":15.5,"core_count":8,"per_core_percent":[12.3,18.7]}}
+{"iso_timestamp":"2026-02-25T10:30:45.123","parsed":[{"field":"EARS_PROCESS","value":"","dataformat":"String"},{"field":"EARS_CATEGORY","value":"cpu","dataformat":"String"},{"field":"EARS_PID","value":"0","dataformat":"Integer"},{"field":"EARS_PROCNAME","value":"@system","dataformat":"String"},{"field":"EARS_METRIC","value":"total_used_pct","dataformat":"String"},{"field":"EARS_VALUE","value":"15.5","dataformat":"Double"}]}
 ```
 
-**Legacy 형식** (`Format: "legacy"`):
+**Grok 형식** (`Format: "grok"`):
 ```
 2026-02-25 10:30:45,123 category:cpu,pid:0,proc:@system,metric:total_used_pct,value:15.5
 2026-02-25 10:30:45,123 category:memory,pid:0,proc:@system,metric:total_used_pct,value:75
@@ -472,7 +473,7 @@ tail -f log/ResourceAgent/metrics.jsonl
 2026-02-25 10:30:45,123 category:network,pid:0,proc:Ethernet,metric:recv_rate,value:12345.6
 ```
 
-> EARS legacy 포맷 상세 명세는 [`docs/EARS-METRICS-REFERENCE.md`](docs/EARS-METRICS-REFERENCE.md) 참조.
+> EARS Grok 포맷 상세 명세는 [`docs/EARS-METRICS-REFERENCE.md`](docs/EARS-METRICS-REFERENCE.md) 참조.
 > 14종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
 
 ## 운영

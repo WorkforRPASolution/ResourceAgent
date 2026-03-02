@@ -13,7 +13,7 @@
     "MaxSizeMB": 50,
     "MaxBackups": 3,
     "Pretty": false,
-    "Format": "legacy"
+    "Format": "grok"
   },
   "Kafka": {
     "Brokers": ["localhost:9092"],

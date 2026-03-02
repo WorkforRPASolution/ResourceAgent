@@ -222,9 +222,9 @@ func TestHTTPTransport_ContextCancelled(t *testing.T) {
 	}
 }
 
-// --- Legacy format verification tests ---
+// --- Grok format verification tests ---
 
-func TestHTTPTransport_Send_LegacyPlainTextRaw(t *testing.T) {
+func TestHTTPTransport_Send_GrokPlainTextRaw(t *testing.T) {
 	var receivedBody []byte
 
 	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {

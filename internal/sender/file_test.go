@@ -38,8 +38,8 @@ func TestNewFileSender_DefaultFormat(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	defer s.Close()
-	if s.format != "legacy" {
-		t.Errorf("expected default format 'legacy', got %q", s.format)
+	if s.format != "grok" {
+		t.Errorf("expected default format 'grok', got %q", s.format)
 	}
 }
 
@@ -52,6 +52,30 @@ func TestNewFileSender_JSONFormat(t *testing.T) {
 	defer s.Close()
 	if s.format != "json" {
 		t.Errorf("expected format 'json', got %q", s.format)
+	}
+}
+
+func TestNewFileSender_GrokFormat(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
+	s, err := NewFileSender(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer s.Close()
+	if s.format != "grok" {
+		t.Errorf("expected format 'grok', got %q", s.format)
+	}
+}
+
+func TestNewFileSender_LegacyMapsToGrok(t *testing.T) {
+	cfg := tempFileConfig(t, "legacy")
+	s, err := NewFileSender(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer s.Close()
+	if s.format != "grok" {
+		t.Errorf("expected format 'grok' (mapped from 'legacy'), got %q", s.format)
 	}
 }
 
@@ -91,19 +115,70 @@ func TestFileSender_Send_JSONFormat(t *testing.T) {
 		t.Fatalf("failed to read output file: %v", err)
 	}
 
-	// Should be valid JSON
-	var result collector.MetricData
-	if err := json.Unmarshal(bytes.TrimSpace(content), &result); err != nil {
-		t.Fatalf("output is not valid JSON: %v\ncontent: %s", err, content)
+	// Should be valid ParsedDataList JSON
+	var pdl ParsedDataList
+	if err := json.Unmarshal(bytes.TrimSpace(content), &pdl); err != nil {
+		t.Fatalf("output is not valid ParsedDataList JSON: %v\ncontent: %s", err, content)
 	}
-	if result.Type != "CPU" {
-		t.Errorf("expected type 'cpu', got %q", result.Type)
+	if pdl.ISOTimestamp == "" {
+		t.Error("expected non-empty iso_timestamp")
+	}
+	if len(pdl.Parsed) != 6 {
+		t.Errorf("expected 6 parsed entries, got %d", len(pdl.Parsed))
 	}
 }
 
-// --- Legacy format tests per collector type ---
+func TestFileSender_Send_JSONFormat_ParsedDataList(t *testing.T) {
+	cfg := tempFileConfig(t, "json")
+	s, err := NewFileSender(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer s.Close()
 
-func readLegacyOutput(t *testing.T, filePath string) []string {
+	data := &collector.MetricData{
+		Type:      "CPU",
+		Timestamp: fileTestTimestamp,
+		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
+	}
+
+	if err := s.Send(context.Background(), data); err != nil {
+		t.Fatalf("Send failed: %v", err)
+	}
+
+	content, err := os.ReadFile(cfg.FilePath)
+	if err != nil {
+		t.Fatalf("failed to read output file: %v", err)
+	}
+
+	// Should be ParsedDataList JSON, one line per EARSRow
+	line := strings.TrimSpace(string(content))
+	var pdl ParsedDataList
+	if err := json.Unmarshal([]byte(line), &pdl); err != nil {
+		t.Fatalf("output is not valid ParsedDataList JSON: %v\ncontent: %s", err, line)
+	}
+	if pdl.ISOTimestamp != "2026-02-24T10:30:45.123" {
+		t.Errorf("expected iso_timestamp '2026-02-24T10:30:45.123', got %q", pdl.ISOTimestamp)
+	}
+	if len(pdl.Parsed) != 6 {
+		t.Fatalf("expected 6 parsed entries, got %d", len(pdl.Parsed))
+	}
+	// Check EARS_CATEGORY = cpu
+	found := false
+	for _, p := range pdl.Parsed {
+		if p.Field == "EARS_CATEGORY" && p.Value == "cpu" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected EARS_CATEGORY=cpu in ParsedDataList")
+	}
+}
+
+// --- Grok format tests per collector type ---
+
+func readGrokOutput(t *testing.T, filePath string) []string {
 	t.Helper()
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -119,8 +194,8 @@ func readLegacyOutput(t *testing.T, filePath string) []string {
 	return strings.Split(raw, "\n")
 }
 
-func TestFileSender_Legacy_CPU(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_CPU(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -136,7 +211,7 @@ func TestFileSender_Legacy_CPU(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
@@ -146,8 +221,8 @@ func TestFileSender_Legacy_CPU(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_Memory(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_Memory(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -163,7 +238,7 @@ func TestFileSender_Legacy_Memory(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 3 {
 		t.Fatalf("expected 3 lines, got %d", len(lines))
 	}
@@ -179,8 +254,8 @@ func TestFileSender_Legacy_Memory(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_Disk(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_Disk(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -201,7 +276,7 @@ func TestFileSender_Legacy_Disk(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
@@ -213,8 +288,8 @@ func TestFileSender_Legacy_Disk(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_Network(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_Network(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -237,7 +312,7 @@ func TestFileSender_Legacy_Network(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	// 2 (all_inbound/all_outbound) + 2 interfaces * 2 (recv_rate/sent_rate) = 6 lines
 	if len(lines) != 6 {
 		t.Fatalf("expected 6 lines, got %d", len(lines))
@@ -262,8 +337,8 @@ func TestFileSender_Legacy_Network(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_CPUProcess(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_CPUProcess(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -284,7 +359,7 @@ func TestFileSender_Legacy_CPUProcess(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
@@ -296,8 +371,8 @@ func TestFileSender_Legacy_CPUProcess(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_MemoryProcess(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_MemoryProcess(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -317,7 +392,7 @@ func TestFileSender_Legacy_MemoryProcess(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
@@ -326,8 +401,8 @@ func TestFileSender_Legacy_MemoryProcess(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_Temperature(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_Temperature(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -348,7 +423,7 @@ func TestFileSender_Legacy_Temperature(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
@@ -360,8 +435,8 @@ func TestFileSender_Legacy_Temperature(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_GPU(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_GPU(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -391,7 +466,7 @@ func TestFileSender_Legacy_GPU(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 7 {
 		t.Fatalf("expected 7 lines, got %d", len(lines))
 	}
@@ -418,8 +493,8 @@ func TestFileSender_Legacy_GPU(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_Fan(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_Fan(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -439,7 +514,7 @@ func TestFileSender_Legacy_Fan(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
@@ -448,8 +523,8 @@ func TestFileSender_Legacy_Fan(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_Voltage(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_Voltage(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -469,7 +544,7 @@ func TestFileSender_Legacy_Voltage(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
@@ -478,8 +553,8 @@ func TestFileSender_Legacy_Voltage(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_MotherboardTemp(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_MotherboardTemp(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -499,7 +574,7 @@ func TestFileSender_Legacy_MotherboardTemp(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
@@ -508,8 +583,8 @@ func TestFileSender_Legacy_MotherboardTemp(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_StorageSmart(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_StorageSmart(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -533,7 +608,7 @@ func TestFileSender_Legacy_StorageSmart(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 3 {
 		t.Fatalf("expected 3 lines, got %d", len(lines))
 	}
@@ -556,7 +631,7 @@ func TestFileSender_SetConsole_DisablesOutput(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	cfg := tempFileConfig(t, "legacy")
+	cfg := tempFileConfig(t, "grok")
 	cfg.Console = true
 	s, err := NewFileSender(cfg)
 	if err != nil {
@@ -590,7 +665,7 @@ func TestFileSender_SetConsole_DisablesOutput(t *testing.T) {
 
 func TestFileSender_SetConsole_EnablesOutput(t *testing.T) {
 	// Start with Console: false
-	cfg := tempFileConfig(t, "legacy")
+	cfg := tempFileConfig(t, "grok")
 	cfg.Console = false
 	s, err := NewFileSender(cfg)
 	if err != nil {
@@ -634,7 +709,7 @@ func TestFileSender_FileWriteNotBlockedByConsole(t *testing.T) {
 		MaxSizeMB:  10,
 		MaxBackups: 1,
 		Console:    true, // Console enabled
-		Format:     "legacy",
+		Format:     "grok",
 	}
 
 	// Replace stdout with a pipe nobody reads from → will block on write
@@ -693,8 +768,8 @@ func TestFileSender_FileWriteNotBlockedByConsole(t *testing.T) {
 
 // --- Edge case tests ---
 
-func TestFileSender_Legacy_UnknownType(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_UnknownType(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -711,14 +786,14 @@ func TestFileSender_Legacy_UnknownType(t *testing.T) {
 		t.Fatalf("expected no error for unknown type, got: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 0 {
 		t.Errorf("expected 0 lines for unknown type, got %d", len(lines))
 	}
 }
 
-func TestFileSender_Legacy_ClosedSender(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_ClosedSender(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -739,8 +814,8 @@ func TestFileSender_Legacy_ClosedSender(t *testing.T) {
 	}
 }
 
-func TestFileSender_Legacy_GrokCompatible(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_Grok_GrokCompatible(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -756,24 +831,24 @@ func TestFileSender_Legacy_GrokCompatible(t *testing.T) {
 		t.Fatalf("Send failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	if len(lines) != 1 {
 		t.Fatalf("expected 1 line, got %d", len(lines))
 	}
 
-	// Compare with direct EARSRow.ToLegacyString() output
+	// Compare with direct EARSRow.ToGrokString() output
 	rows := ConvertToEARSRows(data)
 	if len(rows) != 1 {
 		t.Fatalf("expected 1 EARSRow, got %d", len(rows))
 	}
-	expected := rows[0].ToLegacyString()
+	expected := rows[0].ToGrokString()
 	if lines[0] != expected {
-		t.Errorf("file output doesn't match EARSRow.ToLegacyString():\n  file:     %s\n  expected: %s", lines[0], expected)
+		t.Errorf("file output doesn't match EARSRow.ToGrokString():\n  file:     %s\n  expected: %s", lines[0], expected)
 	}
 }
 
-func TestFileSender_SendBatch_Legacy(t *testing.T) {
-	cfg := tempFileConfig(t, "legacy")
+func TestFileSender_SendBatch_Grok(t *testing.T) {
+	cfg := tempFileConfig(t, "grok")
 	s, err := NewFileSender(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -797,7 +872,7 @@ func TestFileSender_SendBatch_Legacy(t *testing.T) {
 		t.Fatalf("SendBatch failed: %v", err)
 	}
 
-	lines := readLegacyOutput(t, cfg.FilePath)
+	lines := readGrokOutput(t, cfg.FilePath)
 	// cpu: 1 line + memory: 3 lines = 4 lines
 	if len(lines) != 4 {
 		t.Fatalf("expected 4 lines (1 cpu + 3 memory), got %d", len(lines))

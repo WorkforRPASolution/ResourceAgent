@@ -32,13 +32,13 @@ type FileSender struct {
 func NewFileSender(cfg config.FileConfig) (*FileSender, error) {
 	log := logger.WithComponent("file-sender")
 
-	// Default format is "legacy"
+	// Default format is "grok"; accept "legacy" as alias
 	format := cfg.Format
-	if format == "" {
-		format = "legacy"
+	if format == "" || format == "legacy" {
+		format = "grok"
 	}
-	if format != "json" && format != "legacy" {
-		return nil, fmt.Errorf("unsupported file format %q: must be \"json\" or \"legacy\"", format)
+	if format != "json" && format != "grok" {
+		return nil, fmt.Errorf("unsupported file format %q: must be \"json\" or \"grok\"", format)
 	}
 
 	// Ensure the directory exists
@@ -89,45 +89,48 @@ func (s *FileSender) Send(ctx context.Context, data *collector.MetricData) error
 		return fmt.Errorf("sender is closed")
 	}
 
-	if s.format == "legacy" {
-		return s.sendLegacy(data)
+	if s.format == "grok" {
+		return s.sendGrok(data)
 	}
 	return s.sendJSON(data)
 }
 
-// sendJSON writes metric data as JSON (original behavior).
+// sendJSON writes metric data as ParsedDataList JSON (one line per EARSRow).
 func (s *FileSender) sendJSON(data *collector.MetricData) error {
-	var jsonData []byte
-	var err error
+	rows := ConvertToEARSRows(data)
+	for _, row := range rows {
+		pdl := row.ToParsedData("")
+		var jsonData []byte
+		var err error
 
-	if s.prettyPrint {
-		jsonData, err = json.MarshalIndent(data, "", "  ")
-	} else {
-		jsonData, err = json.Marshal(data)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to marshal metric data: %w", err)
-	}
+		if s.prettyPrint {
+			jsonData, err = json.MarshalIndent(pdl, "", "  ")
+		} else {
+			jsonData, err = json.Marshal(pdl)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to marshal ParsedDataList: %w", err)
+		}
 
-	if _, err := s.writer.Write(append(jsonData, '\n')); err != nil {
-		return fmt.Errorf("failed to write to file: %w", err)
-	}
+		if _, err := s.writer.Write(append(jsonData, '\n')); err != nil {
+			return fmt.Errorf("failed to write to file: %w", err)
+		}
 
-	if s.console {
-		select {
-		case s.consoleCh <- string(jsonData):
-		default:
+		if s.console {
+			select {
+			case s.consoleCh <- string(jsonData):
+			default:
+			}
 		}
 	}
-
 	return nil
 }
 
-// sendLegacy writes metric data in Grok-compatible legacy text format.
-func (s *FileSender) sendLegacy(data *collector.MetricData) error {
+// sendGrok writes metric data in Grok-compatible plain text format.
+func (s *FileSender) sendGrok(data *collector.MetricData) error {
 	rows := ConvertToEARSRows(data)
 	for _, row := range rows {
-		line := row.ToLegacyString()
+		line := row.ToGrokString()
 		if _, err := s.writer.Write(append([]byte(line), '\n')); err != nil {
 			return fmt.Errorf("failed to write to file: %w", err)
 		}

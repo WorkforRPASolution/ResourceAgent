@@ -12,19 +12,19 @@ import (
 
 var testTimestamp = time.Date(2026, 2, 24, 10, 30, 45, 123000000, time.UTC)
 
-// --- FormatLegacyTimestamp / FormatJSONTimestamp ---
+// --- FormatGrokTimestamp / FormatJSONTimestamp ---
 
-func TestFormatLegacyTimestamp(t *testing.T) {
-	result := FormatLegacyTimestamp(testTimestamp)
+func TestFormatGrokTimestamp(t *testing.T) {
+	result := FormatGrokTimestamp(testTimestamp)
 	expected := "2026-02-24 10:30:45,123"
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
 	}
 }
 
-func TestFormatLegacyTimestamp_ZeroMillis(t *testing.T) {
+func TestFormatGrokTimestamp_ZeroMillis(t *testing.T) {
 	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	result := FormatLegacyTimestamp(ts)
+	result := FormatGrokTimestamp(ts)
 	expected := "2026-01-01 00:00:00,000"
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
@@ -355,9 +355,9 @@ func TestConvertToEARSRows_UnknownType(t *testing.T) {
 	}
 }
 
-// --- ToLegacyString ---
+// --- ToGrokString ---
 
-func TestToLegacyString_Format(t *testing.T) {
+func TestToGrokString_Format(t *testing.T) {
 	row := EARSRow{
 		Timestamp: testTimestamp,
 		Category:  "cpu",
@@ -366,14 +366,14 @@ func TestToLegacyString_Format(t *testing.T) {
 		Metric:    "total_used_pct",
 		Value:     45.5,
 	}
-	result := row.ToLegacyString()
+	result := row.ToGrokString()
 	expected := "2026-02-24 10:30:45,123 category:cpu,pid:0,proc:@system,metric:total_used_pct,value:45.5"
 	if result != expected {
 		t.Errorf("expected:\n  %s\ngot:\n  %s", expected, result)
 	}
 }
 
-func TestToLegacyString_GrokPatternMatch(t *testing.T) {
+func TestToGrokString_GrokPatternMatch(t *testing.T) {
 	// Simplified Grok pattern as Go regex
 	grokPattern := regexp.MustCompile(
 		`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) category:(\w+),pid:(\d+),proc:([^,]+),metric:([^,]+),value:(.+)$`,
@@ -387,14 +387,14 @@ func TestToLegacyString_GrokPatternMatch(t *testing.T) {
 	}
 
 	for i, row := range rows {
-		s := row.ToLegacyString()
+		s := row.ToGrokString()
 		if !grokPattern.MatchString(s) {
 			t.Errorf("row %d: Grok pattern does not match: %q", i, s)
 		}
 	}
 }
 
-func TestToLegacyString_LargeIntegerValue(t *testing.T) {
+func TestToGrokString_LargeIntegerValue(t *testing.T) {
 	row := EARSRow{
 		Timestamp: testTimestamp,
 		Category:  "memory",
@@ -403,7 +403,7 @@ func TestToLegacyString_LargeIntegerValue(t *testing.T) {
 		Metric:    "total_used_size",
 		Value:     12000000000,
 	}
-	result := row.ToLegacyString()
+	result := row.ToGrokString()
 	// Extract the value portion and verify no scientific notation
 	valueStr := formatValue(12000000000)
 	if regexp.MustCompile(`[eE]`).MatchString(valueStr) {
@@ -569,7 +569,7 @@ func TestSanitizeName(t *testing.T) {
 	}
 }
 
-func TestToLegacyString_SpecialCharsInMetric(t *testing.T) {
+func TestToGrokString_SpecialCharsInMetric(t *testing.T) {
 	grokPattern := regexp.MustCompile(
 		`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) category:(\w+),pid:(\d+),proc:([^,]+),metric:([^,]+),value:(.+)$`,
 	)
@@ -611,7 +611,7 @@ func TestToLegacyString_SpecialCharsInMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := tt.row.ToLegacyString()
+			s := tt.row.ToGrokString()
 			if !grokPattern.MatchString(s) {
 				t.Errorf("Grok pattern does not match: %q", s)
 			}
@@ -669,7 +669,7 @@ func TestConvertToEARSRows_ProcessWatch_Empty(t *testing.T) {
 	}
 }
 
-func TestConvertToEARSRows_ProcessWatch_LegacyString(t *testing.T) {
+func TestConvertToEARSRows_ProcessWatch_GrokString(t *testing.T) {
 	data := &collector.MetricData{
 		Type:      "ProcessWatch",
 		Timestamp: testTimestamp,
@@ -685,10 +685,10 @@ func TestConvertToEARSRows_ProcessWatch_LegacyString(t *testing.T) {
 		t.Fatalf("expected 1 row, got %d", len(rows))
 	}
 
-	legacy := rows[0].ToLegacyString()
+	legacy := rows[0].ToGrokString()
 	expected := "2026-02-24 10:30:45,123 category:process_watch,pid:1234,proc:mes.exe,metric:required,value:1"
 	if legacy != expected {
-		t.Errorf("ToLegacyString:\n  got:  %q\n  want: %q", legacy, expected)
+		t.Errorf("ToGrokString:\n  got:  %q\n  want: %q", legacy, expected)
 	}
 }
 
@@ -724,9 +724,32 @@ func TestConvertToEARSRows_ProcessWatch_JSONRoundtrip(t *testing.T) {
 	assertRow(t, rows[0], "process_watch", 1234, "mes.exe", "required", 1)
 }
 
+func TestToParsedData_Sanitize(t *testing.T) {
+	row := EARSRow{
+		Timestamp: testTimestamp,
+		Category:  "gpu",
+		PID:       0,
+		ProcName:  "Loopback Pseudo-Interface 1",
+		Metric:    "Intel(R) HD Graphics 530_power",
+		Value:     45.0,
+	}
+	pdl := row.ToParsedData("PROC1")
+
+	// EARS_PROCNAME should be sanitized
+	procVal := pdl.Parsed[3].Value // EARS_PROCNAME
+	if procVal != "Loopback_Pseudo-Interface_1" {
+		t.Errorf("EARS_PROCNAME not sanitized: got %q", procVal)
+	}
+	// EARS_METRIC should be sanitized
+	metricVal := pdl.Parsed[4].Value // EARS_METRIC
+	if metricVal != "IntelR_HD_Graphics_530_power" {
+		t.Errorf("EARS_METRIC not sanitized: got %q", metricVal)
+	}
+}
+
 // --- Benchmarks ---
 
-func BenchmarkToLegacyString(b *testing.B) {
+func BenchmarkToGrokString(b *testing.B) {
 	row := EARSRow{
 		Timestamp: testTimestamp,
 		Category:  "cpu",
@@ -737,13 +760,13 @@ func BenchmarkToLegacyString(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = row.ToLegacyString()
+		_ = row.ToGrokString()
 	}
 }
 
-func BenchmarkFormatLegacyTimestamp(b *testing.B) {
+func BenchmarkFormatGrokTimestamp(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = FormatLegacyTimestamp(testTimestamp)
+		_ = FormatGrokTimestamp(testTimestamp)
 	}
 }
 

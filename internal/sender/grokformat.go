@@ -24,15 +24,15 @@ type EARSRow struct {
 }
 
 const (
-	legacyTimeFmt = "2006-01-02 15:04:05"
+	grokTimeFmt = "2006-01-02 15:04:05"
 	jsonTimeFmt   = "2006-01-02T15:04:05"
 )
 
-// FormatLegacyTimestamp formats to "2006-01-02 15:04:05,000" (Grok TIMESTAMP_ISO8601 compatible).
-func FormatLegacyTimestamp(t time.Time) string {
+// FormatGrokTimestamp formats to "2006-01-02 15:04:05,000" (Grok TIMESTAMP_ISO8601 compatible).
+func FormatGrokTimestamp(t time.Time) string {
 	var b strings.Builder
 	b.Grow(23) // "2006-01-02 15:04:05,000"
-	b.WriteString(t.Format(legacyTimeFmt))
+	b.WriteString(t.Format(grokTimeFmt))
 	b.WriteByte(',')
 	writeMillis(&b, t)
 	return b.String()
@@ -73,11 +73,11 @@ func formatValue(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-// ToLegacyString returns the ARSAgent-compatible plain text format for Grok parsing.
-func (r EARSRow) ToLegacyString() string {
+// ToGrokString returns the ARSAgent-compatible plain text format for Grok parsing.
+func (r EARSRow) ToGrokString() string {
 	var b strings.Builder
 	b.Grow(128)
-	b.WriteString(FormatLegacyTimestamp(r.Timestamp))
+	b.WriteString(FormatGrokTimestamp(r.Timestamp))
 	b.WriteString(" category:")
 	b.WriteString(r.Category)
 	b.WriteString(",pid:")
@@ -112,8 +112,8 @@ func (r EARSRow) ToParsedData(process string) ParsedDataList {
 			{Field: "EARS_PROCESS", Value: process, DataFormat: "String"},
 			{Field: "EARS_CATEGORY", Value: r.Category, DataFormat: "String"},
 			{Field: "EARS_PID", Value: strconv.Itoa(r.PID), DataFormat: "Integer"},
-			{Field: "EARS_PROCNAME", Value: r.ProcName, DataFormat: "String"},
-			{Field: "EARS_METRIC", Value: r.Metric, DataFormat: "String"},
+			{Field: "EARS_PROCNAME", Value: sanitizeName(r.ProcName), DataFormat: "String"},
+			{Field: "EARS_METRIC", Value: sanitizeName(r.Metric), DataFormat: "String"},
 			{Field: "EARS_VALUE", Value: formatValue(r.Value), DataFormat: "Double"},
 		},
 	}

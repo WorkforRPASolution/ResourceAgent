@@ -30,7 +30,7 @@ type FileConfig struct {
 	MaxBackups int    `json:"MaxBackups"`
 	Console    bool   `json:"Console"`
 	Pretty     bool   `json:"Pretty"`
-	Format     string `json:"Format"` // Output format: "json" or "legacy" (default: "legacy")
+	Format     string `json:"Format"` // Output format: "json" or "grok" (default: "grok", "legacy" also accepted)
 }
 
 // KafkaConfig contains Kafka connection settings.

@@ -24,7 +24,7 @@ type RawFormatter interface {
 type GrokRawFormatter struct{}
 
 func (f GrokRawFormatter) FormatRaw(row EARSRow, _ string) (string, error) {
-	return row.ToLegacyString(), nil
+	return row.ToGrokString(), nil
 }
 
 // JSONRawFormatter produces ParsedDataList JSON for the Kafka direct/JSON mapper pipeline.
