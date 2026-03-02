@@ -10,6 +10,7 @@ import (
 type Config struct {
 	SenderType string                     `json:"SenderType"` // "kafka", "kafkarest", or "file"
 	Kafka      KafkaConfig                `json:"Kafka"`
+	Batch      BatchConfig                `json:"Batch"`
 	File       FileConfig                 `json:"File"`
 	VirtualAddressList      string                     `json:"VirtualAddressList"`
 	Redis                   RedisConfig                `json:"Redis"`
@@ -34,23 +35,27 @@ type FileConfig struct {
 
 // KafkaConfig contains Kafka connection settings.
 type KafkaConfig struct {
-	Brokers        []string      `json:"Brokers"`
-	Compression    string        `json:"Compression"`
-	RequiredAcks   int           `json:"RequiredAcks"`
-	MaxRetries     int           `json:"MaxRetries"`
-	RetryBackoff   time.Duration `json:"RetryBackoff"`
+	Brokers       []string      `json:"Brokers"`
+	Compression   string        `json:"Compression"`
+	RequiredAcks  int           `json:"RequiredAcks"`
+	Timeout       time.Duration `json:"Timeout"`
+	EnableTLS     bool          `json:"EnableTLS"`
+	TLSCertFile   string        `json:"TLSCertFile"`
+	TLSKeyFile    string        `json:"TLSKeyFile"`
+	TLSCAFile     string        `json:"TLSCAFile"`
+	SASLEnabled   bool          `json:"SASLEnabled"`
+	SASLMechanism string        `json:"SASLMechanism"`
+	SASLUser      string        `json:"SASLUser"`
+	SASLPassword  string        `json:"SASLPassword"`
+}
+
+// BatchConfig contains batch/flush settings shared across all sender types.
+type BatchConfig struct {
 	FlushFrequency time.Duration `json:"FlushFrequency"`
 	FlushMessages  int           `json:"FlushMessages"`
-	BatchSize      int           `json:"BatchSize"`
-	Timeout        time.Duration `json:"Timeout"`
-	EnableTLS      bool          `json:"EnableTLS"`
-	TLSCertFile    string        `json:"TLSCertFile"`
-	TLSKeyFile     string        `json:"TLSKeyFile"`
-	TLSCAFile      string        `json:"TLSCAFile"`
-	SASLEnabled    bool          `json:"SASLEnabled"`
-	SASLMechanism  string        `json:"SASLMechanism"`
-	SASLUser       string        `json:"SASLUser"`
-	SASLPassword   string        `json:"SASLPassword"`
+	MaxBatchSize   int           `json:"MaxBatchSize"`
+	MaxRetries     int           `json:"MaxRetries"`
+	RetryBackoff   time.Duration `json:"RetryBackoff"`
 }
 
 // CollectorConfig contains settings for individual collectors.
@@ -112,15 +117,17 @@ func DefaultConfig() *Config {
 			Pretty:     false,
 		},
 		Kafka: KafkaConfig{
-			Brokers:        []string{"localhost:9092"},
-			Compression:    "snappy",
-			RequiredAcks:   1,
-			MaxRetries:     3,
-			RetryBackoff:   100 * time.Millisecond,
-			FlushFrequency: 500 * time.Millisecond,
+			Brokers:      []string{"localhost:9092"},
+			Compression:  "snappy",
+			RequiredAcks: 1,
+			Timeout:      10 * time.Second,
+		},
+		Batch: BatchConfig{
+			FlushFrequency: 30 * time.Second,
 			FlushMessages:  100,
-			BatchSize:      16384,
-			Timeout:        10 * time.Second,
+			MaxBatchSize:   500,
+			MaxRetries:     2,
+			RetryBackoff:   500 * time.Millisecond,
 		},
 		Redis: RedisConfig{
 			Port: 6379,
@@ -169,21 +176,6 @@ func (c *Config) Merge(other *Config) {
 	if other.Kafka.RequiredAcks != 0 {
 		c.Kafka.RequiredAcks = other.Kafka.RequiredAcks
 	}
-	if other.Kafka.MaxRetries != 0 {
-		c.Kafka.MaxRetries = other.Kafka.MaxRetries
-	}
-	if other.Kafka.RetryBackoff != 0 {
-		c.Kafka.RetryBackoff = other.Kafka.RetryBackoff
-	}
-	if other.Kafka.FlushFrequency != 0 {
-		c.Kafka.FlushFrequency = other.Kafka.FlushFrequency
-	}
-	if other.Kafka.FlushMessages != 0 {
-		c.Kafka.FlushMessages = other.Kafka.FlushMessages
-	}
-	if other.Kafka.BatchSize != 0 {
-		c.Kafka.BatchSize = other.Kafka.BatchSize
-	}
 	if other.Kafka.Timeout != 0 {
 		c.Kafka.Timeout = other.Kafka.Timeout
 	}
@@ -206,6 +198,23 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.Kafka.SASLPassword != "" {
 		c.Kafka.SASLPassword = other.Kafka.SASLPassword
+	}
+
+	// Merge Batch config
+	if other.Batch.FlushFrequency != 0 {
+		c.Batch.FlushFrequency = other.Batch.FlushFrequency
+	}
+	if other.Batch.FlushMessages != 0 {
+		c.Batch.FlushMessages = other.Batch.FlushMessages
+	}
+	if other.Batch.MaxBatchSize != 0 {
+		c.Batch.MaxBatchSize = other.Batch.MaxBatchSize
+	}
+	if other.Batch.MaxRetries != 0 {
+		c.Batch.MaxRetries = other.Batch.MaxRetries
+	}
+	if other.Batch.RetryBackoff != 0 {
+		c.Batch.RetryBackoff = other.Batch.RetryBackoff
 	}
 
 	// Merge VirtualAddressList

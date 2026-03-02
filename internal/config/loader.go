@@ -11,9 +11,10 @@ import (
 
 // rawConfig is used for JSON unmarshaling with duration strings.
 type rawConfig struct {
-	SenderType string         `json:"SenderType"`
-	File       FileConfig     `json:"File"`
-	Kafka      rawKafkaConfig `json:"Kafka"`
+	SenderType string          `json:"SenderType"`
+	File       FileConfig      `json:"File"`
+	Kafka      rawKafkaConfig  `json:"Kafka"`
+	Batch      rawBatchConfig  `json:"Batch"`
 	VirtualAddressList      string                        `json:"VirtualAddressList"`
 	Redis                   RedisConfig                   `json:"Redis"`
 	PrivateIPAddressPattern string                        `json:"PrivateIPAddressPattern"`
@@ -41,6 +42,14 @@ type rawKafkaConfig struct {
 	SASLMechanism  string   `json:"SASLMechanism"`
 	SASLUser       string   `json:"SASLUser"`
 	SASLPassword   string   `json:"SASLPassword"`
+}
+
+type rawBatchConfig struct {
+	FlushFrequency string `json:"FlushFrequency"`
+	FlushMessages  int    `json:"FlushMessages"`
+	MaxBatchSize   int    `json:"MaxBatchSize"`
+	MaxRetries     int    `json:"MaxRetries"`
+	RetryBackoff   string `json:"RetryBackoff"`
 }
 
 type rawCollectorConfig struct {
@@ -105,6 +114,13 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	}
 	cfg.Kafka = *kafka
 
+	// Convert Batch config (with Kafka fallback for backward compatibility)
+	batch, err := convertRawBatch(&raw.Batch, &raw.Kafka)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Batch = *batch
+
 	// Direct-mapped fields (no duration conversion needed)
 	cfg.VirtualAddressList = raw.VirtualAddressList
 	cfg.Redis = raw.Redis
@@ -117,14 +133,62 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	return cfg, nil
 }
 
+// convertRawBatch converts raw batch config with Kafka fallback for backward compatibility.
+// If Batch section has values, they take precedence. Otherwise, fall back to Kafka batch fields.
+func convertRawBatch(batch *rawBatchConfig, kafkaFallback *rawKafkaConfig) (*BatchConfig, error) {
+	result := &BatchConfig{}
+
+	// Determine source for each field: Batch section takes precedence, then Kafka fallback
+	flushFreqStr := batch.FlushFrequency
+	if flushFreqStr == "" && kafkaFallback != nil {
+		flushFreqStr = kafkaFallback.FlushFrequency
+	}
+	if flushFreqStr != "" {
+		d, err := time.ParseDuration(flushFreqStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid FlushFrequency duration: %w", err)
+		}
+		result.FlushFrequency = d
+	}
+
+	retryBackoffStr := batch.RetryBackoff
+	if retryBackoffStr == "" && kafkaFallback != nil {
+		retryBackoffStr = kafkaFallback.RetryBackoff
+	}
+	if retryBackoffStr != "" {
+		d, err := time.ParseDuration(retryBackoffStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid RetryBackoff duration: %w", err)
+		}
+		result.RetryBackoff = d
+	}
+
+	if batch.FlushMessages != 0 {
+		result.FlushMessages = batch.FlushMessages
+	} else if kafkaFallback != nil && kafkaFallback.FlushMessages != 0 {
+		result.FlushMessages = kafkaFallback.FlushMessages
+	}
+
+	if batch.MaxBatchSize != 0 {
+		result.MaxBatchSize = batch.MaxBatchSize
+	} else if kafkaFallback != nil && kafkaFallback.BatchSize != 0 {
+		result.MaxBatchSize = kafkaFallback.BatchSize
+	}
+
+	if batch.MaxRetries != 0 {
+		result.MaxRetries = batch.MaxRetries
+	} else if kafkaFallback != nil && kafkaFallback.MaxRetries != 0 {
+		result.MaxRetries = kafkaFallback.MaxRetries
+	}
+
+	return result, nil
+}
+
 func convertRawKafka(raw *rawKafkaConfig) (*KafkaConfig, error) {
 	kafka := &KafkaConfig{
 		Brokers:       raw.Brokers,
 		Compression:   raw.Compression,
 		RequiredAcks:  raw.RequiredAcks,
-		MaxRetries:    raw.MaxRetries,
-		FlushMessages: raw.FlushMessages,
-		BatchSize:     raw.BatchSize,
 		EnableTLS:     raw.EnableTLS,
 		TLSCertFile:   raw.TLSCertFile,
 		TLSKeyFile:    raw.TLSKeyFile,
@@ -133,22 +197,6 @@ func convertRawKafka(raw *rawKafkaConfig) (*KafkaConfig, error) {
 		SASLMechanism: raw.SASLMechanism,
 		SASLUser:      raw.SASLUser,
 		SASLPassword:  raw.SASLPassword,
-	}
-
-	if raw.RetryBackoff != "" {
-		d, err := time.ParseDuration(raw.RetryBackoff)
-		if err != nil {
-			return nil, fmt.Errorf("invalid RetryBackoff duration: %w", err)
-		}
-		kafka.RetryBackoff = d
-	}
-
-	if raw.FlushFrequency != "" {
-		d, err := time.ParseDuration(raw.FlushFrequency)
-		if err != nil {
-			return nil, fmt.Errorf("invalid FlushFrequency duration: %w", err)
-		}
-		kafka.FlushFrequency = d
 	}
 
 	if raw.Timeout != "" {

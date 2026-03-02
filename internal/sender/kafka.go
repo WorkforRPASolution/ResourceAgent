@@ -68,17 +68,17 @@ type SaramaTransport struct {
 }
 
 // NewSaramaTransport creates a new sarama-based Kafka transport.
-func NewSaramaTransport(cfg config.KafkaConfig, socksCfg config.SOCKSConfig) (*SaramaTransport, error) {
+func NewSaramaTransport(cfg config.KafkaConfig, batchCfg config.BatchConfig, socksCfg config.SOCKSConfig) (*SaramaTransport, error) {
 	saramaConfig := sarama.NewConfig()
 
 	// Producer settings
 	saramaConfig.Producer.Return.Successes = false
 	saramaConfig.Producer.Return.Errors = true
-	saramaConfig.Producer.Retry.Max = cfg.MaxRetries
-	saramaConfig.Producer.Retry.Backoff = cfg.RetryBackoff
-	saramaConfig.Producer.Flush.Frequency = cfg.FlushFrequency
-	saramaConfig.Producer.Flush.Messages = cfg.FlushMessages
-	saramaConfig.Producer.Flush.MaxMessages = cfg.BatchSize
+	saramaConfig.Producer.Retry.Max = batchCfg.MaxRetries
+	saramaConfig.Producer.Retry.Backoff = batchCfg.RetryBackoff
+	saramaConfig.Producer.Flush.Frequency = batchCfg.FlushFrequency
+	saramaConfig.Producer.Flush.Messages = batchCfg.FlushMessages
+	saramaConfig.Producer.Flush.MaxMessages = batchCfg.MaxBatchSize
 
 	// Compression
 	switch strings.ToLower(cfg.Compression) {
@@ -249,14 +249,30 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 	return s.transport.Deliver(ctx, s.topic, records)
 }
 
-// SendBatch sends multiple metric data items to Kafka.
+// SendBatch sends multiple metric data items to Kafka in a single aggregated Deliver call.
 func (s *KafkaSender) SendBatch(ctx context.Context, data []*collector.MetricData) error {
-	for _, d := range data {
-		if err := s.Send(ctx, d); err != nil {
-			return err
-		}
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return fmt.Errorf("sender is closed")
 	}
-	return nil
+	s.mu.RUnlock()
+
+	var allRecords []KafkaRecord
+	for _, d := range data {
+		records, err := PrepareRecords(d, s.eqpInfo, s.timeDiffFunc(), s.formatter)
+		if err != nil {
+			if errors.Is(err, ErrNoRows) {
+				continue
+			}
+			return fmt.Errorf("failed to prepare records: %w", err)
+		}
+		allRecords = append(allRecords, records...)
+	}
+	if len(allRecords) == 0 {
+		return nil
+	}
+	return s.transport.Deliver(ctx, s.topic, allRecords)
 }
 
 // Close closes the Kafka sender and its transport.

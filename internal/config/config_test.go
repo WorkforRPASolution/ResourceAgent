@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+	"time"
 )
 
 // --- Default Config Tests ---
@@ -683,6 +684,209 @@ func TestLoadSplit_ThreeFiles(t *testing.T) {
 	}
 	if !lc.Console {
 		t.Error("expected Console=true")
+	}
+}
+
+// --- BatchConfig Default Tests ---
+
+func TestDefaultConfig_HasBatchDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Batch.FlushFrequency != 30*time.Second {
+		t.Errorf("expected Batch.FlushFrequency=30s, got %v", cfg.Batch.FlushFrequency)
+	}
+	if cfg.Batch.FlushMessages != 100 {
+		t.Errorf("expected Batch.FlushMessages=100, got %d", cfg.Batch.FlushMessages)
+	}
+	if cfg.Batch.MaxBatchSize != 500 {
+		t.Errorf("expected Batch.MaxBatchSize=500, got %d", cfg.Batch.MaxBatchSize)
+	}
+	if cfg.Batch.MaxRetries != 2 {
+		t.Errorf("expected Batch.MaxRetries=2, got %d", cfg.Batch.MaxRetries)
+	}
+	if cfg.Batch.RetryBackoff != 500*time.Millisecond {
+		t.Errorf("expected Batch.RetryBackoff=500ms, got %v", cfg.Batch.RetryBackoff)
+	}
+}
+
+// --- BatchConfig Merge Tests ---
+
+func TestMerge_BatchConfig(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{
+		Batch: BatchConfig{
+			FlushFrequency: 1 * time.Second,
+			FlushMessages:  200,
+			MaxBatchSize:   1000,
+			MaxRetries:     5,
+			RetryBackoff:   250 * time.Millisecond,
+		},
+	}
+	base.Merge(other)
+
+	if base.Batch.FlushFrequency != 1*time.Second {
+		t.Errorf("expected FlushFrequency=1s, got %v", base.Batch.FlushFrequency)
+	}
+	if base.Batch.FlushMessages != 200 {
+		t.Errorf("expected FlushMessages=200, got %d", base.Batch.FlushMessages)
+	}
+	if base.Batch.MaxBatchSize != 1000 {
+		t.Errorf("expected MaxBatchSize=1000, got %d", base.Batch.MaxBatchSize)
+	}
+	if base.Batch.MaxRetries != 5 {
+		t.Errorf("expected MaxRetries=5, got %d", base.Batch.MaxRetries)
+	}
+	if base.Batch.RetryBackoff != 250*time.Millisecond {
+		t.Errorf("expected RetryBackoff=250ms, got %v", base.Batch.RetryBackoff)
+	}
+}
+
+func TestMerge_BatchConfig_ZeroDoesNotOverwrite(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{} // 모든 BatchConfig 필드가 zero value
+	base.Merge(other)
+
+	if base.Batch.FlushFrequency != 30*time.Second {
+		t.Errorf("expected FlushFrequency preserved, got %v", base.Batch.FlushFrequency)
+	}
+	if base.Batch.FlushMessages != 100 {
+		t.Errorf("expected FlushMessages preserved, got %d", base.Batch.FlushMessages)
+	}
+	if base.Batch.MaxRetries != 2 {
+		t.Errorf("expected MaxRetries preserved, got %d", base.Batch.MaxRetries)
+	}
+}
+
+func TestMerge_BatchConfig_PartialOverwrite(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{
+		Batch: BatchConfig{FlushMessages: 50},
+	}
+	base.Merge(other)
+
+	if base.Batch.FlushMessages != 50 {
+		t.Errorf("expected FlushMessages=50, got %d", base.Batch.FlushMessages)
+	}
+	if base.Batch.FlushFrequency != 30*time.Second {
+		t.Errorf("expected FlushFrequency preserved, got %v", base.Batch.FlushFrequency)
+	}
+}
+
+// --- BatchConfig Parse Tests ---
+
+func TestParse_WithBatchConfig(t *testing.T) {
+	input := `{
+		"Batch": {
+			"FlushFrequency": "1s",
+			"FlushMessages": 200,
+			"MaxBatchSize": 1000,
+			"MaxRetries": 5,
+			"RetryBackoff": "250ms"
+		}
+	}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.Batch.FlushFrequency != 1*time.Second {
+		t.Errorf("expected FlushFrequency=1s, got %v", cfg.Batch.FlushFrequency)
+	}
+	if cfg.Batch.FlushMessages != 200 {
+		t.Errorf("expected FlushMessages=200, got %d", cfg.Batch.FlushMessages)
+	}
+	if cfg.Batch.MaxBatchSize != 1000 {
+		t.Errorf("expected MaxBatchSize=1000, got %d", cfg.Batch.MaxBatchSize)
+	}
+	if cfg.Batch.MaxRetries != 5 {
+		t.Errorf("expected MaxRetries=5, got %d", cfg.Batch.MaxRetries)
+	}
+	if cfg.Batch.RetryBackoff != 250*time.Millisecond {
+		t.Errorf("expected RetryBackoff=250ms, got %v", cfg.Batch.RetryBackoff)
+	}
+}
+
+func TestParse_BatchFallbackFromKafka(t *testing.T) {
+	input := `{
+		"Kafka": {
+			"Brokers": ["broker1:9092"],
+			"FlushFrequency": "2s",
+			"FlushMessages": 300,
+			"BatchSize": 800,
+			"MaxRetries": 4,
+			"RetryBackoff": "200ms"
+		}
+	}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.Batch.FlushFrequency != 2*time.Second {
+		t.Errorf("expected FlushFrequency=2s (from Kafka fallback), got %v", cfg.Batch.FlushFrequency)
+	}
+	if cfg.Batch.FlushMessages != 300 {
+		t.Errorf("expected FlushMessages=300 (from Kafka fallback), got %d", cfg.Batch.FlushMessages)
+	}
+	if cfg.Batch.MaxBatchSize != 800 {
+		t.Errorf("expected MaxBatchSize=800 (from Kafka.BatchSize fallback), got %d", cfg.Batch.MaxBatchSize)
+	}
+	if cfg.Batch.MaxRetries != 4 {
+		t.Errorf("expected MaxRetries=4 (from Kafka fallback), got %d", cfg.Batch.MaxRetries)
+	}
+	if cfg.Batch.RetryBackoff != 200*time.Millisecond {
+		t.Errorf("expected RetryBackoff=200ms (from Kafka fallback), got %v", cfg.Batch.RetryBackoff)
+	}
+}
+
+func TestParse_BatchSectionTakesPrecedenceOverKafka(t *testing.T) {
+	input := `{
+		"Kafka": {
+			"FlushFrequency": "999ms",
+			"FlushMessages": 999,
+			"BatchSize": 999,
+			"MaxRetries": 9,
+			"RetryBackoff": "999ms"
+		},
+		"Batch": {
+			"FlushFrequency": "1s",
+			"FlushMessages": 100,
+			"MaxBatchSize": 500,
+			"MaxRetries": 3,
+			"RetryBackoff": "100ms"
+		}
+	}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.Batch.FlushFrequency != 1*time.Second {
+		t.Errorf("expected Batch.FlushFrequency=1s (Batch takes precedence), got %v", cfg.Batch.FlushFrequency)
+	}
+	if cfg.Batch.FlushMessages != 100 {
+		t.Errorf("expected FlushMessages=100, got %d", cfg.Batch.FlushMessages)
+	}
+	if cfg.Batch.MaxBatchSize != 500 {
+		t.Errorf("expected MaxBatchSize=500, got %d", cfg.Batch.MaxBatchSize)
+	}
+}
+
+func TestParse_NoBatchNoKafkaBatch_UsesDefaults(t *testing.T) {
+	input := `{"SenderType": "kafkarest"}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.Batch.FlushFrequency != 30*time.Second {
+		t.Errorf("expected default FlushFrequency=30s, got %v", cfg.Batch.FlushFrequency)
+	}
+	if cfg.Batch.MaxRetries != 2 {
+		t.Errorf("expected default MaxRetries=2, got %d", cfg.Batch.MaxRetries)
+	}
+}
+
+func TestParse_InvalidBatchDuration(t *testing.T) {
+	input := `{"Batch": {"FlushFrequency": "invalid"}}`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for invalid FlushFrequency duration")
 	}
 }
 

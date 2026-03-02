@@ -28,7 +28,7 @@ func NewSender(cfg *config.Config, timeDiffFunc func() int64) (Sender, error) {
 			Str("kafkarest_addr", cfg.KafkaRestAddress).
 			Str("topic", topic).
 			Msg("Creating KafkaRest sender")
-		transport, err := NewHTTPTransport(cfg.KafkaRestAddress, cfg.SOCKSProxy)
+		transport, err := NewBufferedHTTPTransport(cfg.KafkaRestAddress, cfg.SOCKSProxy, cfg.Batch)
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +39,7 @@ func NewSender(cfg *config.Config, timeDiffFunc func() int64) (Sender, error) {
 			Strs("brokers", cfg.Kafka.Brokers).
 			Str("topic", topic).
 			Msg("Creating Kafka sender")
-		transport, err := NewSaramaTransport(cfg.Kafka, cfg.SOCKSProxy)
+		transport, err := NewSaramaTransport(cfg.Kafka, cfg.Batch, cfg.SOCKSProxy)
 		if err != nil {
 			return nil, err
 		}

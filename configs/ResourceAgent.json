@@ -19,11 +19,6 @@
     "Brokers": ["localhost:9092"],
     "Compression": "snappy",
     "RequiredAcks": 1,
-    "MaxRetries": 3,
-    "RetryBackoff": "100ms",
-    "FlushFrequency": "500ms",
-    "FlushMessages": 100,
-    "BatchSize": 16384,
     "Timeout": "10s",
     "EnableTLS": false,
     "TLSCertFile": "",
@@ -33,6 +28,13 @@
     "SASLMechanism": "PLAIN",
     "SASLUser": "",
     "SASLPassword": ""
+  },
+  "Batch": {
+    "FlushFrequency": "30s",
+    "FlushMessages": 100,
+    "MaxBatchSize": 500,
+    "MaxRetries": 2,
+    "RetryBackoff": "500ms"
   },
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,
