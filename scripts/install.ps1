@@ -17,7 +17,7 @@ param(
 )
 
 $ServiceName = "ResourceAgent"
-$DisplayName = "ResourceAgent Monitoring Service"
+$DisplayName = "Resource Monitoring Service"
 $Description = "Lightweight monitoring agent for collecting hardware resource metrics"
 
 # Package directory = where this script lives

@@ -662,7 +662,7 @@ sc start ResourceAgent
 ```ini
 # /etc/systemd/system/resourceagent.service
 [Unit]
-Description=ResourceAgent Monitoring Service
+Description=Resource Monitoring Service
 After=network.target
 
 [Service]

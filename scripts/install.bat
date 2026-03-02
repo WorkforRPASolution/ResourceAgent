@@ -28,7 +28,7 @@ set "INCLUDE_LHM=0"
 set "UNINSTALL=0"
 set "SITE_NUM="
 set "SERVICE_NAME=ResourceAgent"
-set "DISPLAY_NAME=ResourceAgent Monitoring Service"
+set "DISPLAY_NAME=Resource Monitoring Service"
 set "DESCRIPTION=Lightweight monitoring agent for collecting hardware resource metrics"
 
 REM --- Parse arguments ---

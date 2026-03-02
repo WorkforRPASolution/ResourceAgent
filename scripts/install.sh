@@ -137,7 +137,7 @@ install_agent() {
     # Install systemd service with absolute config paths
     cat > /etc/systemd/system/resourceagent.service << EOF
 [Unit]
-Description=ResourceAgent Monitoring Service
+Description=Resource Monitoring Service
 After=network.target
 
 [Service]
