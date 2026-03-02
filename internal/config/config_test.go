@@ -62,6 +62,31 @@ func TestMerge_TimeDiffSyncInterval_ZeroDoesNotOverwrite(t *testing.T) {
 	}
 }
 
+func TestDefaultConfig_HasKafkaBrokerPortDefault(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Kafka.BrokerPort != 9092 {
+		t.Errorf("expected Kafka.BrokerPort=9092, got %d", cfg.Kafka.BrokerPort)
+	}
+}
+
+func TestMerge_KafkaBrokerPort(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{Kafka: KafkaConfig{BrokerPort: 9093}}
+	base.Merge(other)
+	if base.Kafka.BrokerPort != 9093 {
+		t.Errorf("expected Kafka.BrokerPort=9093, got %d", base.Kafka.BrokerPort)
+	}
+}
+
+func TestMerge_KafkaBrokerPort_ZeroDoesNotOverwrite(t *testing.T) {
+	base := DefaultConfig()
+	other := &Config{}
+	base.Merge(other)
+	if base.Kafka.BrokerPort != 9092 {
+		t.Errorf("expected Kafka.BrokerPort=9092 preserved, got %d", base.Kafka.BrokerPort)
+	}
+}
+
 func TestDefaultConfig_HasSOCKSDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -179,7 +204,7 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	input := `{
 		"SenderType": "file",
 		"Kafka": {
-			"Brokers": ["broker1:9092"]
+			"Compression": "snappy"
 		}
 	}`
 
@@ -807,7 +832,6 @@ func TestParse_WithBatchConfig(t *testing.T) {
 func TestParse_BatchFallbackFromKafka(t *testing.T) {
 	input := `{
 		"Kafka": {
-			"Brokers": ["broker1:9092"],
 			"FlushFrequency": "2s",
 			"FlushMessages": 300,
 			"BatchSize": 800,

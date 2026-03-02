@@ -35,7 +35,7 @@ type FileConfig struct {
 
 // KafkaConfig contains Kafka connection settings.
 type KafkaConfig struct {
-	Brokers       []string      `json:"Brokers"`
+	BrokerPort    int           `json:"BrokerPort"`
 	Compression   string        `json:"Compression"`
 	RequiredAcks  int           `json:"RequiredAcks"`
 	Timeout       time.Duration `json:"Timeout"`
@@ -117,7 +117,7 @@ func DefaultConfig() *Config {
 			Pretty:     false,
 		},
 		Kafka: KafkaConfig{
-			Brokers:      []string{"localhost:9092"},
+			BrokerPort:   9092,
 			Compression:  "snappy",
 			RequiredAcks: 1,
 			Timeout:      10 * time.Second,
@@ -167,8 +167,8 @@ func (c *Config) Merge(other *Config) {
 	}
 
 	// Merge Kafka config
-	if len(other.Kafka.Brokers) > 0 {
-		c.Kafka.Brokers = other.Kafka.Brokers
+	if other.Kafka.BrokerPort != 0 {
+		c.Kafka.BrokerPort = other.Kafka.BrokerPort
 	}
 	if other.Kafka.Compression != "" {
 		c.Kafka.Compression = other.Kafka.Compression

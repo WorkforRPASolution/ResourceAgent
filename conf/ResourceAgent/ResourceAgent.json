@@ -8,7 +8,7 @@
     "Format": "grok"
   },
   "Kafka": {
-    "Brokers": ["localhost:9092"],
+    "BrokerPort": 9092,
     "Compression": "snappy",
     "RequiredAcks": 1,
     "Timeout": "10s"

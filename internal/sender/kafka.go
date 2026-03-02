@@ -68,7 +68,7 @@ type SaramaTransport struct {
 }
 
 // NewSaramaTransport creates a new sarama-based Kafka transport.
-func NewSaramaTransport(cfg config.KafkaConfig, batchCfg config.BatchConfig, socksCfg config.SOCKSConfig) (*SaramaTransport, error) {
+func NewSaramaTransport(brokers []string, cfg config.KafkaConfig, batchCfg config.BatchConfig, socksCfg config.SOCKSConfig) (*SaramaTransport, error) {
 	saramaConfig := sarama.NewConfig()
 
 	// Producer settings
@@ -157,7 +157,7 @@ func NewSaramaTransport(cfg config.KafkaConfig, batchCfg config.BatchConfig, soc
 		saramaConfig.Net.Proxy.Dialer = socksDialer
 	}
 
-	producer, err := sarama.NewAsyncProducer(cfg.Brokers, saramaConfig)
+	producer, err := sarama.NewAsyncProducer(brokers, saramaConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}

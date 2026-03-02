@@ -256,9 +256,8 @@ func setupSender(cfg *config.Config, lc *logger.Config, timeDiffFunc func() int6
 	default:
 		topic := config.ResolveTopic(cfg.ResourceMonitorTopic, cfg.EqpInfo)
 		log.Info().
-			Strs("brokers", cfg.Kafka.Brokers).
 			Str("topic", topic).
-			Msg("Connected to Kafka")
+			Msg("Using Kafka sender")
 	}
 
 	return snd, nil

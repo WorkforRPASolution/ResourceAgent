@@ -25,7 +25,7 @@ type rawConfig struct {
 }
 
 type rawKafkaConfig struct {
-	Brokers        []string `json:"Brokers"`
+	BrokerPort     int      `json:"BrokerPort"`
 	Compression    string   `json:"Compression"`
 	RequiredAcks   int      `json:"RequiredAcks"`
 	MaxRetries     int      `json:"MaxRetries"`
@@ -186,7 +186,7 @@ func convertRawBatch(batch *rawBatchConfig, kafkaFallback *rawKafkaConfig) (*Bat
 
 func convertRawKafka(raw *rawKafkaConfig) (*KafkaConfig, error) {
 	kafka := &KafkaConfig{
-		Brokers:       raw.Brokers,
+		BrokerPort:    raw.BrokerPort,
 		Compression:   raw.Compression,
 		RequiredAcks:  raw.RequiredAcks,
 		EnableTLS:     raw.EnableTLS,
