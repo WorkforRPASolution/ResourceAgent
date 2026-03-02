@@ -129,6 +129,10 @@ func NewMonitorWatcher(path string, callback func(*MonitorConfig)) (*FileWatcher
 			log.Error().Err(err).Msg("Failed to reload monitor configuration")
 			return
 		}
+		if err := ValidateMonitorConfig(mc); err != nil {
+			log.Error().Err(err).Msg("Monitor configuration validation failed, keeping previous config")
+			return
+		}
 		if callback != nil {
 			callback(mc)
 		}
@@ -142,6 +146,10 @@ func NewLoggingWatcher(path string, callback func(*logger.Config)) (*FileWatcher
 		lc, err := LoadLogging(path)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to reload logging configuration")
+			return
+		}
+		if err := ValidateLoggingConfig(lc); err != nil {
+			log.Error().Err(err).Msg("Logging configuration validation failed, keeping previous config")
 			return
 		}
 		if callback != nil {

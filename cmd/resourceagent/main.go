@@ -73,6 +73,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Validate all configurations before proceeding
+	if err := config.ValidateConfig(cfg); err != nil {
+		service.ReportStartupError("ResourceAgent", err)
+		service.WriteStartupErrorFile(startupErrorLogDir, err)
+		fmt.Fprintf(os.Stderr, "Configuration validation failed: %v\n", err)
+		os.Exit(1)
+	}
+	if err := config.ValidateMonitorConfig(mc); err != nil {
+		service.ReportStartupError("ResourceAgent", err)
+		service.WriteStartupErrorFile(startupErrorLogDir, err)
+		fmt.Fprintf(os.Stderr, "Monitor configuration validation failed: %v\n", err)
+		os.Exit(1)
+	}
+	if err := config.ValidateLoggingConfig(lc); err != nil {
+		service.ReportStartupError("ResourceAgent", err)
+		service.WriteStartupErrorFile(startupErrorLogDir, err)
+		fmt.Fprintf(os.Stderr, "Logging configuration validation failed: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Initialize logger from Logging.json
 	if err := logger.Init(*lc); err != nil {
 		service.ReportStartupError("ResourceAgent", err)
