@@ -64,8 +64,9 @@ func (c *MotherboardTempCollector) Collect(ctx context.Context) (*MetricData, er
 }
 
 func (c *MotherboardTempCollector) shouldInclude(sensorName string) bool {
+	sanitized := SanitizeName(sensorName)
 	for _, name := range c.includeSensors {
-		if name == sensorName {
+		if SanitizeName(name) == sanitized {
 			return true
 		}
 	}

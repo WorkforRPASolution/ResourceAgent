@@ -64,8 +64,9 @@ func (c *GpuCollector) Collect(ctx context.Context) (*MetricData, error) {
 }
 
 func (c *GpuCollector) shouldInclude(gpuName string) bool {
+	sanitized := SanitizeName(gpuName)
 	for _, name := range c.includeGpus {
-		if name == gpuName {
+		if SanitizeName(name) == sanitized {
 			return true
 		}
 	}

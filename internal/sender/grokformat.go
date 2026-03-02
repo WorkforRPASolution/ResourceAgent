@@ -2,16 +2,12 @@ package sender
 
 import (
 	"encoding/json"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"resourceagent/internal/collector"
 )
-
-var unsafeCharsRe = regexp.MustCompile(`[^a-zA-Z0-9_:.@\-]`)
-var multiUnderscoreRe = regexp.MustCompile(`_{2,}`)
 
 // EARSRow represents one metric line with EARS fields.
 type EARSRow struct {
@@ -56,16 +52,9 @@ func writeMillis(b *strings.Builder, t time.Time) {
 	b.WriteByte(byte('0' + ms%10))
 }
 
-// sanitizeName replaces special characters in field values
-// to ensure safe downstream processing (ES insertion).
-// Parentheses are removed (common in hardware names like "Intel(R)").
-// Other unsafe chars → '_', then collapse consecutive '_'.
-// Keeps: [a-zA-Z0-9_:.@-]
+// sanitizeName delegates to collector.SanitizeName for safe downstream processing.
 func sanitizeName(s string) string {
-	s = strings.NewReplacer("(", "", ")", "").Replace(s)
-	s = unsafeCharsRe.ReplaceAllString(s, "_")
-	s = multiUnderscoreRe.ReplaceAllString(s, "_")
-	return s
+	return collector.SanitizeName(s)
 }
 
 // formatValue formats a float64 without scientific notation.

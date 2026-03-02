@@ -64,8 +64,9 @@ func (c *TemperatureCollector) Collect(ctx context.Context) (*MetricData, error)
 }
 
 func (c *TemperatureCollector) shouldInclude(sensorKey string) bool {
+	sanitized := SanitizeName(sensorKey)
 	for _, zone := range c.includeZones {
-		if zone == sensorKey {
+		if SanitizeName(zone) == sanitized {
 			return true
 		}
 	}

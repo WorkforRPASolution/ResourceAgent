@@ -64,8 +64,9 @@ func (c *FanCollector) Collect(ctx context.Context) (*MetricData, error) {
 }
 
 func (c *FanCollector) shouldInclude(fanName string) bool {
+	sanitized := SanitizeName(fanName)
 	for _, name := range c.includeFans {
-		if name == fanName {
+		if SanitizeName(name) == sanitized {
 			return true
 		}
 	}

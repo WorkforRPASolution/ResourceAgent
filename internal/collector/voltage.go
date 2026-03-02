@@ -64,8 +64,9 @@ func (c *VoltageCollector) Collect(ctx context.Context) (*MetricData, error) {
 }
 
 func (c *VoltageCollector) shouldInclude(sensorName string) bool {
+	sanitized := SanitizeName(sensorName)
 	for _, name := range c.includeSensors {
-		if name == sensorName {
+		if SanitizeName(name) == sanitized {
 			return true
 		}
 	}
