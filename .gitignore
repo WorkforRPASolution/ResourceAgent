@@ -32,3 +32,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+# Tool-generated state files
+.bkit-memory.json
+.pdca-snapshots/
+.pdca-status.json
