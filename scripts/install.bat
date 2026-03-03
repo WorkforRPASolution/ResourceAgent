@@ -24,6 +24,7 @@ set "PKG_DIR=%~dp0"
 
 REM --- Default values ---
 set "BASE_PATH=D:\EARS\EEGAgent"
+set "BASEPATH_SET=0"
 set "INCLUDE_LHM=0"
 set "UNINSTALL=0"
 set "SITE_NUM="
@@ -36,6 +37,7 @@ REM --- Parse arguments ---
 if "%~1"=="" goto :args_done
 if /i "%~1"=="/basepath" (
     set "BASE_PATH=%~2"
+    set "BASEPATH_SET=1"
     shift
     shift
     goto :parse_args
@@ -85,6 +87,31 @@ REM =============================================================
 REM  INSTALL
 REM =============================================================
 :install
+REM --- Detect BASE_PATH from ARSAgent service if not explicitly specified ---
+if "!BASEPATH_SET!"=="1" goto :install_start
+sc.exe query ARSAgent >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: /basepath not specified and ARSAgent service not found.
+    echo        Usage: %~nx0 /basepath D:\EARS\EEGAgent
+    exit /b 1
+)
+for /f "delims=" %%L in ('sc.exe qc ARSAgent ^| findstr /i "BINARY_PATH_NAME"') do set "SVC_LINE=%%L"
+set "SVC_BIN_RAW=!SVC_LINE:*: =!"
+set "SVC_BIN_RAW=!SVC_BIN_RAW:"=!"
+for /f "tokens=1" %%P in ("!SVC_BIN_RAW!") do set "SVC_EXE=%%P"
+for %%F in ("!SVC_EXE!") do set "SVC_DIR=%%~dpF"
+set "SVC_DIR=!SVC_DIR:~0,-1!"
+for %%D in ("!SVC_DIR!") do set "SVC_DIR=%%~dpD"
+set "SVC_DIR=!SVC_DIR:~0,-1!"
+for %%D in ("!SVC_DIR!") do set "BASE_PATH=%%~dpD"
+set "BASE_PATH=!BASE_PATH:~0,-1!"
+echo   Detected basepath from ARSAgent service: !BASE_PATH!
+set "BIN_DIR=!BASE_PATH!\bin\x86"
+set "CONF_DIR=!BASE_PATH!\conf\ResourceAgent"
+set "LOG_DIR=!BASE_PATH!\log\ResourceAgent"
+set "TOOLS_DIR=!BASE_PATH!\utils\lhm-helper"
+
+:install_start
 echo Installing ResourceAgent...
 echo   Package: %PKG_DIR%
 echo   Target:  %BASE_PATH%
@@ -265,6 +292,31 @@ REM  UNINSTALL
 REM =============================================================
 :uninstall
 echo Uninstalling ResourceAgent...
+
+REM --- Detect installed BASE_PATH from service if not explicitly specified ---
+if "!BASEPATH_SET!"=="1" goto :uninstall_start
+sc.exe query %SERVICE_NAME% >nul 2>&1
+if errorlevel 1 goto :uninstall_start
+for /f "delims=" %%L in ('sc.exe qc %SERVICE_NAME% ^| findstr /i "BINARY_PATH_NAME"') do set "SVC_LINE=%%L"
+set "SVC_BIN_RAW=!SVC_LINE:*: =!"
+set "SVC_BIN_RAW=!SVC_BIN_RAW:"=!"
+for /f "tokens=1" %%P in ("!SVC_BIN_RAW!") do set "SVC_EXE=%%P"
+for %%F in ("!SVC_EXE!") do set "SVC_DIR=%%~dpF"
+set "SVC_DIR=!SVC_DIR:~0,-1!"
+for %%D in ("!SVC_DIR!") do set "SVC_DIR=%%~dpD"
+set "SVC_DIR=!SVC_DIR:~0,-1!"
+for %%D in ("!SVC_DIR!") do set "DETECTED_BASE=%%~dpD"
+set "DETECTED_BASE=!DETECTED_BASE:~0,-1!"
+if defined DETECTED_BASE (
+    echo   Detected install path from service: !DETECTED_BASE!
+    set "BASE_PATH=!DETECTED_BASE!"
+    set "BIN_DIR=!BASE_PATH!\bin\x86"
+    set "CONF_DIR=!BASE_PATH!\conf\ResourceAgent"
+    set "LOG_DIR=!BASE_PATH!\log\ResourceAgent"
+    set "TOOLS_DIR=!BASE_PATH!\utils\lhm-helper"
+)
+
+:uninstall_start
 
 REM Stop and remove service
 sc.exe query %SERVICE_NAME% >nul 2>&1

@@ -12,6 +12,7 @@
 set -e
 
 BASE_PATH="/opt/EEGAgent"
+BASEPATH_SET=false
 SERVICE_USER="resourceagent"
 UNINSTALL=false
 SITE_NUM=""
@@ -21,6 +22,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --base-path)
             BASE_PATH="$2"
+            BASEPATH_SET=true
             shift 2
             ;;
         --user)
@@ -47,7 +49,45 @@ BIN_DIR="$BASE_PATH/bin/x86"
 CONF_DIR="$BASE_PATH/conf/ResourceAgent"
 LOG_DIR="$BASE_PATH/log/ResourceAgent"
 
+detect_basepath_from_arsagent() {
+    # Detect BASE_PATH from ARSAgent systemd service
+    local svc_file="/etc/systemd/system/arsagent.service"
+    if [[ ! -f "$svc_file" ]]; then
+        return 1
+    fi
+    local svc_exec
+    svc_exec=$(grep "^ExecStart=" "$svc_file" | head -1 | sed 's/^ExecStart=//')
+    local svc_bin
+    svc_bin=$(echo "$svc_exec" | awk '{print $1}')
+    if [[ -z "$svc_bin" ]]; then
+        return 1
+    fi
+    local detected
+    detected=$(dirname "$(dirname "$(dirname "$svc_bin")")")
+    if [[ -z "$detected" || "$detected" == "/" ]]; then
+        return 1
+    fi
+    echo "$detected"
+    return 0
+}
+
 install_agent() {
+    # Detect BASE_PATH from ARSAgent if not explicitly specified
+    if ! $BASEPATH_SET; then
+        local detected_path
+        if detected_path=$(detect_basepath_from_arsagent); then
+            BASE_PATH="$detected_path"
+            BIN_DIR="$BASE_PATH/bin/x86"
+            CONF_DIR="$BASE_PATH/conf/ResourceAgent"
+            LOG_DIR="$BASE_PATH/log/ResourceAgent"
+            echo "  Detected basepath from ARSAgent service: $BASE_PATH"
+        else
+            echo "ERROR: --base-path not specified and ARSAgent service not found."
+            echo "       Usage: $0 --base-path /opt/EEGAgent"
+            exit 1
+        fi
+    fi
+
     echo "Installing ResourceAgent (Integrated)..."
 
     # Create service user if not exists
@@ -191,6 +231,23 @@ EOF
 uninstall_agent() {
     echo "Uninstalling ResourceAgent..."
 
+    # Detect installed BASE_PATH from systemd service file (skip if --base-path was given)
+    SERVICE_FILE="/etc/systemd/system/resourceagent.service"
+    if ! $BASEPATH_SET && [[ -f "$SERVICE_FILE" ]]; then
+        SVC_EXEC=$(grep "^ExecStart=" "$SERVICE_FILE" | head -1 | sed 's/^ExecStart=//')
+        SVC_BIN=$(echo "$SVC_EXEC" | awk '{print $1}')
+        if [[ -n "$SVC_BIN" ]]; then
+            DETECTED_BASE=$(dirname "$(dirname "$(dirname "$SVC_BIN")")")
+            if [[ -n "$DETECTED_BASE" && "$DETECTED_BASE" != "/" ]]; then
+                echo "  Detected install path from service: $DETECTED_BASE"
+                BASE_PATH="$DETECTED_BASE"
+                BIN_DIR="$BASE_PATH/bin/x86"
+                CONF_DIR="$BASE_PATH/conf/ResourceAgent"
+                LOG_DIR="$BASE_PATH/log/ResourceAgent"
+            fi
+        fi
+    fi
+
     # Stop and disable service
     if systemctl is-active --quiet resourceagent; then
         systemctl stop resourceagent
@@ -201,7 +258,7 @@ uninstall_agent() {
     fi
 
     # Remove service file
-    rm -f /etc/systemd/system/resourceagent.service
+    rm -f "$SERVICE_FILE"
     systemctl daemon-reload
     echo "  Removed systemd service"
 
