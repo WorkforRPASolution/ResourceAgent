@@ -16,20 +16,19 @@
 
      * ARSAgent가 이미 설치되어 있으면 설치 경로를 자동으로 감지합니다.
      * ARSAgent가 없으면 /basepath 옵션을 지정해야 합니다.
-     * 하드웨어 센서(온도, 팬, GPU 등)가 필요 없으면 이것만으로 완료됩니다.
+     * LhmHelper + PawnIO 드라이버가 기본 포함됩니다. (재부팅 불필요)
 
-  2. 하드웨어 센서 수집이 필요한 경우:
+  2. 하드웨어 센서 수집이 필요 없는 경우:
      명령 프롬프트를 관리자 권한으로 열고 다음을 실행합니다.
 
-       install.bat /lhmhelper
+       install.bat /nolhm
 
-     이 옵션은 LhmHelper와 PawnIO 드라이버를 함께 설치합니다.
-     (재부팅 불필요)
+     이 옵션은 LhmHelper와 PawnIO 드라이버 설치를 건너뜁니다.
 
   3. 설치 경로를 수동으로 지정하려면:
 
        install.bat /basepath E:\MyPath\EEGAgent
-       install.bat /basepath E:\MyPath\EEGAgent /lhmhelper
+       install.bat /basepath E:\MyPath\EEGAgent /nolhm
 
 
 [설치 확인]
@@ -72,7 +71,7 @@
   ├── log\ResourceAgent\
   │   ├── ResourceAgent.log        ← 에이전트 로그
   │   └── metrics.jsonl            ← 수집 메트릭 (file sender 사용 시)
-  └── utils\lhm-helper\            ← /lhmhelper 옵션 사용 시
+  └── utils\lhm-helper\            ← 기본 포함 (/nolhm 시 제외)
       ├── LhmHelper.exe
       └── PawnIO_setup.exe
 

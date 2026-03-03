@@ -157,7 +157,7 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 **배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 설치 패키지 생성
 - 패키지에 ResourceAgent.exe, 설정 파일, install.bat/ps1, INSTALL_GUIDE.txt 포함
-- `/lhmhelper` 옵션 시 LhmHelper.exe + PawnIO_setup.exe 포함
+- LhmHelper.exe + PawnIO_setup.exe 기본 포함 (`/nolhm` 옵션으로 제외 가능)
 - PawnIO 드라이버 설치/제거도 install.bat에서 자동 처리
 
 ### 데이터 흐름
@@ -182,8 +182,9 @@ REM 패키지 생성 (개발 PC)
 scripts\package.ps1 -IncludeLhmHelper
 
 REM 현장 PC에서 설치 (패키지 압축 해제 후)
-install.bat /lhmhelper
-install.bat /basepath D:\EARS\EEGAgent /lhmhelper
+install.bat
+install.bat /basepath D:\EARS\EEGAgent
+install.bat /nolhm
 install.bat /uninstall
 ```
 

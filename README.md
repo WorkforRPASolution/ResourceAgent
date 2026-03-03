@@ -278,12 +278,12 @@ install.bat
 REM BasePath 지정
 install.bat /basepath D:\EARS\EEGAgent
 
-REM LhmHelper + PawnIO 포함 설치
-install.bat /lhmhelper
+REM LhmHelper 제외 설치
+install.bat /nolhm
 
 REM 옵션
-REM   /basepath PATH    BasePath 지정 (기본값: D:\EARS\EEGAgent)
-REM   /lhmhelper        LhmHelper + PawnIO 드라이버 설치
+REM   /basepath PATH    BasePath 지정 (ARSAgent 서비스에서 자동 감지)
+REM   /nolhm            LhmHelper + PawnIO 드라이버 제외
 REM   /uninstall        제거
 ```
 
@@ -369,7 +369,7 @@ install.bat /uninstall
 
 또는 PowerShell: `.\install.ps1 -Uninstall`
 
-> `/lhmhelper`로 설치한 경우, PawnIO 드라이버도 자동으로 제거됩니다.
+> LhmHelper가 설치된 경우(`/nolhm` 없이 설치), PawnIO 드라이버도 자동으로 제거됩니다.
 
 수동 제거:
 
@@ -536,7 +536,7 @@ ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → PawnIO
 
 ### PawnIO 드라이버 설치
 
-`install.bat /lhmhelper` 사용 시 PawnIO 드라이버가 자동으로 설치됩니다.
+`install.bat` 실행 시 PawnIO 드라이버가 기본으로 설치됩니다 (`/nolhm` 옵션으로 제외 가능).
 
 수동 설치가 필요한 경우:
 

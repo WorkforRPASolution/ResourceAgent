@@ -7,13 +7,13 @@ REM Package layout (this script must be at the root of the package):
 REM   install.bat
 REM   bin\x86\ResourceAgent.exe
 REM   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
-REM   utils\lhm-helper\LhmHelper.exe        (optional)
-REM   utils\lhm-helper\PawnIO_setup.exe      (optional)
+REM   utils\lhm-helper\LhmHelper.exe
+REM   utils\lhm-helper\PawnIO_setup.exe
 REM
 REM Usage:
-REM   install.bat                                    (default install)
+REM   install.bat                                    (default install, includes LhmHelper)
 REM   install.bat /basepath D:\EARS\EEGAgent         (specify basepath)
-REM   install.bat /lhmhelper                         (include LhmHelper + PawnIO)
+REM   install.bat /nolhm                             (exclude LhmHelper + PawnIO)
 REM   install.bat /site 1                            (non-interactive site selection)
 REM   install.bat /uninstall                         (uninstall)
 
@@ -25,7 +25,7 @@ set "PKG_DIR=%~dp0"
 REM --- Default values ---
 set "BASE_PATH=D:\EARS\EEGAgent"
 set "BASEPATH_SET=0"
-set "INCLUDE_LHM=0"
+set "INCLUDE_LHM=1"
 set "UNINSTALL=0"
 set "SITE_NUM="
 set "SERVICE_NAME=ResourceAgent"
@@ -42,8 +42,8 @@ if /i "%~1"=="/basepath" (
     shift
     goto :parse_args
 )
-if /i "%~1"=="/lhmhelper" (
-    set "INCLUDE_LHM=1"
+if /i "%~1"=="/nolhm" (
+    set "INCLUDE_LHM=0"
     shift
     goto :parse_args
 )
@@ -59,7 +59,7 @@ if /i "%~1"=="/uninstall" (
     goto :parse_args
 )
 echo Unknown option: %~1
-echo Usage: %~nx0 [/basepath PATH] [/lhmhelper] [/site N] [/uninstall]
+echo Usage: %~nx0 [/basepath PATH] [/nolhm] [/site N] [/uninstall]
 exit /b 1
 :args_done
 
@@ -217,7 +217,7 @@ if "%INCLUDE_LHM%"=="1" (
     REM Copy LhmHelper.exe
     if not exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" (
         echo ERROR: utils\lhm-helper\LhmHelper.exe not found in package.
-        echo        Rebuild package with: package.sh --lhmhelper
+        echo        Rebuild package with: package.sh --lhmhelper or use /nolhm to skip
         exit /b 1
     )
     copy /y "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\LhmHelper.exe" >nul
