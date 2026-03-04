@@ -48,6 +48,7 @@ EARS 변환 경로(file grok, kafkarest, kafka with eqpInfo)로 전송되는 모
 | metric | 설명 | 단위 | 값 범위 | 예시 |
 |--------|------|------|---------|------|
 | `total_used_pct` | 전체 CPU 사용률 | % | 0~100 | `45.5` |
+| `core_{N}_used_pct` | 코어별 사용률 (N=0~CoreCount-1) | % | 0~100 | `42.1` |
 
 ### memory
 
@@ -260,3 +261,94 @@ category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 | file | format=`json` | `ConvertToEARSRows()` → `ToParsedData()` |
 | kafkarest | 항상 | `PrepareRecords()` → `GrokRawFormatter` → `ToGrokString()` |
 | kafka | eqpInfo 있음 | `PrepareRecords()` → `JSONRawFormatter` → `ToParsedData()` |
+
+---
+
+## 수집하지만 전송하지 않는 항목
+
+아래 필드들은 collector에서 수집되어 MetricData에 포함되지만, EARSRow로 변환하지 않아 전송되지 않습니다.
+10,000대 이상 공장 PC의 대규모 모니터링 환경에서 Kafka 트래픽 최소화와 실용성을 기준으로 제외했습니다.
+
+### CPUData
+
+| 필드 | 단위 | 제외 사유 |
+|------|------|----------|
+| User | % | CPU 시간 상세 비율. `total_used_pct`로 전체 사용률 파악 충분하고, 원인 분석은 프로세스별 CPU 메트릭으로 대체 |
+| System | % | 동일 사유 |
+| Idle | % | `100 - total_used_pct`로 산출 가능 (중복) |
+| IOWait | % | Linux 전용. 디스크 병목 진단용이나 공장 PC 모니터링에서 우선순위 낮음 |
+| Irq | % | 커널 인터럽트 비율. 일반 모니터링 범위 밖 |
+| SoftIrq | % | 동일 사유 |
+| Steal | % | VM 환경 전용. 공장 PC는 대부분 물리 머신 |
+| Guest | % | VM 게스트 CPU. 해당 환경 없음 |
+| CoreCount | 개 | 메타데이터(고정값). 모니터링 대상 아님 |
+
+### MemoryData
+
+| 필드 | 단위 | 제외 사유 |
+|------|------|----------|
+| TotalBytes | bytes | 고정값(하드웨어 사양). 자산관리 영역이며 시계열 모니터링 불필요 |
+| AvailableBytes | bytes | `total_used_pct`에서 사용 상황 파악 가능 (중복) |
+| SwapTotalBytes | bytes | 고정값 |
+| SwapUsedBytes | bytes | Windows 공장 PC에서 swap 모니터링 우선순위 낮음. 물리 메모리 사용률로 메모리 압박 감지 충분 |
+| SwapFreeBytes | bytes | 동일 사유 |
+| SwapPercent | % | 동일 사유 |
+| Cached | bytes | Linux 전용. 커널 캐시로 필요 시 해제되므로 실질 메모리 부족 지표 아님 |
+| Buffers | bytes | Linux 전용. 동일 사유 |
+
+### DiskPartition
+
+| 필드 | 단위 | 제외 사유 |
+|------|------|----------|
+| Device | — | 메타데이터 |
+| FSType | — | 메타데이터 |
+| TotalBytes | bytes | 고정값. `usage_percent`로 용량 부족 알림 충분 |
+| UsedBytes | bytes | `usage_percent`로 대체 가능 |
+| FreeBytes | bytes | 동일 사유 |
+| InodesTotal | 개 | Linux inode. 공장 PC(대부분 Windows)에서 해당 없음 |
+| InodesUsed | 개 | 동일 사유 |
+| InodesFree | 개 | 동일 사유 |
+| InodesPercent | % | 동일 사유 |
+| ReadBytes | bytes | 누적 I/O 카운터. rate 계산 없이 누적값 자체는 의미 제한적 |
+| WriteBytes | bytes | 동일 사유 |
+| ReadCount | 회 | 동일 사유 |
+| WriteCount | 회 | 동일 사유 |
+| ReadTime | ms | 동일 사유 |
+| WriteTime | ms | 동일 사유 |
+
+### NetworkInterface
+
+| 필드 | 단위 | 제외 사유 |
+|------|------|----------|
+| BytesSent | bytes | 누적값. `sent_rate`(bytes/s)로 실시간 트래픽 파악 가능 (중복) |
+| BytesRecv | bytes | 누적값. `recv_rate`로 대체 (중복) |
+| PacketsSent | 개 | 누적 패킷 수. 네트워크 장비 모니터링 영역 |
+| PacketsRecv | 개 | 동일 사유 |
+| ErrorsIn | 개 | 누적 에러 수. NIC 수준 장애 진단용이며 네트워크 전용 모니터링 도구 영역 |
+| ErrorsOut | 개 | 동일 사유 |
+| DropsIn | 개 | 누적 드롭 수. 동일 사유 |
+| DropsOut | 개 | 동일 사유 |
+
+### ProcessMemory
+
+| 필드 | 단위 | 제외 사유 |
+|------|------|----------|
+| MemoryPercent | % | RSS 절대값이 더 정확한 지표. 퍼센트는 전체 메모리 크기에 따라 의미 달라짐 |
+| VMS | bytes | Virtual Memory Size. 공유 라이브러리, 매핑된 파일 포함이라 실제 점유량과 괴리 큼 |
+| Swap | bytes | 프로세스별 swap 사용량. 시스템 수준 swap도 제외했으므로 동일 기준 적용 |
+
+### TemperatureSensor
+
+| 필드 | 단위 | 제외 사유 |
+|------|------|----------|
+| High | °C | 센서 임계 온도(하드웨어 스펙). 모니터링 값이 아닌 고정 임계값 |
+| Critical | °C | 동일 사유 |
+
+### 기타 메타데이터/플래그
+
+| 타입 | 필드 | 제외 사유 |
+|------|------|----------|
+| ProcessCPU | Username, CreateTime, Watched | 식별/관리용 메타데이터. 시계열 메트릭 아님 |
+| ProcessMemory | Username, CreateTime, Watched | 동일 사유 |
+| StorageSmartSensor | Type | 디바이스 종류(NVMe/SSD/HDD). 고정 메타데이터 |
+| UptimeData | BootTimeStr | `boot_time_unix`의 문자열 표현 (중복) |
