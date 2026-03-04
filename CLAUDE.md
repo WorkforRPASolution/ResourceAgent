@@ -10,16 +10,19 @@
 
 ResourceAgent는 공장 내 PC(10,000대 이상)의 하드웨어 자원 사용률을 수집하는 Go 기반 경량 모니터링 에이전트입니다. CPU, Memory, Disk, Network, 온도 메트릭을 수집하여 Kafka 또는 KafkaRest Proxy로 전송합니다.
 
-**지원 플랫폼**: Windows 10+, Windows Server 2016+, Ubuntu 18.04+, CentOS 7+
+**지원 플랫폼**: Windows 7+, Windows Server 2008 R2+, Ubuntu 18.04+, CentOS 7+
 
 ## 빌드 명령어
 
 ```bash
-# Windows 빌드
-GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
+# Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
 
 # Linux 빌드
 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
+
+# 패키지 스크립트로 빌드+패키징 (--build 시 Go 1.20 자동 사용)
+./scripts/package.sh --build --lhmhelper
 
 # 테스트 실행
 go test ./...

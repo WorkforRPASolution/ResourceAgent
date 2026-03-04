@@ -5,9 +5,12 @@
 # Usage:
 #   ./scripts/package.sh                        # without LhmHelper
 #   ./scripts/package.sh --lhmhelper             # with LhmHelper + PawnIO
+#   ./scripts/package.sh --build                # auto-build with Go 1.20 (Win7+)
+#   ./scripts/package.sh --build --lhmhelper     # build + LhmHelper
 #
 # Prerequisites:
-#   - ResourceAgent.exe must be built first (GOOS=windows go build ...)
+#   - ResourceAgent.exe must be built first, OR use --build flag
+#   - --build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
 #   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
 #
 # Output:
@@ -20,6 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PACKAGE_DIR="$PROJECT_DIR/install_package_windows"
 INCLUDE_LHM=false
+AUTO_BUILD=false
+GO_TOOLCHAIN="go1.20.14"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -28,15 +33,31 @@ while [[ $# -gt 0 ]]; do
             INCLUDE_LHM=true
             shift
             ;;
+        --build)
+            AUTO_BUILD=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--lhmhelper]"
+            echo "Usage: $0 [--build] [--lhmhelper]"
             exit 1
             ;;
     esac
 done
 
 echo "Building ResourceAgent install package..."
+
+# --- Auto-build ResourceAgent.exe (optional) ---
+if [ "$AUTO_BUILD" = true ]; then
+    echo "  Building ResourceAgent.exe with $GO_TOOLCHAIN (Windows 7+ compatible)..."
+    if ! command -v go &> /dev/null; then
+        echo "ERROR: go command not found. Install Go 1.21+ first."
+        exit 1
+    fi
+    GOTOOLCHAIN="$GO_TOOLCHAIN" GOOS=windows GOARCH=amd64 \
+        go build -o "$PROJECT_DIR/ResourceAgent.exe" ./cmd/resourceagent
+    echo "  Built ResourceAgent.exe successfully"
+fi
 
 # Clean previous package
 if [ -d "$PACKAGE_DIR" ]; then

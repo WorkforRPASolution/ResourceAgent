@@ -16,7 +16,7 @@
 ## 시스템 요구사항
 
 ### 지원 플랫폼
-- Windows 10+, Windows Server 2016+
+- Windows 7+, Windows Server 2008 R2+
 - Ubuntu 18.04+, CentOS 7+
 - macOS (개발/테스트용, 하드웨어 센서 제한)
 

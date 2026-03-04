@@ -4,9 +4,12 @@
 # Usage:
 #   .\scripts\package.ps1                        # without LhmHelper
 #   .\scripts\package.ps1 -IncludeLhmHelper      # with LhmHelper + PawnIO
+#   .\scripts\package.ps1 -Build                 # auto-build with Go 1.20 (Win7+)
+#   .\scripts\package.ps1 -Build -IncludeLhmHelper  # build + LhmHelper
 #
 # Prerequisites:
-#   - ResourceAgent.exe must be built first (GOOS=windows go build ...)
+#   - ResourceAgent.exe must be built first, OR use -Build flag
+#   - -Build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
 #   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
 #
 # Output:
@@ -14,8 +17,11 @@
 #   install_package_windows.zip                  # compressed package
 
 param(
-    [switch]$IncludeLhmHelper
+    [switch]$IncludeLhmHelper,
+    [switch]$Build
 )
+
+$GoToolchain = "go1.20.14"
 
 $ErrorActionPreference = "Stop"
 
@@ -25,6 +31,29 @@ $PackageDir = Join-Path $ProjectDir "install_package_windows"
 $ZipFile = Join-Path $ProjectDir "install_package_windows.zip"
 
 Write-Host "Building ResourceAgent install package..." -ForegroundColor Green
+
+# --- Auto-build ResourceAgent.exe (optional) ---
+if ($Build) {
+    Write-Host "  Building ResourceAgent.exe with $GoToolchain (Windows 7+ compatible)..."
+    $goCmd = Get-Command go -ErrorAction SilentlyContinue
+    if (-not $goCmd) {
+        Write-Error "go command not found. Install Go 1.21+ first."
+        exit 1
+    }
+    $env:GOTOOLCHAIN = $GoToolchain
+    $env:GOOS = "windows"
+    $env:GOARCH = "amd64"
+    & go build -o (Join-Path $ProjectDir "ResourceAgent.exe") ./cmd/resourceagent
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to build ResourceAgent.exe"
+        exit 1
+    }
+    # Clean up environment variables
+    Remove-Item Env:\GOTOOLCHAIN -ErrorAction SilentlyContinue
+    Remove-Item Env:\GOOS -ErrorAction SilentlyContinue
+    Remove-Item Env:\GOARCH -ErrorAction SilentlyContinue
+    Write-Host "  Built ResourceAgent.exe successfully"
+}
 
 # Clean previous package
 if (Test-Path $PackageDir) {
