@@ -559,6 +559,57 @@ PawnIO_setup.exe /S
 
 > Linux에서는 gopsutil을 통해 `/sys/class/thermal/` 등에서 온도를 수집합니다. LhmHelper 불필요.
 
+## 메트릭 레퍼런스
+
+### 레코드 형식
+
+```
+{timestamp} category:{category},pid:{pid},proc:{proc},metric:{metric},value:{value}
+```
+
+- `proc`: 시스템 메트릭은 `@system`, 프로세스/인터페이스별 메트릭은 해당 이름
+- `pid`: 프로세스 메트릭은 PID, 시스템 메트릭은 `0`
+- `{...}`: 시스템 환경에 따라 동적으로 결정되는 값
+
+### 전체 수집 항목
+
+| Category | ProcName | Metric | 설명 | 단위 |
+|---|---|---|---|---|
+| cpu | @system | `total_used_pct` | 전체 CPU 사용률 | % |
+| cpu | @system | `core_{N}_used_pct` | 코어별 사용률 (N=0~) | % |
+| cpu | {process} | `used_pct` | 프로세스 CPU 사용률 | % |
+| memory | @system | `total_used_pct` | 메모리 사용률 | % |
+| memory | @system | `total_free_pct` | 메모리 여유률 | % |
+| memory | @system | `total_used_size` | 사용량 | bytes |
+| memory | {process} | `used` | 프로세스 RSS | bytes |
+| disk | @system | `{mountpoint}` | 파티션 사용률 | % |
+| network | @system | `all_inbound` | TCP 인바운드 연결 수 | count |
+| network | @system | `all_outbound` | TCP 아웃바운드 연결 수 | count |
+| network | {interface} | `recv_rate` | 수신 속도 | bytes/s |
+| network | {interface} | `sent_rate` | 송신 속도 | bytes/s |
+| temperature | @system | `{sensor}` | CPU 온도 | °C |
+| gpu | @system | `{gpu}_temperature` | GPU 온도 | °C |
+| gpu | @system | `{gpu}_core_load` | GPU 코어 부하 | % |
+| gpu | @system | `{gpu}_memory_load` | GPU 메모리 부하 | % |
+| gpu | @system | `{gpu}_fan_speed` | GPU 팬 속도 | RPM |
+| gpu | @system | `{gpu}_power` | GPU 전력 | W |
+| gpu | @system | `{gpu}_core_clock` | GPU 코어 클럭 | MHz |
+| gpu | @system | `{gpu}_memory_clock` | GPU 메모리 클럭 | MHz |
+| fan | @system | `{sensor}` | 팬 속도 | RPM |
+| voltage | @system | `{sensor}` | 전압 | V |
+| motherboard_temp | @system | `{sensor}` | 메인보드 온도 | °C |
+| storage_smart | @system | `{storage}_temperature` | 스토리지 온도 | °C |
+| storage_smart | @system | `{storage}_remaining_life` | 수명 잔량 | % |
+| storage_smart | @system | `{storage}_media_errors` | 미디어 에러 | count |
+| storage_smart | @system | `{storage}_power_cycles` | 전원 사이클 | count |
+| storage_smart | @system | `{storage}_unsafe_shutdowns` | 비정상 종료 | count |
+| storage_smart | @system | `{storage}_power_on_hours` | 사용 시간 | hours |
+| storage_smart | @system | `{storage}_total_bytes_written` | 총 기록량 | bytes |
+| process_watch | {process} | `required` / `required_alert` | 필수 프로세스 상태 | 1/0 |
+| process_watch | {process} | `forbidden` / `forbidden_alert` | 금지 프로세스 상태 | 1/0 |
+| uptime | @system | `boot_time_unix` | 부팅 시각 | unix ts |
+| uptime | @system | `uptime_minutes` | 가동 시간 | min |
+
 ## 문제 해결
 
 ### Kafka 연결 실패

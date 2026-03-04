@@ -45,14 +45,35 @@ func TestConvertToEARSRows_CPU(t *testing.T) {
 	data := &collector.MetricData{
 		Type:      "CPU",
 		Timestamp: testTimestamp,
+		Data: collector.CPUData{
+			UsagePercent: 45.5,
+			CoreCount:    4,
+			PerCore:      []float64{42.1, 48.3, 44.0, 47.6},
+		},
+	}
+	rows := ConvertToEARSRows(data)
+	// 1 (total) + 4 (per-core) = 5 rows
+	if len(rows) != 5 {
+		t.Fatalf("expected 5 rows, got %d", len(rows))
+	}
+	assertRow(t, rows[0], "cpu", 0, "@system", "total_used_pct", 45.5)
+	assertRow(t, rows[1], "cpu", 0, "@system", "core_0_used_pct", 42.1)
+	assertRow(t, rows[2], "cpu", 0, "@system", "core_1_used_pct", 48.3)
+	assertRow(t, rows[3], "cpu", 0, "@system", "core_2_used_pct", 44.0)
+	assertRow(t, rows[4], "cpu", 0, "@system", "core_3_used_pct", 47.6)
+}
+
+func TestConvertToEARSRows_CPU_NoPerCore(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "CPU",
+		Timestamp: testTimestamp,
 		Data:      collector.CPUData{UsagePercent: 45.5, CoreCount: 4},
 	}
 	rows := ConvertToEARSRows(data)
 	if len(rows) != 1 {
 		t.Fatalf("expected 1 row, got %d", len(rows))
 	}
-	r := rows[0]
-	assertRow(t, r, "cpu", 0, "@system", "total_used_pct", 45.5)
+	assertRow(t, rows[0], "cpu", 0, "@system", "total_used_pct", 45.5)
 }
 
 func TestConvertToEARSRows_Memory(t *testing.T) {

@@ -2,6 +2,7 @@ package sender
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -179,7 +180,11 @@ func convertCPU(data *collector.MetricData) []EARSRow {
 	if !ok {
 		return nil
 	}
-	return []EARSRow{systemRow(data.Timestamp, "cpu", "total_used_pct", d.UsagePercent)}
+	rows := []EARSRow{systemRow(data.Timestamp, "cpu", "total_used_pct", d.UsagePercent)}
+	for i, pct := range d.PerCore {
+		rows = append(rows, systemRow(data.Timestamp, "cpu", fmt.Sprintf("core_%d_used_pct", i), pct))
+	}
+	return rows
 }
 
 func convertMemory(data *collector.MetricData) []EARSRow {
