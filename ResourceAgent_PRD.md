@@ -192,8 +192,8 @@
 
 | 항목 | 요구사항 |
 |------|----------|
-| Windows | Windows 10 이상, Windows Server 2016 이상 |
-| Linux | Ubuntu 18.04 이상, CentOS 7 이상, 또는 동등 배포판 |
+| Windows | Windows 7 이상, Windows Server 2008 R2 이상 |
+| Linux | CentOS 6.5 이상, RHEL 6.5 이상, Ubuntu 14.04 이상, 또는 커널 2.6.32+ 배포판 |
 
 ### 5.4 유지보수성
 
@@ -638,11 +638,11 @@ resourceagent/
 ### 8.3 크로스 컴파일
 
 ```bash
-# Windows 64bit
-GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
+# Windows 64bit (Go 1.20 툴체인 — Windows 7+ 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
 
-# Linux 64bit
-GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
+# Linux 64bit (Go 1.20 툴체인 — CentOS 6+ 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
 ```
 
 ### 8.4 서비스 등록

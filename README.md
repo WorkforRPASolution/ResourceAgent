@@ -17,7 +17,7 @@
 
 ### 지원 플랫폼
 - Windows 7+, Windows Server 2008 R2+
-- Ubuntu 18.04+, CentOS 7+
+- CentOS 6.5+, RHEL 6.5+, Ubuntu 14.04+, 기타 Linux (커널 2.6.32+)
 - macOS (개발/테스트용, 하드웨어 센서 제한)
 
 ### 리소스 사용량
@@ -28,23 +28,31 @@
 ## 빌드
 
 ### 사전 요구사항
-- Go 1.24 이상
+- Go 1.21 이상 (GOTOOLCHAIN으로 Go 1.20 자동 다운로드하여 Windows 7+ 호환 빌드)
 - (Windows 하드웨어 모니터링 시) .NET 8 SDK
 
 ### ResourceAgent 빌드
 
+**Bash (Linux/macOS):**
 ```bash
 # 의존성 다운로드
 go mod tidy
 
-# Linux 빌드
-GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
+# Linux 빌드 (Go 1.20 툴체인 — CentOS 6+ 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
 
-# Windows 빌드
-GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
+# Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
+```
 
-# 버전 정보 포함 빌드
-go build -ldflags "-X main.version=1.0.0 -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o ResourceAgent.exe ./cmd/resourceagent
+**PowerShell (Windows):**
+```powershell
+# Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
+$env:GOTOOLCHAIN="go1.20.14"; $env:GOOS="windows"; $env:GOARCH="amd64"
+go build -o ResourceAgent.exe ./cmd/resourceagent
+
+# 또는 패키지 스크립트 사용 (빌드 + 패키징)
+.\scripts\package.ps1 -Build -IncludeLhmHelper
 ```
 
 ### LhmHelper 빌드 (Windows 하드웨어 모니터링)
@@ -230,20 +238,23 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 개발 PC에서 패키지를 생성하고, 현장 PC에 배포합니다.
 
 ```bash
-# 패키지 생성 (LhmHelper 없이)
-./scripts/package.sh
+# 빌드 + 패키징 (Go 1.20 자동 사용, LhmHelper 포함)
+./scripts/package.sh --build --lhmhelper
 
-# LhmHelper + PawnIO 포함 패키지 생성
+# 빌드 + 패키징 (LhmHelper 없이)
+./scripts/package.sh --build
+
+# 이미 빌드된 바이너리로 패키징만
 ./scripts/package.sh --lhmhelper
 ```
 
 Windows에서 패키지 생성 시:
 
 ```powershell
-# 패키지 생성 (LhmHelper 없이)
-.\scripts\package.ps1
+# 빌드 + 패키징 (Go 1.20 자동 사용, LhmHelper 포함)
+.\scripts\package.ps1 -Build -IncludeLhmHelper
 
-# LhmHelper + PawnIO 포함 패키지 생성
+# 이미 빌드된 바이너리로 패키징만
 .\scripts\package.ps1 -IncludeLhmHelper
 ```
 
