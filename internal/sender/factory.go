@@ -20,10 +20,10 @@ func extractHost(addr string) string {
 	return host
 }
 
-// resolveBrokerAddr derives a Kafka broker address from a KafkaRest address and broker port.
+// ResolveBrokerAddr derives a Kafka broker address from a KafkaRest address and broker port.
 // KafkaRest proxy and Kafka broker run on the same k8s node (DaemonSet),
 // so the KafkaRest host is also the broker host.
-func resolveBrokerAddr(kafkaRestAddr string, brokerPort int) (string, error) {
+func ResolveBrokerAddr(kafkaRestAddr string, brokerPort int) (string, error) {
 	host := extractHost(kafkaRestAddr)
 	if host == "" {
 		return "", fmt.Errorf("cannot resolve Kafka broker: KafkaRestAddress is empty (ServiceDiscovery may have failed)")
@@ -61,7 +61,7 @@ func NewSender(cfg *config.Config, timeDiffFunc func() int64) (Sender, error) {
 		return NewKafkaSender(transport, topic, cfg.EqpInfo, timeDiffFunc, GrokRawFormatter{}), nil
 	case "kafka":
 		topic := config.ResolveTopic(cfg.ResourceMonitorTopic, cfg.EqpInfo)
-		brokerAddr, addrErr := resolveBrokerAddr(cfg.KafkaRestAddress, cfg.Kafka.BrokerPort)
+		brokerAddr, addrErr := ResolveBrokerAddr(cfg.KafkaRestAddress, cfg.Kafka.BrokerPort)
 		if addrErr != nil {
 			return nil, addrErr
 		}

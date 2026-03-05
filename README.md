@@ -122,6 +122,7 @@ go test ./internal/sender/...
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,
   "ResourceMonitorTopic": "process",
+  "UpdateServerAddressInterval": "5m",
   "Redis": {
     "Port": 6379,
     "Password": "",
@@ -179,6 +180,7 @@ go test ./internal/sender/...
 | `File.Format` | 파일 출력 형식 (`json`, `grok`, `legacy`→`grok` 자동 매핑) | `grok` |
 | `File.Console` | 콘솔에도 메트릭 출력 | `true` |
 | `Redis.Password` | Redis 접속 암호 (비어있으면 기본 암호 사용) | `visuallove` |
+| `UpdateServerAddressInterval` | ServiceDiscovery 주소 갱신 주기 (Go duration, 음수=비활성화) | `5m` |
 | `Collectors.*.Enabled` | Collector 활성화 여부 | `true` |
 | `Collectors.*.Interval` | 수집 주기 | 10s~60s |
 | `Collectors.*.TopN` | 프로세스 모니터링 상위 N개 | `10` |

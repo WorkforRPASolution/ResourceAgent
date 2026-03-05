@@ -21,7 +21,8 @@ type rawConfig struct {
 	SOCKSProxy              SOCKSConfig                   `json:"SocksProxy"`
 	ServiceDiscoveryPort    int                           `json:"ServiceDiscoveryPort"`
 	ResourceMonitorTopic    string                        `json:"ResourceMonitorTopic"`
-	TimeDiffSyncInterval    int                           `json:"TimeDiffSyncInterval"`
+	TimeDiffSyncInterval        int                           `json:"TimeDiffSyncInterval"`
+	UpdateServerAddressInterval string                        `json:"UpdateServerAddressInterval"`
 }
 
 type rawKafkaConfig struct {
@@ -129,6 +130,14 @@ func convertRawConfig(raw *rawConfig) (*Config, error) {
 	cfg.ServiceDiscoveryPort = raw.ServiceDiscoveryPort
 	cfg.ResourceMonitorTopic = raw.ResourceMonitorTopic
 	cfg.TimeDiffSyncInterval = raw.TimeDiffSyncInterval
+
+	if raw.UpdateServerAddressInterval != "" {
+		d, err := time.ParseDuration(raw.UpdateServerAddressInterval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid UpdateServerAddressInterval: %w", err)
+		}
+		cfg.UpdateServerAddressInterval = d
+	}
 
 	return cfg, nil
 }

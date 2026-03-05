@@ -234,6 +234,7 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 		s.mu.RUnlock()
 		return fmt.Errorf("sender is closed")
 	}
+	transport := s.transport
 	s.mu.RUnlock()
 
 	records, err := PrepareRecords(data, s.eqpInfo, s.timeDiffFunc(), s.formatter)
@@ -246,7 +247,7 @@ func (s *KafkaSender) Send(ctx context.Context, data *collector.MetricData) erro
 		return fmt.Errorf("failed to prepare records: %w", err)
 	}
 
-	return s.transport.Deliver(ctx, s.topic, records)
+	return transport.Deliver(ctx, s.topic, records)
 }
 
 // SendBatch sends multiple metric data items to Kafka in a single aggregated Deliver call.
@@ -256,6 +257,7 @@ func (s *KafkaSender) SendBatch(ctx context.Context, data []*collector.MetricDat
 		s.mu.RUnlock()
 		return fmt.Errorf("sender is closed")
 	}
+	transport := s.transport
 	s.mu.RUnlock()
 
 	var allRecords []KafkaRecord
@@ -272,7 +274,20 @@ func (s *KafkaSender) SendBatch(ctx context.Context, data []*collector.MetricDat
 	if len(allRecords) == 0 {
 		return nil
 	}
-	return s.transport.Deliver(ctx, s.topic, allRecords)
+	return transport.Deliver(ctx, s.topic, allRecords)
+}
+
+// SwapTransport atomically replaces the transport and returns the old one.
+// The caller is responsible for closing the old transport.
+func (s *KafkaSender) SwapTransport(newTransport KafkaTransport) (KafkaTransport, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, fmt.Errorf("sender is closed")
+	}
+	old := s.transport
+	s.transport = newTransport
+	return old, nil
 }
 
 // Close closes the Kafka sender and its transport.

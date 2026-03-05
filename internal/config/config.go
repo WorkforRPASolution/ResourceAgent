@@ -18,9 +18,10 @@ type Config struct {
 	SOCKSProxy              SOCKSConfig                `json:"SocksProxy"`
 	ServiceDiscoveryPort    int                        `json:"ServiceDiscoveryPort"`
 	ResourceMonitorTopic    string                     `json:"ResourceMonitorTopic"`
-	TimeDiffSyncInterval    int                        `json:"TimeDiffSyncInterval"` // seconds, default 3600
-	KafkaRestAddress        string                     `json:"-"` // runtime only, from ServiceDiscovery
-	EqpInfo                 *EqpInfoConfig             `json:"-"` // runtime only, not serialized
+	TimeDiffSyncInterval        int                        `json:"TimeDiffSyncInterval"` // seconds, default 3600
+	UpdateServerAddressInterval time.Duration              `json:"-"` // parsed from duration string, default 5m
+	KafkaRestAddress            string                     `json:"-"` // runtime only, from ServiceDiscovery
+	EqpInfo                     *EqpInfoConfig             `json:"-"` // runtime only, not serialized
 }
 
 // FileConfig contains settings for the file sender.
@@ -133,9 +134,10 @@ func DefaultConfig() *Config {
 			Port: 6379,
 			DB:   10,
 		},
-		ServiceDiscoveryPort:    50009,
-		ResourceMonitorTopic:    "process",
-		TimeDiffSyncInterval:    3600,
+		ServiceDiscoveryPort:            50009,
+		ResourceMonitorTopic:            "process",
+		TimeDiffSyncInterval:            3600,
+		UpdateServerAddressInterval:     5 * time.Minute,
 	}
 }
 
@@ -255,6 +257,9 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.TimeDiffSyncInterval != 0 {
 		c.TimeDiffSyncInterval = other.TimeDiffSyncInterval
+	}
+	if other.UpdateServerAddressInterval != 0 {
+		c.UpdateServerAddressInterval = other.UpdateServerAddressInterval
 	}
 }
 
