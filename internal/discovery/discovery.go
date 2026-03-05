@@ -99,7 +99,9 @@ func FetchExternalIP(ctx context.Context, earsIfAddr string,
 		return "", fmt.Errorf("failed to create FetchExternalIP request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("category", "ip")
+	// Header.Set()은 "Category"로 자동 대문자 변환하지만,
+	// akka-http 서버가 소문자 "category"만 인식하므로 직접 설정
+	req.Header["category"] = []string{"ip"}
 
 	resp, err := client.Do(req)
 	if err != nil {
