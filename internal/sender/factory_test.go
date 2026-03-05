@@ -71,18 +71,18 @@ func TestResolveBrokerAddr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveBrokerAddr(tt.kafkaRestAddr, tt.brokerPort)
+			got, err := ResolveBrokerAddr(tt.kafkaRestAddr, tt.brokerPort)
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("resolveBrokerAddr(%q, %d) expected error, got %q", tt.kafkaRestAddr, tt.brokerPort, got)
+					t.Errorf("ResolveBrokerAddr(%q, %d) expected error, got %q", tt.kafkaRestAddr, tt.brokerPort, got)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("resolveBrokerAddr(%q, %d) unexpected error: %v", tt.kafkaRestAddr, tt.brokerPort, err)
+				t.Fatalf("ResolveBrokerAddr(%q, %d) unexpected error: %v", tt.kafkaRestAddr, tt.brokerPort, err)
 			}
 			if got != tt.wantAddr {
-				t.Errorf("resolveBrokerAddr(%q, %d) = %q, want %q", tt.kafkaRestAddr, tt.brokerPort, got, tt.wantAddr)
+				t.Errorf("ResolveBrokerAddr(%q, %d) = %q, want %q", tt.kafkaRestAddr, tt.brokerPort, got, tt.wantAddr)
 			}
 		})
 	}

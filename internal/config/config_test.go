@@ -914,6 +914,87 @@ func TestParse_InvalidBatchDuration(t *testing.T) {
 	}
 }
 
+// --- UpdateServerAddressInterval Tests ---
+
+func TestDefaultConfig_HasUpdateServerAddressIntervalDefault(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.UpdateServerAddressInterval != 5*time.Minute {
+		t.Errorf("expected default 5m, got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
+func TestParse_UpdateServerAddressInterval(t *testing.T) {
+	input := `{"UpdateServerAddressInterval": "5m"}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.UpdateServerAddressInterval != 5*time.Minute {
+		t.Errorf("expected 5m, got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
+func TestParse_UpdateServerAddressInterval_Seconds(t *testing.T) {
+	input := `{"UpdateServerAddressInterval": "300s"}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.UpdateServerAddressInterval != 300*time.Second {
+		t.Errorf("expected 300s, got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
+func TestParse_UpdateServerAddressInterval_Zero_Disabled(t *testing.T) {
+	// "0s" → duration 0 → Merge에서 0은 skip하므로 default 유지
+	// 비활성화: "-1" 사용 (sentinel value)
+	input := `{"UpdateServerAddressInterval": "-1s"}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.UpdateServerAddressInterval >= 0 {
+		t.Errorf("expected negative (disabled), got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
+func TestParse_UpdateServerAddressInterval_Missing_UsesDefault(t *testing.T) {
+	input := `{}`
+	cfg, err := Parse([]byte(input))
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if cfg.UpdateServerAddressInterval != 5*time.Minute {
+		t.Errorf("expected default 5m, got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
+func TestParse_UpdateServerAddressInterval_Invalid(t *testing.T) {
+	input := `{"UpdateServerAddressInterval": "invalid"}`
+	_, err := Parse([]byte(input))
+	if err == nil {
+		t.Fatal("expected error for invalid UpdateServerAddressInterval")
+	}
+}
+
+func TestMerge_UpdateServerAddressInterval(t *testing.T) {
+	cfg := DefaultConfig()
+	other := &Config{UpdateServerAddressInterval: 10 * time.Minute}
+	cfg.Merge(other)
+	if cfg.UpdateServerAddressInterval != 10*time.Minute {
+		t.Errorf("expected 10m after merge, got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
+func TestMerge_UpdateServerAddressInterval_ZeroDoesNotOverwrite(t *testing.T) {
+	cfg := DefaultConfig()
+	other := &Config{UpdateServerAddressInterval: 0}
+	cfg.Merge(other)
+	if cfg.UpdateServerAddressInterval != 5*time.Minute {
+		t.Errorf("expected default 5m preserved, got %v", cfg.UpdateServerAddressInterval)
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {

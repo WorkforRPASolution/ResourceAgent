@@ -126,6 +126,8 @@ type infraResult struct {
 	agentID      string
 	timeDiffFunc func() int64
 	syncer       *timediff.Syncer
+	virtualIP    string
+	dialFunc     func(string, string) (net.Conn, error)
 }
 
 // setupInfrastructure resolves Redis EQP_INFO, ServiceDiscovery, and TimeDiff.
@@ -167,6 +169,9 @@ func setupInfrastructure(ctx context.Context, cfg *config.Config, agentID string
 		Str("virtual_ip", virtualIP).
 		Str("redis_address", redisAddress).
 		Msg("Redis address resolved from VirtualAddressList")
+
+	result.virtualIP = virtualIP
+	result.dialFunc = dialFunc
 
 	if dialFunc != nil {
 		return setupWithProxy(ctx, cfg, result, virtualIP, redisAddress, dialFunc)
@@ -542,6 +547,55 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 			log.Error().Err(err).Msg("Error closing sender")
 		}
 	}()
+
+	// Phase 4.5: Address Refresher
+	if cfg.UpdateServerAddressInterval > 0 && strings.ToLower(cfg.SenderType) != "file" {
+		if kafkaSender, ok := snd.(*sender.KafkaSender); ok {
+			refresher := discovery.NewRefresher(discovery.RefresherConfig{
+				Interval: cfg.UpdateServerAddressInterval,
+			})
+
+			senderType := strings.ToLower(cfg.SenderType)
+			switch senderType {
+			case "kafkarest":
+				refresher.SetTransportFactory(func(addr string) (discovery.Closeable, error) {
+					return sender.NewBufferedHTTPTransport(addr, cfg.SOCKSProxy, cfg.Batch)
+				})
+			case "kafka":
+				refresher.SetTransportFactory(func(addr string) (discovery.Closeable, error) {
+					brokerAddr, err := sender.ResolveBrokerAddr(addr, cfg.Kafka.BrokerPort)
+					if err != nil {
+						return nil, err
+					}
+					return sender.NewSaramaTransport([]string{brokerAddr}, cfg.Kafka, cfg.Batch, cfg.SOCKSProxy)
+				})
+			}
+
+			refresher.SetFetchAddr(func(fetchCtx context.Context) (string, error) {
+				services, err := discovery.FetchServices(fetchCtx, infra.virtualIP,
+					cfg.ServiceDiscoveryPort, cfg.EqpInfo.Index, infra.dialFunc)
+				if err != nil {
+					return "", err
+				}
+				return discovery.GetKafkaRestAddress(services)
+			})
+
+			refresher.SetSwapTransport(func(newT discovery.Closeable) (discovery.Closeable, error) {
+				kt, ok := newT.(sender.KafkaTransport)
+				if !ok {
+					return nil, fmt.Errorf("invalid transport type")
+				}
+				return kafkaSender.SwapTransport(kt)
+			})
+
+			refresher.Start(ctx, cfg.KafkaRestAddress)
+			defer refresher.Stop()
+
+			log.Info().
+				Dur("interval", cfg.UpdateServerAddressInterval).
+				Msg("Address refresher started")
+		}
+	}
 
 	// Phase 5: Scheduler
 	sched := scheduler.New(registry, snd, infra.agentID, hostname)
