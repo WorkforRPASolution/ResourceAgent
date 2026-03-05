@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -63,4 +64,58 @@ func GetKafkaRestAddress(services map[string]string) (string, error) {
 		return "", fmt.Errorf("ServiceDiscovery response does not contain 'kafkaRest' key")
 	}
 	return addr, nil
+}
+
+// GetEARSInterfaceSrvAddress extracts the "EARSInterfaceSrv" address from the services map.
+func GetEARSInterfaceSrvAddress(services map[string]string) (string, error) {
+	addr, ok := services["EARSInterfaceSrv"]
+	if !ok || addr == "" {
+		return "", fmt.Errorf("ServiceDiscovery response does not contain 'EARSInterfaceSrv' key")
+	}
+	return addr, nil
+}
+
+// FetchExternalIP queries EARSInterfaceSrv to get the external IP visible from the proxy.
+// It sends a POST request with category=ip header and expects a plain text IP response.
+func FetchExternalIP(ctx context.Context, earsIfAddr string,
+	dialFunc func(string, string) (net.Conn, error)) (string, error) {
+
+	url := fmt.Sprintf("http://%s/EARS/Interface", earsIfAddr)
+
+	transport := &http.Transport{}
+	if dialFunc != nil {
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialFunc(network, addr)
+		}
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   httpTimeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create FetchExternalIP request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("category", "ip")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("FetchExternalIP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("FetchExternalIP returned HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read FetchExternalIP response: %w", err)
+	}
+
+	return strings.TrimSpace(string(body)), nil
 }

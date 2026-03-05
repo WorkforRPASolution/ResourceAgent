@@ -193,6 +193,98 @@ func TestFetchEqpInfo_InvalidValue(t *testing.T) {
 	}
 }
 
+// --- FetchEqpInfoMulti tests ---
+
+func TestFetchEqpInfoMulti_FirstMatch(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.Select(10)
+	mr.HSet("EQP_INFO", "11.97.12.34:192.168.10.3", "PROC:MDL:EQP001:LN:DESC:1")
+
+	cfg := config.RedisConfig{DB: 10}
+	candidates := []IPCandidate{
+		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.10.3"},
+		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.20.5"},
+	}
+
+	info, matched, err := FetchEqpInfoMulti(context.Background(), mr.Addr(), cfg, nil, candidates)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil EqpInfo")
+	}
+	if info.EqpID != "EQP001" {
+		t.Errorf("expected EqpID=EQP001, got %s", info.EqpID)
+	}
+	if matched.IPAddr != "11.97.12.34" || matched.IPAddrLocal != "192.168.10.3" {
+		t.Errorf("unexpected matched candidate: %+v", matched)
+	}
+}
+
+func TestFetchEqpInfoMulti_SecondMatch(t *testing.T) {
+	mr := miniredis.RunT(t)
+	mr.Select(10)
+	// First candidate not in Redis, second is
+	mr.HSet("EQP_INFO", "11.97.12.34:192.168.20.5", "PROC:MDL:EQP002:LN:DESC:2")
+
+	cfg := config.RedisConfig{DB: 10}
+	candidates := []IPCandidate{
+		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.10.3"},
+		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.20.5"},
+	}
+
+	info, matched, err := FetchEqpInfoMulti(context.Background(), mr.Addr(), cfg, nil, candidates)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil EqpInfo")
+	}
+	if info.EqpID != "EQP002" {
+		t.Errorf("expected EqpID=EQP002, got %s", info.EqpID)
+	}
+	if matched.IPAddrLocal != "192.168.20.5" {
+		t.Errorf("expected matched IPAddrLocal=192.168.20.5, got %s", matched.IPAddrLocal)
+	}
+}
+
+func TestFetchEqpInfoMulti_NoMatch(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	cfg := config.RedisConfig{DB: 10}
+	candidates := []IPCandidate{
+		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.10.3"},
+	}
+
+	info, matched, err := FetchEqpInfoMulti(context.Background(), mr.Addr(), cfg, nil, candidates)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info != nil {
+		t.Errorf("expected nil info for no match, got %+v", info)
+	}
+	if matched != nil {
+		t.Errorf("expected nil matched for no match, got %+v", matched)
+	}
+}
+
+func TestFetchEqpInfoMulti_EmptyCandidates(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	cfg := config.RedisConfig{DB: 10}
+
+	info, matched, err := FetchEqpInfoMulti(context.Background(), mr.Addr(), cfg, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info != nil {
+		t.Errorf("expected nil info for empty candidates, got %+v", info)
+	}
+	if matched != nil {
+		t.Errorf("expected nil matched for empty candidates, got %+v", matched)
+	}
+}
+
 func TestFetchEqpInfo_WithUnderscoreIPAddrLocal(t *testing.T) {
 	mr := miniredis.RunT(t)
 

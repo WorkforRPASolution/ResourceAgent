@@ -75,6 +75,54 @@ func FetchEqpInfo(ctx context.Context, redisAddress string, redisCfg config.Redi
 	return ParseEqpInfoValue(value)
 }
 
+// IPCandidate represents an IP pair to try for Redis EQP_INFO lookup.
+type IPCandidate struct {
+	IPAddr      string
+	IPAddrLocal string
+}
+
+// FetchEqpInfoMulti tries multiple IP candidates for Redis EQP_INFO lookup.
+// Returns the first successful match's EqpInfo and the matching candidate.
+// Returns (nil, nil, nil) if no candidate matches.
+func FetchEqpInfoMulti(ctx context.Context, redisAddress string, redisCfg config.RedisConfig,
+	dialFunc func(network, addr string) (net.Conn, error),
+	candidates []IPCandidate) (*EqpInfo, *IPCandidate, error) {
+
+	if len(candidates) == 0 {
+		return nil, nil, nil
+	}
+
+	client, err := createRedisClient(redisAddress, redisCfg, dialFunc)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Redis client: %w", err)
+	}
+	defer client.Close()
+
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	for i := range candidates {
+		c := &candidates[i]
+		hashKey := fmt.Sprintf("%s:%s", c.IPAddr, c.IPAddrLocal)
+
+		value, err := client.HGet(queryCtx, "EQP_INFO", hashKey).Result()
+		if err == redis.Nil {
+			continue
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("Redis HGET EQP_INFO %s failed: %w", hashKey, err)
+		}
+
+		info, err := ParseEqpInfoValue(value)
+		if err != nil {
+			return nil, nil, err
+		}
+		return info, c, nil
+	}
+
+	return nil, nil, nil
+}
+
 // createRedisClient creates a Redis client with optional custom dialer.
 // redisAddress is the resolved address (e.g., "virtualIP:port").
 func createRedisClient(redisAddress string, cfg config.RedisConfig, dialFunc func(network, addr string) (net.Conn, error)) (*redis.Client, error) {

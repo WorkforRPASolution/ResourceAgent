@@ -168,35 +168,151 @@ func setupInfrastructure(ctx context.Context, cfg *config.Config, agentID string
 		Str("redis_address", redisAddress).
 		Msg("Redis address resolved from VirtualAddressList")
 
-	// 4. 연결 기반 IP 감지
-	detectedIP, dialErr := network.DetectIPByDial(redisAddress, dialFunc)
+	if dialFunc != nil {
+		return setupWithProxy(ctx, cfg, result, virtualIP, redisAddress, dialFunc)
+	}
+	return setupWithoutProxy(ctx, cfg, result, virtualIP, redisAddress)
+}
+
+// setupWithProxy implements Flow A: proxy path.
+// Uses EARSInterfaceSrv to get external IP, then NIC-based pattern matching for inner IP.
+func setupWithProxy(ctx context.Context, cfg *config.Config, result *infraResult,
+	virtualIP, redisAddress string, dialFunc func(string, string) (net.Conn, error)) (*infraResult, error) {
+
+	log := logger.WithComponent("main")
+
+	// 1. ServiceDiscovery (index="0") → KafkaRest + EARSInterfaceSrv
+	services, err := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, "0", dialFunc)
+	if err != nil {
+		return nil, fmt.Errorf("ServiceDiscovery (index=0) failed: %w", err)
+	}
+
+	_, krErr := discovery.GetKafkaRestAddress(services)
+	if krErr != nil {
+		return nil, fmt.Errorf("failed to get KafkaRest address from initial ServiceDiscovery: %w", krErr)
+	}
+
+	earsIfAddr, eiErr := discovery.GetEARSInterfaceSrvAddress(services)
+	if eiErr != nil {
+		return nil, fmt.Errorf("failed to get EARSInterfaceSrv address: %w", eiErr)
+	}
+	log.Info().Str("ears_interface_addr", earsIfAddr).Msg("EARSInterfaceSrv address resolved")
+
+	// 2. FetchExternalIP → 외부 IP
+	externalIP, err := discovery.FetchExternalIP(ctx, earsIfAddr, dialFunc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch external IP: %w", err)
+	}
+	log.Info().Str("external_ip", externalIP).Msg("External IP fetched via EARSInterfaceSrv")
+
+	// 3. DetectIPs (NIC 기반, overrideIP 없음) → MatchingIPs
+	ipInfo, err := network.DetectIPs(cfg.PrivateIPAddressPattern, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect IP addresses: %w", err)
+	}
+	log.Info().
+		Strs("all_ips", ipInfo.AllIPs).
+		Strs("matching_ips", ipInfo.MatchingIPs).
+		Msg("NIC IPs detected for proxy flow")
+
+	// 4. IP 후보 생성
+	candidates := buildCandidatesProxy(externalIP, ipInfo)
+	log.Info().Int("candidate_count", len(candidates)).Msg("IP candidates for EQP_INFO lookup")
+
+	// 5. FetchEqpInfoMulti
+	info, matched, err := eqpinfo.FetchEqpInfoMulti(ctx, redisAddress, cfg.Redis, dialFunc, candidates)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch EQP_INFO from Redis: %w", err)
+	}
+	if info == nil {
+		return nil, fmt.Errorf("EQP_INFO not found for any candidate (proxy flow, external=%s)", externalIP)
+	}
+	log.Info().
+		Str("matched_ip", matched.IPAddr).
+		Str("matched_local", matched.IPAddrLocal).
+		Msg("EQP_INFO matched")
+
+	applyEqpInfo(cfg, result, info)
+
+	// 6. ServiceDiscovery (실제 index) → KafkaRest 갱신
+	services, err = discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, dialFunc)
+	if err != nil {
+		return nil, fmt.Errorf("ServiceDiscovery (index=%s) failed: %w", info.Index, err)
+	}
+
+	kafkaRestAddr, err := discovery.GetKafkaRestAddress(services)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get KafkaRest address: %w", err)
+	}
+	cfg.KafkaRestAddress = kafkaRestAddr
+	log.Info().Str("kafkarest_addr", kafkaRestAddr).Msg("KafkaRest address resolved")
+
+	// 7. TimeDiff Syncer
+	return startTimeDiffSyncer(ctx, cfg, result, redisAddress, dialFunc)
+}
+
+// setupWithoutProxy implements Flow B: no-proxy path.
+// Uses DetectIPByDial for external IP, inner_ip="_" fixed.
+func setupWithoutProxy(ctx context.Context, cfg *config.Config, result *infraResult,
+	virtualIP, redisAddress string) (*infraResult, error) {
+
+	log := logger.WithComponent("main")
+
+	// 1. 연결 기반 IP 감지
+	detectedIP, dialErr := network.DetectIPByDial(redisAddress, nil)
 	if dialErr != nil {
-		log.Warn().Err(dialErr).Msg("DetectIPByDial failed, falling back to interface-based detection")
+		log.Warn().Err(dialErr).Msg("DetectIPByDial failed, falling back to all NIC IPs")
 		detectedIP = ""
 	} else {
 		log.Info().Str("detected_ip", detectedIP).Msg("IP detected via connection to Redis")
 	}
 
-	// 5. IP 감지
-	ipInfo, ipErr := network.DetectIPs(cfg.PrivateIPAddressPattern, detectedIP)
-	if ipErr != nil {
-		return nil, fmt.Errorf("failed to detect IP addresses: %w", ipErr)
+	// 2. NIC IP 목록
+	ipInfo, err := network.DetectIPs("", "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect IP addresses: %w", err)
 	}
-	log.Info().
-		Str("ip_addr", ipInfo.IPAddr).
-		Str("ip_addr_local", ipInfo.IPAddrLocal).
-		Strs("all_ips", ipInfo.AllIPs).
-		Msg("IP addresses detected")
+	log.Info().Strs("all_ips", ipInfo.AllIPs).Msg("NIC IPs detected for no-proxy flow")
 
-	// 6. Redis EQP_INFO 취득 (필수)
-	info, fetchErr := eqpinfo.FetchEqpInfo(ctx, redisAddress, cfg.Redis, dialFunc, ipInfo.IPAddr, ipInfo.IPAddrLocal)
-	if fetchErr != nil {
-		return nil, fmt.Errorf("failed to fetch EQP_INFO from Redis: %w", fetchErr)
+	// 3. IP 후보 생성
+	candidates := buildCandidatesNoProxy(detectedIP, ipInfo.AllIPs)
+	log.Info().Int("candidate_count", len(candidates)).Msg("IP candidates for EQP_INFO lookup")
+
+	// 4. FetchEqpInfoMulti
+	info, matched, err := eqpinfo.FetchEqpInfoMulti(ctx, redisAddress, cfg.Redis, nil, candidates)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch EQP_INFO from Redis: %w", err)
 	}
 	if info == nil {
-		return nil, fmt.Errorf("EQP_INFO not found for %s:%s", ipInfo.IPAddr, ipInfo.IPAddrLocal)
+		return nil, fmt.Errorf("EQP_INFO not found for any candidate (no-proxy flow)")
+	}
+	log.Info().
+		Str("matched_ip", matched.IPAddr).
+		Str("matched_local", matched.IPAddrLocal).
+		Msg("EQP_INFO matched")
+
+	applyEqpInfo(cfg, result, info)
+
+	// 5. ServiceDiscovery
+	services, err := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, nil)
+	if err != nil {
+		return nil, fmt.Errorf("ServiceDiscovery failed: %w", err)
 	}
 
+	kafkaRestAddr, err := discovery.GetKafkaRestAddress(services)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get KafkaRest address: %w", err)
+	}
+	cfg.KafkaRestAddress = kafkaRestAddr
+	log.Info().Str("kafkarest_addr", kafkaRestAddr).Msg("KafkaRest address resolved")
+
+	// 6. TimeDiff Syncer
+	return startTimeDiffSyncer(ctx, cfg, result, redisAddress, nil)
+}
+
+// applyEqpInfo sets EqpInfo on config and result from Redis lookup.
+func applyEqpInfo(cfg *config.Config, result *infraResult, info *eqpinfo.EqpInfo) {
+	log := logger.WithComponent("main")
 	cfg.EqpInfo = &config.EqpInfoConfig{
 		Process:  info.Process,
 		EqpModel: info.EqpModel,
@@ -214,32 +330,46 @@ func setupInfrastructure(ctx context.Context, cfg *config.Config, agentID string
 		Str("line_desc", info.LineDesc).
 		Str("index", info.Index).
 		Msg("EQP_INFO loaded from Redis")
+}
 
-	// 7. ServiceDiscovery 호출 (필수)
-	services, sdErr := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, dialFunc)
-	if sdErr != nil {
-		return nil, fmt.Errorf("ServiceDiscovery failed: %w", sdErr)
-	}
+// startTimeDiffSyncer creates and starts a TimeDiff syncer.
+func startTimeDiffSyncer(ctx context.Context, cfg *config.Config, result *infraResult,
+	redisAddress string, dialFunc func(string, string) (net.Conn, error)) (*infraResult, error) {
 
-	// 8. KafkaRest 주소 추출
-	kafkaRestAddr, krErr := discovery.GetKafkaRestAddress(services)
-	if krErr != nil {
-		return nil, fmt.Errorf("failed to get KafkaRest address: %w", krErr)
-	}
-	cfg.KafkaRestAddress = kafkaRestAddr
-	log.Info().
-		Str("kafkarest_addr", kafkaRestAddr).
-		Msg("KafkaRest address resolved from ServiceDiscovery")
-
-	// 9. TimeDiff Syncer 시작
 	syncer := timediff.NewSyncer(redisAddress, cfg.Redis, dialFunc, cfg.EqpInfo.EqpID, cfg.TimeDiffSyncInterval)
 	if err := syncer.Start(ctx); err != nil {
 		return nil, fmt.Errorf("failed to start TimeDiff syncer: %w", err)
 	}
 	result.syncer = syncer
 	result.timeDiffFunc = syncer.GetDiff
-
 	return result, nil
+}
+
+// buildCandidatesProxy builds IP candidates for proxy flow.
+// externalIP is determined by EARSInterfaceSrv. Inner IPs come from NIC pattern matching.
+func buildCandidatesProxy(externalIP string, ipInfo *network.IPInfo) []eqpinfo.IPCandidate {
+	if len(ipInfo.MatchingIPs) > 0 {
+		candidates := make([]eqpinfo.IPCandidate, 0, len(ipInfo.MatchingIPs))
+		for _, inner := range ipInfo.MatchingIPs {
+			candidates = append(candidates, eqpinfo.IPCandidate{IPAddr: externalIP, IPAddrLocal: inner})
+		}
+		return candidates
+	}
+	return []eqpinfo.IPCandidate{{IPAddr: externalIP, IPAddrLocal: "_"}}
+}
+
+// buildCandidatesNoProxy builds IP candidates for no-proxy flow.
+// inner_ip is always "_". If DetectIPByDial succeeded, use that single IP.
+// Otherwise, try all NIC IPs as external IP.
+func buildCandidatesNoProxy(detectedIP string, allIPs []string) []eqpinfo.IPCandidate {
+	if detectedIP != "" {
+		return []eqpinfo.IPCandidate{{IPAddr: detectedIP, IPAddrLocal: "_"}}
+	}
+	candidates := make([]eqpinfo.IPCandidate, 0, len(allIPs))
+	for _, ip := range allIPs {
+		candidates = append(candidates, eqpinfo.IPCandidate{IPAddr: ip, IPAddrLocal: "_"})
+	}
+	return candidates
 }
 
 // setupCollectors creates the collector registry and configures it from MonitorConfig.

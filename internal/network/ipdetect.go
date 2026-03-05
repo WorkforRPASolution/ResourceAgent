@@ -12,6 +12,7 @@ type IPInfo struct {
 	IPAddr      string   // External IP (first non-loopback IPv4)
 	IPAddrLocal string   // Internal IP matching pattern, or "_" if no pattern
 	AllIPs      []string // All detected non-loopback IPv4 addresses
+	MatchingIPs []string // All IPs matching the private IP pattern (proxy flow)
 }
 
 // DetectIPs discovers network interfaces and classifies IPs.
@@ -47,21 +48,25 @@ func DetectIPs(privateIPPattern string, overrideIP string) (*IPInfo, error) {
 		info.IPAddr = allIPs[0]
 	}
 
-	// 4. Find local IP matching pattern
+	// 4. Find local IP(s) matching pattern
+	info.MatchingIPs = []string{}
 	if re != nil {
 		for _, ip := range allIPs {
 			if re.MatchString(ip) {
-				info.IPAddrLocal = ip
-				// If no override, use a non-matching IP as external IP
-				if overrideIP == "" {
-					for _, candidate := range allIPs {
-						if candidate != ip {
-							info.IPAddr = candidate
-							break
+				info.MatchingIPs = append(info.MatchingIPs, ip)
+				if info.IPAddrLocal == "_" {
+					// First match becomes IPAddrLocal (backward compat)
+					info.IPAddrLocal = ip
+					// If no override, use a non-matching IP as external IP
+					if overrideIP == "" {
+						for _, candidate := range allIPs {
+							if candidate != ip {
+								info.IPAddr = candidate
+								break
+							}
 						}
 					}
 				}
-				break
 			}
 		}
 	}

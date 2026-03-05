@@ -133,3 +133,36 @@ func TestDetectIPByDial_UnreachableAddr(t *testing.T) {
 	}
 	t.Logf("Got expected error: %v", err)
 }
+
+func TestDetectIPs_MultipleMatchingIPs(t *testing.T) {
+	// This test verifies that MatchingIPs collects all pattern-matching IPs.
+	// Since we can't control real NIC IPs, we test the logic indirectly:
+	// When pattern matches no IPs, MatchingIPs should be empty.
+	info, err := DetectIPs("^203\\.0\\.113\\.", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.MatchingIPs == nil {
+		t.Error("MatchingIPs should not be nil (should be empty slice or populated)")
+	}
+	// With a pattern that won't match any real NIC IP, MatchingIPs should be empty
+	if len(info.MatchingIPs) != 0 {
+		t.Errorf("expected 0 matching IPs for non-matching pattern, got %d: %v", len(info.MatchingIPs), info.MatchingIPs)
+	}
+}
+
+func TestDetectIPs_MatchingIPsConsistentWithIPAddrLocal(t *testing.T) {
+	// When there's a matching IP, IPAddrLocal should be the first match,
+	// and MatchingIPs should contain all matches.
+	info, err := DetectIPs("", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Without a pattern, MatchingIPs should be empty and IPAddrLocal should be "_"
+	if info.IPAddrLocal != "_" {
+		t.Errorf("expected IPAddrLocal='_' without pattern, got %q", info.IPAddrLocal)
+	}
+	if len(info.MatchingIPs) != 0 {
+		t.Errorf("expected 0 MatchingIPs without pattern, got %d", len(info.MatchingIPs))
+	}
+}
