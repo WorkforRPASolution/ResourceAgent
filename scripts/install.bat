@@ -223,27 +223,44 @@ if "%INCLUDE_LHM%"=="1" (
     copy /y "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\LhmHelper.exe" >nul
     echo   Copied LhmHelper.exe
 
-    REM Copy PawnIO_setup.exe
-    if not exist "%PKG_DIR%utils\lhm-helper\PawnIO_setup.exe" (
-        echo ERROR: utils\lhm-helper\PawnIO_setup.exe not found in package.
-        exit /b 1
+    REM Detect OS version to determine PawnIO compatibility
+    REM PawnIO requires Windows 8+ (version 6.2+). Windows 7 = 6.1.
+    REM On Windows 7, LHM automatically falls back to WinRing0 (embedded).
+    set "SKIP_PAWNIO=0"
+    for /f "tokens=4 delims=. " %%A in ('ver') do set "WIN_VER=%%A"
+    for /f "tokens=4,5 delims=. " %%A in ('ver') do (
+        set "WIN_MAJOR=%%A"
+        set "WIN_MINOR=%%B"
     )
-    copy /y "%PKG_DIR%utils\lhm-helper\PawnIO_setup.exe" "%TOOLS_DIR%\PawnIO_setup.exe" >nul
-    echo   Copied PawnIO_setup.exe
+    if defined WIN_MAJOR if defined WIN_MINOR (
+        if !WIN_MAJOR! LEQ 6 if !WIN_MINOR! LEQ 1 set "SKIP_PAWNIO=1"
+    )
 
-    REM Install PawnIO driver if not already installed
-    echo   Checking PawnIO driver...
-    sc.exe query PawnIO >nul 2>&1
-    if errorlevel 1 (
-        echo   PawnIO driver not installed. Installing...
-        "%TOOLS_DIR%\PawnIO_setup.exe" -install -silent
-        if errorlevel 1 (
-            echo ERROR: PawnIO driver installation failed.
+    if "!SKIP_PAWNIO!"=="1" (
+        echo   Windows 7 detected: skipping PawnIO driver ^(LHM will use WinRing0 fallback^)
+    ) else (
+        REM Copy PawnIO_setup.exe
+        if not exist "%PKG_DIR%utils\lhm-helper\PawnIO_setup.exe" (
+            echo ERROR: utils\lhm-helper\PawnIO_setup.exe not found in package.
             exit /b 1
         )
-        echo   PawnIO driver installed successfully
-    ) else (
-        echo   PawnIO driver already installed, skipping
+        copy /y "%PKG_DIR%utils\lhm-helper\PawnIO_setup.exe" "%TOOLS_DIR%\PawnIO_setup.exe" >nul
+        echo   Copied PawnIO_setup.exe
+
+        REM Install PawnIO driver if not already installed
+        echo   Checking PawnIO driver...
+        sc.exe query PawnIO >nul 2>&1
+        if errorlevel 1 (
+            echo   PawnIO driver not installed. Installing...
+            "%TOOLS_DIR%\PawnIO_setup.exe" -install -silent
+            if errorlevel 1 (
+                echo ERROR: PawnIO driver installation failed.
+                exit /b 1
+            )
+            echo   PawnIO driver installed successfully
+        ) else (
+            echo   PawnIO driver already installed, skipping
+        )
     )
 )
 

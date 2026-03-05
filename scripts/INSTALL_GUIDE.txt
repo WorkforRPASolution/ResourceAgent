@@ -88,6 +88,11 @@
   "PawnIO driver installation failed" 오류:
     → 다른 하드웨어 모니터링 프로그램이 실행 중이면 종료 후 재시도
 
+  Windows 7에서 "Windows 7 detected: skipping PawnIO driver" 메시지:
+    → 정상 동작입니다. PawnIO는 Windows 8+ 전용이며,
+      LhmHelper가 내장 WinRing0 드라이버로 자동 폴백하여
+      온도/GPU 등 하드웨어 센서를 정상 수집합니다.
+
   서비스가 시작되지 않을 때:
     → 로그 확인: D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log
     → 설정 파일 확인: conf\ResourceAgent\ResourceAgent.json
