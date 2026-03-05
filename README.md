@@ -292,9 +292,17 @@ install.bat /basepath D:\EARS\EEGAgent
 REM LhmHelper 제외 설치
 install.bat /nolhm
 
+REM VirtualAddressList 직접 지정
+install.bat /site 10.0.0.1,10.0.0.2
+
+REM 파일이 이미 복사되어 있는 경우 (원격 배포 등)
+install.bat /basepath D:\EARS\EEGAgent /nocopy /site 10.0.0.1
+
 REM 옵션
 REM   /basepath PATH    BasePath 지정 (ARSAgent 서비스에서 자동 감지)
 REM   /nolhm            LhmHelper + PawnIO 드라이버 제외
+REM   /site ADDR        VirtualAddressList 직접 지정
+REM   /nocopy           파일 복사 생략 (서비스 등록만 수행)
 REM   /uninstall        제거
 ```
 
@@ -303,6 +311,7 @@ REM   /uninstall        제거
 ```powershell
 .\install.ps1
 .\install.ps1 -BasePath "D:\EARS\EEGAgent" -IncludeLhmHelper
+.\install.ps1 -BasePath "D:\EARS\EEGAgent" -Site "10.0.0.1" -NoCopy
 ```
 
 > 설정 파일(`conf/ResourceAgent/*.json`)은 대상 경로에 이미 존재하면 덮어쓰지 않습니다. 바이너리만 업데이트됩니다.
@@ -316,9 +325,17 @@ sudo ./scripts/install.sh
 # basePath 지정
 sudo ./scripts/install.sh --base-path /opt/EEGAgent
 
+# VirtualAddressList 직접 지정
+sudo ./scripts/install.sh --base-path /opt/EEGAgent --site 10.0.0.1
+
+# 파일이 이미 복사되어 있는 경우 (원격 배포 등)
+sudo ./scripts/install.sh --base-path /opt/EEGAgent --nocopy --site 10.0.0.1
+
 # 옵션
 #   --base-path PATH    BASE 경로 지정 (기본값: /opt/EEGAgent)
 #   --user USER         서비스 사용자 지정 (기본값: resourceagent)
+#   --site ADDR         VirtualAddressList 직접 지정
+#   --nocopy            파일 복사 생략 (서비스 등록만 수행)
 #   --uninstall         제거
 ```
 
