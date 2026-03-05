@@ -537,17 +537,27 @@ Windows에서 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.
 ### 구조
 
 ```
-ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → PawnIO Driver → MSR/SMBus
+ResourceAgent (Go) → LhmHelper.exe (C#) → LibreHardwareMonitorLib → 커널 드라이버 → MSR/SMBus
 ```
+
+LHM은 하드웨어 접근 드라이버를 자동으로 선택합니다:
+
+| OS | 드라이버 | 설명 |
+|---|---|---|
+| Windows 8+ | **PawnIO** | Microsoft WHQL 서명, `install.bat`이 자동 설치 |
+| Windows 7 | **WinRing0** (자동 폴백) | LHM에 내장, PawnIO 설치 불필요 |
 
 ### 필요 파일
 
 1. **LhmHelper.exe** — C# LibreHardwareMonitor 헬퍼 (~60-80MB, self-contained)
-2. **PawnIO 드라이버** — 하드웨어 접근 드라이버 (WinRing0 대체, Microsoft 서명)
+2. **PawnIO 드라이버** (Windows 8+ 전용) — 하드웨어 접근 드라이버 (Microsoft 서명)
+
+> Windows 7에서는 PawnIO가 지원되지 않으며, `install.bat`이 OS 버전을 감지하여 자동으로 설치를 건너뜁니다.
+> LHM이 내장 WinRing0 드라이버로 폴백하여 온도/GPU 등 하드웨어 센서를 정상 수집합니다.
 
 ### PawnIO 드라이버 설치
 
-`install.bat` 실행 시 PawnIO 드라이버가 기본으로 설치됩니다 (`/nolhm` 옵션으로 제외 가능).
+`install.bat` 실행 시 Windows 8+에서는 PawnIO 드라이버가 자동 설치됩니다 (`/nolhm` 옵션으로 제외 가능).
 
 수동 설치가 필요한 경우:
 
@@ -636,7 +646,8 @@ failed to create Kafka producer: kafka: client has run out of available brokers
 ### 온도/하드웨어 센서 수집 실패
 
 - Windows: LhmHelper.exe가 `<BasePath>\utils\lhm-helper\`에 있는지 확인
-- Windows: PawnIO 드라이버 설치 여부 확인 (`sc.exe query PawnIO`)
+- Windows 8+: PawnIO 드라이버 설치 여부 확인 (`sc.exe query PawnIO`)
+- Windows 7: PawnIO 불필요 — LHM이 WinRing0로 자동 폴백 (Defender 차단 시 화이트리스트 필요)
 - macOS: 온도 센서 접근 제한 (개발 테스트용이므로 무시 가능)
 - 다른 Collector에는 영향 없음 (Collector 격리)
 
