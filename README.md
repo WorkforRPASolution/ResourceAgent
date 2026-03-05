@@ -263,8 +263,8 @@ Windows에서 패키지 생성 시:
 ```
 install_package_windows/
 ├── INSTALL_GUIDE.txt                    # 설치 가이드 (현장 담당자용)
-├── install.bat                          # 설치 스크립트
-├── install.ps1                          # PowerShell 설치 스크립트
+├── install_ResourceAgent.bat             # 설치 스크립트
+├── install_ResourceAgent.ps1             # PowerShell 설치 스크립트
 ├── bin\x86\
 │   └── ResourceAgent.exe
 ├── conf\ResourceAgent\
@@ -284,19 +284,19 @@ install_package_windows/
 
 ```cmd
 REM 기본 설치 (BasePath: D:\EARS\EEGAgent)
-install.bat
+install_ResourceAgent.bat
 
 REM BasePath 지정
-install.bat /basepath D:\EARS\EEGAgent
+install_ResourceAgent.bat /basepath D:\EARS\EEGAgent
 
 REM LhmHelper 제외 설치
-install.bat /nolhm
+install_ResourceAgent.bat /nolhm
 
 REM VirtualAddressList 직접 지정
-install.bat /site 10.0.0.1,10.0.0.2
+install_ResourceAgent.bat /site 10.0.0.1,10.0.0.2
 
 REM 파일이 이미 복사되어 있는 경우 (원격 배포 등)
-install.bat /basepath D:\EARS\EEGAgent /nocopy /site 10.0.0.1
+install_ResourceAgent.bat /basepath D:\EARS\EEGAgent /nocopy /site 10.0.0.1
 
 REM 옵션
 REM   /basepath PATH    BasePath 지정 (ARSAgent 서비스에서 자동 감지)
@@ -309,9 +309,9 @@ REM   /uninstall        제거
 또는 PowerShell:
 
 ```powershell
-.\install.ps1
-.\install.ps1 -BasePath "D:\EARS\EEGAgent" -IncludeLhmHelper
-.\install.ps1 -BasePath "D:\EARS\EEGAgent" -Site "10.0.0.1" -NoCopy
+.\install_ResourceAgent.ps1
+.\install_ResourceAgent.ps1 -BasePath "D:\EARS\EEGAgent" -IncludeLhmHelper
+.\install_ResourceAgent.ps1 -BasePath "D:\EARS\EEGAgent" -Site "10.0.0.1" -NoCopy
 ```
 
 > 설정 파일(`conf/ResourceAgent/*.json`)은 대상 경로에 이미 존재하면 덮어쓰지 않습니다. 바이너리만 업데이트됩니다.
@@ -320,16 +320,16 @@ REM   /uninstall        제거
 
 ```bash
 # 기본 설치 (basePath: /opt/EEGAgent)
-sudo ./scripts/install.sh
+sudo ./scripts/install_ResourceAgent.sh
 
 # basePath 지정
-sudo ./scripts/install.sh --base-path /opt/EEGAgent
+sudo ./scripts/install_ResourceAgent.sh --base-path /opt/EEGAgent
 
 # VirtualAddressList 직접 지정
-sudo ./scripts/install.sh --base-path /opt/EEGAgent --site 10.0.0.1
+sudo ./scripts/install_ResourceAgent.sh --base-path /opt/EEGAgent --site 10.0.0.1
 
 # 파일이 이미 복사되어 있는 경우 (원격 배포 등)
-sudo ./scripts/install.sh --base-path /opt/EEGAgent --nocopy --site 10.0.0.1
+sudo ./scripts/install_ResourceAgent.sh --base-path /opt/EEGAgent --nocopy --site 10.0.0.1
 
 # 옵션
 #   --base-path PATH    BASE 경로 지정 (기본값: /opt/EEGAgent)
@@ -365,7 +365,7 @@ sudo systemctl status resourceagent
 ### Linux
 
 ```bash
-sudo ./scripts/install.sh --uninstall
+sudo ./scripts/install_ResourceAgent.sh --uninstall
 ```
 
 또는 수동 제거:
@@ -392,10 +392,10 @@ sudo userdel resourceagent
 패키지 폴더에서 관리자 권한으로 실행:
 
 ```cmd
-install.bat /uninstall
+install_ResourceAgent.bat /uninstall
 ```
 
-또는 PowerShell: `.\install.ps1 -Uninstall`
+또는 PowerShell: `.\install_ResourceAgent.ps1 -Uninstall`
 
 > LhmHelper가 설치된 경우(`/nolhm` 없이 설치), PawnIO 드라이버도 자동으로 제거됩니다.
 
@@ -561,7 +561,7 @@ LHM은 하드웨어 접근 드라이버를 자동으로 선택합니다:
 
 | OS | 드라이버 | 설명 |
 |---|---|---|
-| Windows 8+ | **PawnIO** | Microsoft WHQL 서명, `install.bat`이 자동 설치 |
+| Windows 8+ | **PawnIO** | Microsoft WHQL 서명, `install_ResourceAgent.bat`이 자동 설치 |
 | Windows 7 | **WinRing0** (자동 폴백) | LHM에 내장, PawnIO 설치 불필요 |
 
 ### 필요 파일
@@ -569,12 +569,12 @@ LHM은 하드웨어 접근 드라이버를 자동으로 선택합니다:
 1. **LhmHelper.exe** — C# LibreHardwareMonitor 헬퍼 (~60-80MB, self-contained)
 2. **PawnIO 드라이버** (Windows 8+ 전용) — 하드웨어 접근 드라이버 (Microsoft 서명)
 
-> Windows 7에서는 PawnIO가 지원되지 않으며, `install.bat`이 OS 버전을 감지하여 자동으로 설치를 건너뜁니다.
+> Windows 7에서는 PawnIO가 지원되지 않으며, `install_ResourceAgent.bat`이 OS 버전을 감지하여 자동으로 설치를 건너뜁니다.
 > LHM이 내장 WinRing0 드라이버로 폴백하여 온도/GPU 등 하드웨어 센서를 정상 수집합니다.
 
 ### PawnIO 드라이버 설치
 
-`install.bat` 실행 시 Windows 8+에서는 PawnIO 드라이버가 자동 설치됩니다 (`/nolhm` 옵션으로 제외 가능).
+`install_ResourceAgent.bat` 실행 시 Windows 8+에서는 PawnIO 드라이버가 자동 설치됩니다 (`/nolhm` 옵션으로 제외 가능).
 
 수동 설치가 필요한 경우:
 

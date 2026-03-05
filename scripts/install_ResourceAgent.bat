@@ -4,19 +4,19 @@ REM Copies files from this package to the target BasePath and registers the serv
 REM Run as Administrator
 REM
 REM Package layout (this script must be at the root of the package):
-REM   install.bat
+REM   install_ResourceAgent.bat
 REM   bin\x86\ResourceAgent.exe
 REM   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
 REM   utils\lhm-helper\LhmHelper.exe
 REM   utils\lhm-helper\PawnIO_setup.exe
 REM
 REM Usage:
-REM   install.bat                                    (default install, includes LhmHelper)
-REM   install.bat /basepath D:\EARS\EEGAgent         (specify basepath)
-REM   install.bat /nolhm                             (exclude LhmHelper + PawnIO)
-REM   install.bat /site 10.0.0.1,10.0.0.2            (set VirtualAddressList directly)
-REM   install.bat /nocopy                            (skip file copy, register service only)
-REM   install.bat /uninstall                         (uninstall)
+REM   install_ResourceAgent.bat                                    (default install, includes LhmHelper)
+REM   install_ResourceAgent.bat /basepath D:\EARS\EEGAgent         (specify basepath)
+REM   install_ResourceAgent.bat /nolhm                             (exclude LhmHelper + PawnIO)
+REM   install_ResourceAgent.bat /site 10.0.0.1,10.0.0.2            (set VirtualAddressList directly)
+REM   install_ResourceAgent.bat /nocopy                            (skip file copy, register service only)
+REM   install_ResourceAgent.bat /uninstall                         (uninstall)
 
 setlocal enabledelayedexpansion
 

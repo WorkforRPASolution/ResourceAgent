@@ -71,8 +71,8 @@ resourceagent/
 │   └── Logging.json                # 로깅 설정 (Hot Reload)
 ├── configs/                        # 설정 파일 (레거시 참조용)
 └── scripts/                        # 설치/패키징 스크립트
-    ├── install.bat / install.ps1   # Windows 설치 (패키지에 포함)
-    ├── install.sh                  # Linux 설치
+    ├── install_ResourceAgent.bat / install_ResourceAgent.ps1   # Windows 설치 (패키지에 포함)
+    ├── install_ResourceAgent.sh    # Linux 설치
     ├── package.sh / package.ps1    # 설치 패키지 빌드
     ├── INSTALL_GUIDE.txt           # 현장 담당자용 가이드 (패키지에 포함)
     └── resourceagent.service       # systemd 서비스 파일
@@ -159,9 +159,9 @@ dotnet publish -c Release -r win-x64 --self-contained
 - Microsoft 서명 버전 제공
 
 **배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 설치 패키지 생성
-- 패키지에 ResourceAgent.exe, 설정 파일, install.bat/ps1, INSTALL_GUIDE.txt 포함
+- 패키지에 ResourceAgent.exe, 설정 파일, install_ResourceAgent.bat/ps1, INSTALL_GUIDE.txt 포함
 - LhmHelper.exe + PawnIO_setup.exe 기본 포함 (`/nolhm` 옵션으로 제외 가능)
-- PawnIO 드라이버 설치/제거도 install.bat에서 자동 처리
+- PawnIO 드라이버 설치/제거도 install_ResourceAgent.bat에서 자동 처리
 
 ### 데이터 흐름
 
@@ -185,14 +185,14 @@ REM 패키지 생성 (개발 PC)
 scripts\package.ps1 -IncludeLhmHelper
 
 REM 현장 PC에서 설치 (패키지 압축 해제 후)
-install.bat
-install.bat /basepath D:\EARS\EEGAgent
-install.bat /nolhm
-install.bat /uninstall
+install_ResourceAgent.bat
+install_ResourceAgent.bat /basepath D:\EARS\EEGAgent
+install_ResourceAgent.bat /nolhm
+install_ResourceAgent.bat /uninstall
 ```
 
 **Linux (systemd)**:
 ```bash
-sudo ./scripts/install.sh --base-path /opt/EEGAgent
-sudo ./scripts/install.sh --uninstall
+sudo ./scripts/install_ResourceAgent.sh --base-path /opt/EEGAgent
+sudo ./scripts/install_ResourceAgent.sh --uninstall
 ```

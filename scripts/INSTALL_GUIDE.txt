@@ -12,7 +12,7 @@
 
 [설치 방법]
 
-  1. install.bat 파일을 우클릭 → "관리자 권한으로 실행"
+  1. install_ResourceAgent.bat 파일을 우클릭 → "관리자 권한으로 실행"
 
      * ARSAgent가 이미 설치되어 있으면 설치 경로를 자동으로 감지합니다.
      * ARSAgent가 없으면 /basepath 옵션을 지정해야 합니다.
@@ -21,23 +21,23 @@
   2. 하드웨어 센서 수집이 필요 없는 경우:
      명령 프롬프트를 관리자 권한으로 열고 다음을 실행합니다.
 
-       install.bat /nolhm
+       install_ResourceAgent.bat /nolhm
 
      이 옵션은 LhmHelper와 PawnIO 드라이버 설치를 건너뜁니다.
 
   3. 설치 경로를 수동으로 지정하려면:
 
-       install.bat /basepath E:\MyPath\EEGAgent
-       install.bat /basepath E:\MyPath\EEGAgent /nolhm
+       install_ResourceAgent.bat /basepath E:\MyPath\EEGAgent
+       install_ResourceAgent.bat /basepath E:\MyPath\EEGAgent /nolhm
 
   4. VirtualAddressList를 직접 지정하려면:
 
-       install.bat /site 10.0.0.1,10.0.0.2
+       install_ResourceAgent.bat /site 10.0.0.1,10.0.0.2
 
   5. 파일이 이미 복사되어 있는 경우 (원격 배포 등):
      서비스 등록 + PawnIO 드라이버 설치만 수행합니다.
 
-       install.bat /basepath E:\MyPath\EEGAgent /nocopy /site 10.0.0.1
+       install_ResourceAgent.bat /basepath E:\MyPath\EEGAgent /nocopy /site 10.0.0.1
 
 
 [설치 확인]
@@ -59,7 +59,7 @@
 
   명령 프롬프트를 관리자 권한으로 열고:
 
-    install.bat /uninstall
+    install_ResourceAgent.bat /uninstall
 
   설치 경로는 등록된 서비스 정보에서 자동으로 감지됩니다.
   (/basepath 옵션을 별도로 지정할 필요 없음)
@@ -70,7 +70,7 @@
 
 [Linux 설치]
 
-  sudo ./install.sh --base-path /opt/EEGAgent
+  sudo ./install_ResourceAgent.sh --base-path /opt/EEGAgent
 
   옵션:
     --base-path PATH    설치 경로 (ARSAgent 자동 감지)
@@ -80,10 +80,10 @@
     --uninstall         제거
 
   예시:
-    sudo ./install.sh                                          # ARSAgent 경로 자동 감지
-    sudo ./install.sh --base-path /opt/EEGAgent --site 10.0.0.1
-    sudo ./install.sh --base-path /opt/EEGAgent --nocopy --site 10.0.0.1
-    sudo ./install.sh --uninstall
+    sudo ./install_ResourceAgent.sh                                          # ARSAgent 경로 자동 감지
+    sudo ./install_ResourceAgent.sh --base-path /opt/EEGAgent --site 10.0.0.1
+    sudo ./install_ResourceAgent.sh --base-path /opt/EEGAgent --nocopy --site 10.0.0.1
+    sudo ./install_ResourceAgent.sh --uninstall
 
 
 [설치 후 폴더 구조]
@@ -106,7 +106,7 @@
 [문제 해결]
 
   "This script requires Administrator privileges" 오류:
-    → install.bat를 우클릭 → "관리자 권한으로 실행"
+    → install_ResourceAgent.bat를 우클릭 → "관리자 권한으로 실행"
 
   "ResourceAgent.exe not found in package" 오류:
     → 패키지가 올바르게 압축 해제되었는지 확인하세요.

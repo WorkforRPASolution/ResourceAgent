@@ -55,9 +55,9 @@ PawnIO 설치 실패와 무관하게 온도/GPU 수집이 정상 수행된다.
 
 공장 내부망 환경에서 Defender가 WinRing0를 차단할 경우에만 화이트리스트 처리 필요.
 
-## 대응: install.bat OS 버전 자동 분기
+## 대응: install_ResourceAgent.bat OS 버전 자동 분기
 
-`install.bat`이 OS 버전을 감지하여 자동 분기:
+`install_ResourceAgent.bat`이 OS 버전을 감지하여 자동 분기:
 
 - **Windows 8+**: PawnIO 드라이버 설치 (기존 동작)
 - **Windows 7**: PawnIO 설치 스킵, LhmHelper만 복사 (WinRing0 자동 폴백)
@@ -66,6 +66,6 @@ PawnIO 설치 실패와 무관하게 온도/GPU 수집이 정상 수행된다.
 
 ## 상태
 
-- [x] 대응 방안 결정 → install.bat에서 OS 버전별 자동 분기
+- [x] 대응 방안 결정 → install_ResourceAgent.bat에서 OS 버전별 자동 분기
 - [x] Windows 7 실제 테스트 완료 (2026-03-05)
-- [x] install.bat 수정 완료
+- [x] install_ResourceAgent.bat 수정 완료

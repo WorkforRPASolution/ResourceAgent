@@ -86,8 +86,8 @@ Copy-Item "$ConfDir\*.json" -Destination (Join-Path $PackageDir "conf\ResourceAg
 Write-Host "  Copied config files"
 
 # --- Copy install scripts + guide ---
-Copy-Item (Join-Path $ScriptDir "install.bat") -Destination $PackageDir
-Copy-Item (Join-Path $ScriptDir "install.ps1") -Destination $PackageDir
+Copy-Item (Join-Path $ScriptDir "install_ResourceAgent.bat") -Destination $PackageDir
+Copy-Item (Join-Path $ScriptDir "install_ResourceAgent.ps1") -Destination $PackageDir
 Copy-Item (Join-Path $ScriptDir "INSTALL_GUIDE.txt") -Destination $PackageDir
 $SitesConf = Join-Path $ScriptDir "sites.conf"
 if (Test-Path $SitesConf) {

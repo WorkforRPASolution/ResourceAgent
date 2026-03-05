@@ -88,8 +88,8 @@ cp "$CONF_DIR"/*.json "$PACKAGE_DIR/conf/ResourceAgent/"
 echo "  Copied config files"
 
 # --- Copy install scripts + guide ---
-cp "$SCRIPT_DIR/install.bat" "$PACKAGE_DIR/"
-cp "$SCRIPT_DIR/install.ps1" "$PACKAGE_DIR/"
+cp "$SCRIPT_DIR/install_ResourceAgent.bat" "$PACKAGE_DIR/"
+cp "$SCRIPT_DIR/install_ResourceAgent.ps1" "$PACKAGE_DIR/"
 cp "$SCRIPT_DIR/INSTALL_GUIDE.txt" "$PACKAGE_DIR/"
 if [ -f "$SCRIPT_DIR/sites.conf" ]; then
     cp "$SCRIPT_DIR/sites.conf" "$PACKAGE_DIR/"

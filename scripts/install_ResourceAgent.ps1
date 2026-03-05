@@ -3,7 +3,7 @@
 # Run as Administrator
 #
 # Package layout (this script must be at the root of the package):
-#   install.ps1
+#   install_ResourceAgent.ps1
 #   bin\x86\ResourceAgent.exe
 #   conf\ResourceAgent\{ResourceAgent,Monitor,Logging}.json
 #   utils\lhm-helper\LhmHelper.exe        (optional)
