@@ -14,7 +14,8 @@ REM Usage:
 REM   install.bat                                    (default install, includes LhmHelper)
 REM   install.bat /basepath D:\EARS\EEGAgent         (specify basepath)
 REM   install.bat /nolhm                             (exclude LhmHelper + PawnIO)
-REM   install.bat /site 1                            (non-interactive site selection)
+REM   install.bat /site 10.0.0.1,10.0.0.2            (set VirtualAddressList directly)
+REM   install.bat /nocopy                            (skip file copy, register service only)
 REM   install.bat /uninstall                         (uninstall)
 
 setlocal enabledelayedexpansion
@@ -26,8 +27,9 @@ REM --- Default values ---
 set "BASE_PATH=D:\EARS\EEGAgent"
 set "BASEPATH_SET=0"
 set "INCLUDE_LHM=1"
+set "NO_COPY=0"
 set "UNINSTALL=0"
-set "SITE_NUM="
+set "SITE_ADDR_ARG="
 set "SERVICE_NAME=ResourceAgent"
 set "DISPLAY_NAME=Resource Monitoring Service"
 set "DESCRIPTION=Lightweight monitoring agent for collecting hardware resource metrics"
@@ -47,8 +49,13 @@ if /i "%~1"=="/nolhm" (
     shift
     goto :parse_args
 )
+if /i "%~1"=="/nocopy" (
+    set "NO_COPY=1"
+    shift
+    goto :parse_args
+)
 if /i "%~1"=="/site" (
-    set "SITE_NUM=%~2"
+    set "SITE_ADDR_ARG=%~2"
     shift
     shift
     goto :parse_args
@@ -59,7 +66,7 @@ if /i "%~1"=="/uninstall" (
     goto :parse_args
 )
 echo Unknown option: %~1
-echo Usage: %~nx0 [/basepath PATH] [/nolhm] [/site N] [/uninstall]
+echo Usage: %~nx0 [/basepath PATH] [/nolhm] [/nocopy] [/site ADDR] [/uninstall]
 exit /b 1
 :args_done
 
@@ -113,8 +120,12 @@ set "TOOLS_DIR=!BASE_PATH!\utils\lhm-helper"
 
 :install_start
 echo Installing ResourceAgent...
-echo   Package: %PKG_DIR%
 echo   Target:  %BASE_PATH%
+if "%NO_COPY%"=="1" (
+    echo   Mode:    Service registration only (file copy skipped)
+) else (
+    echo   Package: %PKG_DIR%
+)
 echo.
 
 REM Create target directory structure
@@ -124,6 +135,8 @@ for %%D in ("%BIN_DIR%" "%CONF_DIR%" "%LOG_DIR%") do (
         echo   Created: %%~D
     )
 )
+
+if "%NO_COPY%"=="1" goto :skip_file_copy
 
 REM --- Copy ResourceAgent.exe ---
 if not exist "%PKG_DIR%bin\x86\ResourceAgent.exe" (
@@ -147,68 +160,86 @@ for %%F in (ResourceAgent.json Monitor.json Logging.json) do (
     )
 )
 
+goto :site_selection
+
+:skip_file_copy
+REM --- /nocopy: verify required files exist at target ---
+if not exist "%BIN_DIR%\ResourceAgent.exe" (
+    echo ERROR: %BIN_DIR%\ResourceAgent.exe not found. Copy files before using /nocopy.
+    exit /b 1
+)
+if not exist "%CONF_DIR%\ResourceAgent.json" (
+    echo ERROR: %CONF_DIR%\ResourceAgent.json not found. Copy files before using /nocopy.
+    exit /b 1
+)
+echo   Verified: ResourceAgent.exe and config files exist
+
+:site_selection
 REM --- Site selection: configure VirtualAddressList ---
+if defined SITE_ADDR_ARG (
+    REM /site <address> — set VirtualAddressList directly
+    set "SITE_ADDR=!SITE_ADDR_ARG!"
+    goto :apply_site
+)
+
+REM Interactive mode via sites.conf
 set "SITES_FILE=%PKG_DIR%sites.conf"
-if exist "%SITES_FILE%" (
-    REM Parse sites.conf
-    set "SITE_COUNT=0"
-    for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%SITES_FILE%") do (
-        set "%%A=%%B"
-    )
-    if !SITE_COUNT! GTR 0 (
-        if defined SITE_NUM (
-            REM Non-interactive mode: /site N
-            if "!SITE_NUM!"=="0" (
-                echo   Site selection skipped ^(/site 0^)
-                goto :site_done
-            )
-            if !SITE_NUM! GTR !SITE_COUNT! (
-                echo ERROR: /site !SITE_NUM! is out of range ^(1-!SITE_COUNT!^)
-                exit /b 1
-            )
-            set "SELECTED_SITE=!SITE_NUM!"
+if not exist "%SITES_FILE%" goto :site_done
+set "SITE_COUNT=0"
+for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%SITES_FILE%") do (
+    set "%%A=%%B"
+)
+if !SITE_COUNT! EQU 0 goto :site_done
+
+echo.
+echo === Site Selection ===
+for /L %%I in (1,1,!SITE_COUNT!) do (
+    call set "MENU_NAME=%%SITE_%%I_NAME%%"
+    call set "MENU_ADDR=%%SITE_%%I_ADDR%%"
+    echo   %%I^) !MENU_NAME! ^(!MENU_ADDR!^)
+)
+echo   0^) Skip ^(do not modify VirtualAddressList^)
+echo.
+set /p "SELECTED_SITE=Select site [0-!SITE_COUNT!]: "
+
+if "!SELECTED_SITE!"=="0" (
+    echo   Site selection skipped
+    goto :site_done
+)
+if !SELECTED_SITE! GTR !SITE_COUNT! (
+    echo ERROR: Invalid site number: !SELECTED_SITE!
+    exit /b 1
+)
+call set "SITE_ADDR=%%SITE_!SELECTED_SITE!_ADDR%%"
+call set "SITE_NAME_SEL=%%SITE_!SELECTED_SITE!_NAME%%"
+if not defined SITE_ADDR (
+    echo ERROR: Invalid site number: !SELECTED_SITE!
+    exit /b 1
+)
+
+:apply_site
+REM Update VirtualAddressList in ResourceAgent.json
+set "RA_CONFIG=%CONF_DIR%\ResourceAgent.json"
+if exist "!RA_CONFIG!" (
+    set "TEMP_CONFIG=!RA_CONFIG!.tmp"
+    (for /f "usebackq delims=" %%L in ("!RA_CONFIG!") do (
+        set "LINE=%%L"
+        if "!LINE:VirtualAddressList=!" neq "!LINE!" (
+            echo   "VirtualAddressList": "!SITE_ADDR!",
         ) else (
-            REM Interactive mode: show menu
-            echo.
-            echo === Site Selection ===
-            for /L %%I in (1,1,!SITE_COUNT!) do (
-                call set "MENU_NAME=%%SITE_%%I_NAME%%"
-                call set "MENU_ADDR=%%SITE_%%I_ADDR%%"
-                echo   %%I^) !MENU_NAME! ^(!MENU_ADDR!^)
-            )
-            echo   0^) Skip ^(do not modify VirtualAddressList^)
-            echo.
-            set /p "SELECTED_SITE=Select site [0-!SITE_COUNT!]: "
+            echo(!LINE!
         )
-        if "!SELECTED_SITE!"=="0" (
-            echo   Site selection skipped
-            goto :site_done
-        )
-        REM Validate selection and resolve indirection
-        call set "SITE_ADDR=%%SITE_!SELECTED_SITE!_ADDR%%"
-        call set "SITE_NAME_SEL=%%SITE_!SELECTED_SITE!_NAME%%"
-        if not defined SITE_ADDR (
-            echo ERROR: Invalid site number: !SELECTED_SITE!
-            exit /b 1
-        )
-        REM Update VirtualAddressList in ResourceAgent.json
-        set "RA_CONFIG=%CONF_DIR%\ResourceAgent.json"
-        if exist "!RA_CONFIG!" (
-            set "TEMP_CONFIG=!RA_CONFIG!.tmp"
-            (for /f "usebackq delims=" %%L in ("!RA_CONFIG!") do (
-                set "LINE=%%L"
-                if "!LINE:VirtualAddressList=!" neq "!LINE!" (
-                    echo   "VirtualAddressList": "!SITE_ADDR!",
-                ) else (
-                    echo(!LINE!
-                )
-            )) > "!TEMP_CONFIG!"
-            move /y "!TEMP_CONFIG!" "!RA_CONFIG!" >nul
-            echo   VirtualAddressList set to: !SITE_ADDR! ^(!SITE_NAME_SEL!^)
-        )
+    )) > "!TEMP_CONFIG!"
+    move /y "!TEMP_CONFIG!" "!RA_CONFIG!" >nul
+    if defined SITE_NAME_SEL (
+        echo   VirtualAddressList set to: !SITE_ADDR! ^(!SITE_NAME_SEL!^)
+    ) else (
+        echo   VirtualAddressList set to: !SITE_ADDR!
     )
 )
 :site_done
+
+if "%NO_COPY%"=="1" goto :nocopy_lhm
 
 REM --- Copy LhmHelper + PawnIO (optional) ---
 if "%INCLUDE_LHM%"=="1" (
@@ -263,7 +294,45 @@ if "%INCLUDE_LHM%"=="1" (
         )
     )
 )
+goto :register_service
 
+:nocopy_lhm
+REM --- /nocopy: install PawnIO driver if LhmHelper exists at target ---
+if "%INCLUDE_LHM%"=="1" (
+    if exist "%TOOLS_DIR%\LhmHelper.exe" (
+        echo   LhmHelper.exe found at target
+
+        set "SKIP_PAWNIO=0"
+        for /f "tokens=4,5 delims=. " %%A in ('ver') do (
+            set "WIN_MAJOR=%%A"
+            set "WIN_MINOR=%%B"
+        )
+        if defined WIN_MAJOR if defined WIN_MINOR (
+            if !WIN_MAJOR! LEQ 6 if !WIN_MINOR! LEQ 1 set "SKIP_PAWNIO=1"
+        )
+
+        if "!SKIP_PAWNIO!"=="1" (
+            echo   Windows 7 detected: skipping PawnIO driver ^(LHM will use WinRing0 fallback^)
+        ) else (
+            if exist "%TOOLS_DIR%\PawnIO_setup.exe" (
+                sc.exe query PawnIO >nul 2>&1
+                if errorlevel 1 (
+                    echo   PawnIO driver not installed. Installing...
+                    "%TOOLS_DIR%\PawnIO_setup.exe" -install -silent
+                    if errorlevel 1 (
+                        echo ERROR: PawnIO driver installation failed.
+                        exit /b 1
+                    )
+                    echo   PawnIO driver installed successfully
+                ) else (
+                    echo   PawnIO driver already installed, skipping
+                )
+            )
+        )
+    )
+)
+
+:register_service
 REM --- Register Windows service ---
 set "BINARY_PATH=%BIN_DIR%\ResourceAgent.exe"
 set "CONFIG_FILE=%CONF_DIR%\ResourceAgent.json"

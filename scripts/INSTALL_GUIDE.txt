@@ -30,6 +30,15 @@
        install.bat /basepath E:\MyPath\EEGAgent
        install.bat /basepath E:\MyPath\EEGAgent /nolhm
 
+  4. VirtualAddressList를 직접 지정하려면:
+
+       install.bat /site 10.0.0.1,10.0.0.2
+
+  5. 파일이 이미 복사되어 있는 경우 (원격 배포 등):
+     서비스 등록 + PawnIO 드라이버 설치만 수행합니다.
+
+       install.bat /basepath E:\MyPath\EEGAgent /nocopy /site 10.0.0.1
+
 
 [설치 확인]
 
@@ -57,6 +66,24 @@
 
   서비스 중지 → PawnIO 드라이버 제거 → 파일 삭제 순으로 진행됩니다.
   (ARSAgent 파일은 삭제되지 않습니다)
+
+
+[Linux 설치]
+
+  sudo ./install.sh --base-path /opt/EEGAgent
+
+  옵션:
+    --base-path PATH    설치 경로 (ARSAgent 자동 감지)
+    --user USER         서비스 실행 사용자 (기본: resourceagent)
+    --site ADDR         VirtualAddressList 직접 지정
+    --nocopy            파일 복사 생략 (서비스 등록만 수행)
+    --uninstall         제거
+
+  예시:
+    sudo ./install.sh                                          # ARSAgent 경로 자동 감지
+    sudo ./install.sh --base-path /opt/EEGAgent --site 10.0.0.1
+    sudo ./install.sh --base-path /opt/EEGAgent --nocopy --site 10.0.0.1
+    sudo ./install.sh --uninstall
 
 
 [설치 후 폴더 구조]

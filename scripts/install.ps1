@@ -12,7 +12,8 @@
 param(
     [string]$BasePath = "D:\EARS\EEGAgent",
     [switch]$IncludeLhmHelper,
-    [int]$Site = -1,
+    [string]$Site = "",
+    [switch]$NoCopy,
     [switch]$Uninstall
 )
 
@@ -23,16 +24,67 @@ $Description = "Lightweight monitoring agent for collecting hardware resource me
 # Package directory = where this script lives
 $PkgDir = $PSScriptRoot
 
-function Install-ResourceAgent {
-    Write-Host "Installing ResourceAgent..." -ForegroundColor Green
-    Write-Host "  Package: $PkgDir"
-    Write-Host "  Target:  $BasePath"
-    Write-Host ""
+function Test-IsWindows7 {
+    $ver = [System.Environment]::OSVersion.Version
+    return ($ver.Major -eq 6 -and $ver.Minor -le 1)
+}
 
+function Set-VirtualAddressList {
+    param([string]$Addr, [string]$Label)
+
+    $ConfigFile = Join-Path $ConfDir "ResourceAgent.json"
+    if (Test-Path $ConfigFile) {
+        $content = Get-Content $ConfigFile -Raw
+        $content = $content -replace '"VirtualAddressList":\s*"[^"]*"', "`"VirtualAddressList`": `"$Addr`""
+        Set-Content $ConfigFile -Value $content -NoNewline
+        if ($Label) {
+            Write-Host "  VirtualAddressList set to: $Addr ($Label)"
+        } else {
+            Write-Host "  VirtualAddressList set to: $Addr"
+        }
+    }
+}
+
+function Install-PawnIODriver {
+    param([string]$ToolsDir)
+
+    if (Test-IsWindows7) {
+        Write-Host "  Windows 7 detected: skipping PawnIO driver (LHM will use WinRing0 fallback)"
+        return
+    }
+
+    $PawnioExe = Join-Path $ToolsDir "PawnIO_setup.exe"
+    if (-not (Test-Path $PawnioExe)) { return }
+
+    Write-Host "  Checking PawnIO driver..."
+    sc.exe query PawnIO 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  PawnIO driver not installed. Installing..."
+        $process = Start-Process -FilePath $PawnioExe -ArgumentList "-install -silent" -Wait -PassThru
+        if ($process.ExitCode -ne 0) {
+            Write-Error "PawnIO driver installation failed (exit code: $($process.ExitCode))."
+            exit 1
+        }
+        Write-Host "  PawnIO driver installed successfully"
+    } else {
+        Write-Host "  PawnIO driver already installed, skipping"
+    }
+}
+
+function Install-ResourceAgent {
     $BinDir = Join-Path $BasePath "bin\x86"
-    $ConfDir = Join-Path $BasePath "conf\ResourceAgent"
+    $script:ConfDir = Join-Path $BasePath "conf\ResourceAgent"
     $LogDir = Join-Path $BasePath "log\ResourceAgent"
     $ToolsDir = Join-Path $BasePath "utils\lhm-helper"
+
+    Write-Host "Installing ResourceAgent..." -ForegroundColor Green
+    Write-Host "  Target:  $BasePath"
+    if ($NoCopy) {
+        Write-Host "  Mode:    Service registration only (file copy skipped)"
+    } else {
+        Write-Host "  Package: $PkgDir"
+    }
+    Write-Host ""
 
     # Create target directory structure
     foreach ($dir in @($BinDir, $ConfDir, $LogDir)) {
@@ -42,52 +94,66 @@ function Install-ResourceAgent {
         }
     }
 
-    # --- Copy ResourceAgent.exe ---
-    $BinarySource = Join-Path $PkgDir "bin\x86\ResourceAgent.exe"
-    if (-not (Test-Path $BinarySource)) {
-        Write-Error "bin\x86\ResourceAgent.exe not found in package."
-        exit 1
-    }
-    Copy-Item $BinarySource -Destination "$BinDir\ResourceAgent.exe" -Force
-    Write-Host "  Copied ResourceAgent.exe"
-
-    # --- Copy config files (skip if already exist at target) ---
-    foreach ($file in @("ResourceAgent.json", "Monitor.json", "Logging.json")) {
-        $src = Join-Path $PkgDir "conf\ResourceAgent\$file"
-        $dst = Join-Path $ConfDir $file
-        if (-not (Test-Path $src)) {
-            Write-Error "conf\ResourceAgent\$file not found in package."
+    if ($NoCopy) {
+        # --- /NoCopy: verify required files exist at target ---
+        if (-not (Test-Path (Join-Path $BinDir "ResourceAgent.exe"))) {
+            Write-Error "$BinDir\ResourceAgent.exe not found. Copy files before using -NoCopy."
             exit 1
         }
-        if (-not (Test-Path $dst)) {
-            Copy-Item $src -Destination $dst -Force
-            Write-Host "  Copied $file"
-        } else {
-            Write-Host "  Skipped $file (already exists at target)"
+        if (-not (Test-Path (Join-Path $ConfDir "ResourceAgent.json"))) {
+            Write-Error "$ConfDir\ResourceAgent.json not found. Copy files before using -NoCopy."
+            exit 1
+        }
+        Write-Host "  Verified: ResourceAgent.exe and config files exist"
+    } else {
+        # --- Copy ResourceAgent.exe ---
+        $BinarySource = Join-Path $PkgDir "bin\x86\ResourceAgent.exe"
+        if (-not (Test-Path $BinarySource)) {
+            Write-Error "bin\x86\ResourceAgent.exe not found in package."
+            exit 1
+        }
+        Copy-Item $BinarySource -Destination "$BinDir\ResourceAgent.exe" -Force
+        Write-Host "  Copied ResourceAgent.exe"
+
+        # --- Copy config files (skip if already exist at target) ---
+        foreach ($file in @("ResourceAgent.json", "Monitor.json", "Logging.json")) {
+            $src = Join-Path $PkgDir "conf\ResourceAgent\$file"
+            $dst = Join-Path $ConfDir $file
+            if (-not (Test-Path $src)) {
+                Write-Error "conf\ResourceAgent\$file not found in package."
+                exit 1
+            }
+            if (-not (Test-Path $dst)) {
+                Copy-Item $src -Destination $dst -Force
+                Write-Host "  Copied $file"
+            } else {
+                Write-Host "  Skipped $file (already exists at target)"
+            }
         }
     }
 
     # --- Site selection: configure VirtualAddressList ---
-    $SitesFile = Join-Path $PkgDir "sites.conf"
-    if (Test-Path $SitesFile) {
-        # Parse sites.conf (KEY=VALUE, skip # comments)
-        $siteData = @{}
-        Get-Content $SitesFile | ForEach-Object {
-            $line = $_.Trim()
-            if ($line -and -not $line.StartsWith("#")) {
-                $eqIdx = $line.IndexOf("=")
-                if ($eqIdx -gt 0) {
-                    $key = $line.Substring(0, $eqIdx).Trim()
-                    $val = $line.Substring($eqIdx + 1).Trim()
-                    $siteData[$key] = $val
+    if ($Site -ne "") {
+        # /Site <address> — set VirtualAddressList directly
+        Set-VirtualAddressList -Addr $Site
+    } else {
+        # Interactive mode via sites.conf
+        $SitesFile = Join-Path $PkgDir "sites.conf"
+        if (Test-Path $SitesFile) {
+            $siteData = @{}
+            Get-Content $SitesFile | ForEach-Object {
+                $line = $_.Trim()
+                if ($line -and -not $line.StartsWith("#")) {
+                    $eqIdx = $line.IndexOf("=")
+                    if ($eqIdx -gt 0) {
+                        $key = $line.Substring(0, $eqIdx).Trim()
+                        $val = $line.Substring($eqIdx + 1).Trim()
+                        $siteData[$key] = $val
+                    }
                 }
             }
-        }
-        $siteCount = [int]$siteData["SITE_COUNT"]
-        if ($siteCount -gt 0) {
-            $selectedSite = $Site
-            if ($selectedSite -eq -1) {
-                # Interactive mode: show menu
+            $siteCount = [int]$siteData["SITE_COUNT"]
+            if ($siteCount -gt 0) {
                 Write-Host ""
                 Write-Host "=== Site Selection ==="
                 for ($i = 1; $i -le $siteCount; $i++) {
@@ -98,28 +164,31 @@ function Install-ResourceAgent {
                 Write-Host "  0) Skip (do not modify VirtualAddressList)"
                 Write-Host ""
                 $selectedSite = [int](Read-Host "Select site [0-$siteCount]")
-            }
-            if ($selectedSite -eq 0) {
-                Write-Host "  Site selection skipped"
-            } elseif ($selectedSite -ge 1 -and $selectedSite -le $siteCount) {
-                $addr = $siteData["SITE_${selectedSite}_ADDR"]
-                $siteName = $siteData["SITE_${selectedSite}_NAME"]
-                $ConfigFile = Join-Path $ConfDir "ResourceAgent.json"
-                if (Test-Path $ConfigFile) {
-                    $content = Get-Content $ConfigFile -Raw
-                    $content = $content -replace '"VirtualAddressList":\s*"[^"]*"', "`"VirtualAddressList`": `"$addr`""
-                    Set-Content $ConfigFile -Value $content -NoNewline
-                    Write-Host "  VirtualAddressList set to: $addr ($siteName)"
+
+                if ($selectedSite -eq 0) {
+                    Write-Host "  Site selection skipped"
+                } elseif ($selectedSite -ge 1 -and $selectedSite -le $siteCount) {
+                    $addr = $siteData["SITE_${selectedSite}_ADDR"]
+                    $siteName = $siteData["SITE_${selectedSite}_NAME"]
+                    Set-VirtualAddressList -Addr $addr -Label $siteName
+                } else {
+                    Write-Error "Invalid site number: $selectedSite (valid: 0-$siteCount)"
+                    exit 1
                 }
-            } else {
-                Write-Error "Invalid site number: $selectedSite (valid: 0-$siteCount)"
-                exit 1
             }
         }
     }
 
-    # --- Copy LhmHelper + PawnIO (optional) ---
-    if ($IncludeLhmHelper) {
+    # --- LhmHelper + PawnIO ---
+    if ($NoCopy) {
+        # /NoCopy: install PawnIO if LhmHelper exists at target
+        if ($IncludeLhmHelper -or (Test-Path (Join-Path $ToolsDir "LhmHelper.exe"))) {
+            if (Test-Path (Join-Path $ToolsDir "LhmHelper.exe")) {
+                Write-Host "  LhmHelper.exe found at target"
+                Install-PawnIODriver -ToolsDir $ToolsDir
+            }
+        }
+    } elseif ($IncludeLhmHelper) {
         if (-not (Test-Path $ToolsDir)) {
             New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
         }
@@ -133,29 +202,18 @@ function Install-ResourceAgent {
         Copy-Item $LhmSource -Destination "$ToolsDir\LhmHelper.exe" -Force
         Write-Host "  Copied LhmHelper.exe"
 
-        # Copy PawnIO_setup.exe
-        $PawnioSource = Join-Path $PkgDir "utils\lhm-helper\PawnIO_setup.exe"
-        if (-not (Test-Path $PawnioSource)) {
-            Write-Error "utils\lhm-helper\PawnIO_setup.exe not found in package."
-            exit 1
-        }
-        Copy-Item $PawnioSource -Destination "$ToolsDir\PawnIO_setup.exe" -Force
-        Write-Host "  Copied PawnIO_setup.exe"
-
-        # Install PawnIO driver if not already installed
-        Write-Host "  Checking PawnIO driver..."
-        sc.exe query PawnIO 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  PawnIO driver not installed. Installing..."
-            $process = Start-Process -FilePath "$ToolsDir\PawnIO_setup.exe" -ArgumentList "-install -silent" -Wait -PassThru
-            if ($process.ExitCode -ne 0) {
-                Write-Error "PawnIO driver installation failed (exit code: $($process.ExitCode))."
+        if (-not (Test-IsWindows7)) {
+            # Copy PawnIO_setup.exe
+            $PawnioSource = Join-Path $PkgDir "utils\lhm-helper\PawnIO_setup.exe"
+            if (-not (Test-Path $PawnioSource)) {
+                Write-Error "utils\lhm-helper\PawnIO_setup.exe not found in package."
                 exit 1
             }
-            Write-Host "  PawnIO driver installed successfully"
-        } else {
-            Write-Host "  PawnIO driver already installed, skipping"
+            Copy-Item $PawnioSource -Destination "$ToolsDir\PawnIO_setup.exe" -Force
+            Write-Host "  Copied PawnIO_setup.exe"
         }
+
+        Install-PawnIODriver -ToolsDir $ToolsDir
     }
 
     # --- Register Windows service ---

@@ -15,7 +15,8 @@ BASE_PATH="/opt/EEGAgent"
 BASEPATH_SET=false
 SERVICE_USER="resourceagent"
 UNINSTALL=false
-SITE_NUM=""
+NO_COPY=false
+SITE_ADDR=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -30,8 +31,12 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --site)
-            SITE_NUM="$2"
+            SITE_ADDR="$2"
             shift 2
+            ;;
+        --nocopy)
+            NO_COPY=true
+            shift
             ;;
         --uninstall)
             UNINSTALL=true
@@ -39,7 +44,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--base-path PATH] [--user USER] [--site N] [--uninstall]"
+            echo "Usage: $0 [--base-path PATH] [--user USER] [--site ADDR] [--nocopy] [--uninstall]"
             exit 1
             ;;
     esac
@@ -89,6 +94,11 @@ install_agent() {
     fi
 
     echo "Installing ResourceAgent (Integrated)..."
+    echo "  Target:  $BASE_PATH"
+    if $NO_COPY; then
+        echo "  Mode:    Service registration only (file copy skipped)"
+    fi
+    echo ""
 
     # Create service user if not exists
     if ! id "$SERVICE_USER" &>/dev/null; then
@@ -100,46 +110,76 @@ install_agent() {
     mkdir -p "$BIN_DIR" "$CONF_DIR" "$LOG_DIR"
     echo "  Created directories under $BASE_PATH"
 
-    # Copy binary
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    BINARY_SOURCE="$SCRIPT_DIR/../resourceagent"
 
-    if [[ ! -f "$BINARY_SOURCE" ]]; then
-        BINARY_SOURCE="./resourceagent"
-    fi
-
-    if [[ -f "$BINARY_SOURCE" ]]; then
-        cp "$BINARY_SOURCE" "$BIN_DIR/resourceagent"
-        chmod +x "$BIN_DIR/resourceagent"
-        echo "  Copied binary to $BIN_DIR"
+    if $NO_COPY; then
+        # --- NoCopy: verify required files exist at target ---
+        if [[ ! -f "$BIN_DIR/resourceagent" ]]; then
+            echo "ERROR: $BIN_DIR/resourceagent not found. Copy files before using --nocopy."
+            exit 1
+        fi
+        if [[ ! -f "$CONF_DIR/ResourceAgent.json" ]]; then
+            echo "ERROR: $CONF_DIR/ResourceAgent.json not found. Copy files before using --nocopy."
+            exit 1
+        fi
+        echo "  Verified: resourceagent and config files exist"
     else
-        echo "Error: Binary not found. Please build the project first."
-        exit 1
-    fi
+        # Copy binary
+        BINARY_SOURCE="$SCRIPT_DIR/../resourceagent"
 
-    # Copy config files
-    DEFAULT_CONF="$SCRIPT_DIR/../conf/ResourceAgent"
-    if [[ -d "$DEFAULT_CONF" ]]; then
-        cp "$DEFAULT_CONF"/*.json "$CONF_DIR/"
-        echo "  Copied default configuration files"
+        if [[ ! -f "$BINARY_SOURCE" ]]; then
+            BINARY_SOURCE="./resourceagent"
+        fi
+
+        if [[ -f "$BINARY_SOURCE" ]]; then
+            cp "$BINARY_SOURCE" "$BIN_DIR/resourceagent"
+            chmod +x "$BIN_DIR/resourceagent"
+            echo "  Copied binary to $BIN_DIR"
+        else
+            echo "Error: Binary not found. Please build the project first."
+            exit 1
+        fi
+
+        # Copy config files (skip if already exist at target)
+        DEFAULT_CONF="$SCRIPT_DIR/../conf/ResourceAgent"
+        if [[ -d "$DEFAULT_CONF" ]]; then
+            for file in ResourceAgent.json Monitor.json Logging.json; do
+                src="$DEFAULT_CONF/$file"
+                dst="$CONF_DIR/$file"
+                if [[ -f "$src" ]]; then
+                    if [[ ! -f "$dst" ]]; then
+                        cp "$src" "$dst"
+                        echo "  Copied $file"
+                    else
+                        echo "  Skipped $file (already exists at target)"
+                    fi
+                fi
+            done
+        fi
     fi
 
     # --- Site selection: configure VirtualAddressList ---
-    SITES_FILE="$SCRIPT_DIR/sites.conf"
-    if [[ -f "$SITES_FILE" ]]; then
-        # Parse sites.conf (KEY=VALUE, skip # comments and blank lines)
-        SITE_COUNT=0
-        while IFS='=' read -r key val; do
-            key=$(echo "$key" | tr -d '[:space:]')
-            [[ -z "$key" || "$key" == \#* ]] && continue
-            val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            eval "$key=\"$val\""
-        done < "$SITES_FILE"
+    if [[ -n "$SITE_ADDR" ]]; then
+        # --site ADDR: set VirtualAddressList directly
+        RA_CONFIG="$CONF_DIR/ResourceAgent.json"
+        if [[ -f "$RA_CONFIG" ]]; then
+            sed -i "s|\"VirtualAddressList\": \"[^\"]*\"|\"VirtualAddressList\": \"$SITE_ADDR\"|" "$RA_CONFIG"
+            echo "  VirtualAddressList set to: $SITE_ADDR"
+        fi
+    else
+        # Interactive mode via sites.conf
+        SITES_FILE="$SCRIPT_DIR/sites.conf"
+        if [[ -f "$SITES_FILE" ]]; then
+            # Parse sites.conf (KEY=VALUE, skip # comments and blank lines)
+            SITE_COUNT=0
+            while IFS='=' read -r key val; do
+                key=$(echo "$key" | tr -d '[:space:]')
+                [[ -z "$key" || "$key" == \#* ]] && continue
+                val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                eval "$key=\"$val\""
+            done < "$SITES_FILE"
 
-        if [[ "$SITE_COUNT" -gt 0 ]]; then
-            SELECTED_SITE="$SITE_NUM"
-            if [[ -z "$SELECTED_SITE" ]]; then
-                # Interactive mode: show menu
+            if [[ "$SITE_COUNT" -gt 0 ]]; then
                 echo ""
                 echo "=== Site Selection ==="
                 for ((i=1; i<=SITE_COUNT; i++)); do
@@ -150,22 +190,23 @@ install_agent() {
                 echo "  0) Skip (do not modify VirtualAddressList)"
                 echo ""
                 read -p "Select site [0-$SITE_COUNT]: " SELECTED_SITE
-            fi
-            if [[ "$SELECTED_SITE" == "0" ]]; then
-                echo "  Site selection skipped"
-            elif [[ "$SELECTED_SITE" -ge 1 && "$SELECTED_SITE" -le "$SITE_COUNT" ]]; then
-                addr_var="SITE_${SELECTED_SITE}_ADDR"
-                name_var="SITE_${SELECTED_SITE}_NAME"
-                SITE_ADDR="${!addr_var}"
-                SITE_NAME="${!name_var}"
-                RA_CONFIG="$CONF_DIR/ResourceAgent.json"
-                if [[ -f "$RA_CONFIG" ]]; then
-                    sed -i "s|\"VirtualAddressList\": \"[^\"]*\"|\"VirtualAddressList\": \"$SITE_ADDR\"|" "$RA_CONFIG"
-                    echo "  VirtualAddressList set to: $SITE_ADDR ($SITE_NAME)"
+
+                if [[ "$SELECTED_SITE" == "0" ]]; then
+                    echo "  Site selection skipped"
+                elif [[ "$SELECTED_SITE" -ge 1 && "$SELECTED_SITE" -le "$SITE_COUNT" ]]; then
+                    addr_var="SITE_${SELECTED_SITE}_ADDR"
+                    name_var="SITE_${SELECTED_SITE}_NAME"
+                    SELECTED_ADDR="${!addr_var}"
+                    SELECTED_NAME="${!name_var}"
+                    RA_CONFIG="$CONF_DIR/ResourceAgent.json"
+                    if [[ -f "$RA_CONFIG" ]]; then
+                        sed -i "s|\"VirtualAddressList\": \"[^\"]*\"|\"VirtualAddressList\": \"$SELECTED_ADDR\"|" "$RA_CONFIG"
+                        echo "  VirtualAddressList set to: $SELECTED_ADDR ($SELECTED_NAME)"
+                    fi
+                else
+                    echo "ERROR: Invalid site number: $SELECTED_SITE (valid: 0-$SITE_COUNT)"
+                    exit 1
                 fi
-            else
-                echo "ERROR: Invalid site number: $SELECTED_SITE (valid: 0-$SITE_COUNT)"
-                exit 1
             fi
         fi
     fi
