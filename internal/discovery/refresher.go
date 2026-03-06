@@ -124,6 +124,7 @@ func (r *Refresher) refreshOnce(ctx context.Context) {
 	}
 
 	if newAddr == r.currentAddr {
+		log.Info().Str("addr", r.currentAddr).Msg("Address unchanged")
 		return
 	}
 
