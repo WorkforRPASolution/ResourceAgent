@@ -137,7 +137,7 @@ func DefaultConfig() *Config {
 		ServiceDiscoveryPort:            50009,
 		ResourceMonitorTopic:            "process",
 		TimeDiffSyncInterval:            3600,
-		UpdateServerAddressInterval:     5 * time.Minute,
+		UpdateServerAddressInterval:     10 * time.Minute,
 	}
 }
 

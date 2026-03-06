@@ -918,8 +918,8 @@ func TestParse_InvalidBatchDuration(t *testing.T) {
 
 func TestDefaultConfig_HasUpdateServerAddressIntervalDefault(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.UpdateServerAddressInterval != 5*time.Minute {
-		t.Errorf("expected default 5m, got %v", cfg.UpdateServerAddressInterval)
+	if cfg.UpdateServerAddressInterval != 10*time.Minute {
+		t.Errorf("expected default 10m, got %v", cfg.UpdateServerAddressInterval)
 	}
 }
 
@@ -964,8 +964,8 @@ func TestParse_UpdateServerAddressInterval_Missing_UsesDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse failed: %v", err)
 	}
-	if cfg.UpdateServerAddressInterval != 5*time.Minute {
-		t.Errorf("expected default 5m, got %v", cfg.UpdateServerAddressInterval)
+	if cfg.UpdateServerAddressInterval != 10*time.Minute {
+		t.Errorf("expected default 10m, got %v", cfg.UpdateServerAddressInterval)
 	}
 }
 
@@ -990,8 +990,8 @@ func TestMerge_UpdateServerAddressInterval_ZeroDoesNotOverwrite(t *testing.T) {
 	cfg := DefaultConfig()
 	other := &Config{UpdateServerAddressInterval: 0}
 	cfg.Merge(other)
-	if cfg.UpdateServerAddressInterval != 5*time.Minute {
-		t.Errorf("expected default 5m preserved, got %v", cfg.UpdateServerAddressInterval)
+	if cfg.UpdateServerAddressInterval != 10*time.Minute {
+		t.Errorf("expected default 10m preserved, got %v", cfg.UpdateServerAddressInterval)
 	}
 }
 
