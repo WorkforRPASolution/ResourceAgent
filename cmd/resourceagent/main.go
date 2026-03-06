@@ -104,6 +104,7 @@ func main() {
 	log := logger.WithComponent("main")
 	log.Info().
 		Str("version", version).
+		Str("build_time", buildTime).
 		Str("config", *configPath).
 		Str("monitor", *monitorPath).
 		Str("logging", *loggingPath).

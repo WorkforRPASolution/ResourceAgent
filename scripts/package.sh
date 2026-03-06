@@ -54,8 +54,13 @@ if [ "$AUTO_BUILD" = true ]; then
         echo "ERROR: go command not found. Install Go 1.21+ first."
         exit 1
     fi
+    # Resolve version from git tag
+    BUILD_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+    BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    LDFLAGS="-X main.version=${BUILD_VERSION} -X main.buildTime=${BUILD_TIME}"
+    echo "  Version: $BUILD_VERSION  BuildTime: $BUILD_TIME"
     GOTOOLCHAIN="$GO_TOOLCHAIN" GOOS=windows GOARCH=amd64 \
-        go build -o "$PROJECT_DIR/ResourceAgent.exe" ./cmd/resourceagent
+        go build -ldflags "$LDFLAGS" -o "$PROJECT_DIR/ResourceAgent.exe" ./cmd/resourceagent
     echo "  Built ResourceAgent.exe successfully"
 fi
 

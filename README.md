@@ -27,6 +27,56 @@
 
 ## 빌드
 
+### 버전 관리
+
+git tag 기반으로 버전을 관리합니다. 빌드 시 `git describe --tags --always --dirty`로 버전을 추출하여 `-ldflags`로 바이너리에 주입합니다.
+
+**버전 문자열 형식:**
+
+| 상태 | `git describe` 출력 | 예시 |
+|------|---------------------|------|
+| 태그가 가리키는 커밋 | `v{major}.{minor}.{patch}` | `v1.0.0` |
+| 태그 이후 추가 커밋 | `v{tag}-{N}-g{hash}` | `v1.0.0-3-gabcdef1` |
+| 태그 없음 | `{short hash}` | `abcdef1` |
+| 수정된 파일 있음 | `...--dirty` | `v1.0.0-dirty` |
+| git 저장소 아님 | `dev` (fallback) | `dev` |
+
+**시작 로그에 `version`과 `build_time`이 출력됩니다:**
+
+```
+"Starting ResourceAgent" version=v1.0.0 build_time=2026-03-06T12:00:00Z
+```
+
+**바이너리 버전 확인:**
+
+```bash
+ResourceAgent.exe -version
+# 또는
+./resourceagent -version
+```
+
+**패키지 스크립트(`--build` / `-Build`) 사용 시 버전이 자동 주입됩니다.** 수동 빌드 시에는 아래 "ResourceAgent 빌드" 섹션의 `-ldflags` 예시를 참고하세요.
+
+**git tag 사용법:**
+
+```bash
+# 태그 생성
+git tag v1.0.0
+
+# 태그 푸시
+git push origin v1.0.0
+
+# 태그 목록 조회
+git tag -l
+
+# 태그 삭제 (로컬 + 원격)
+git tag -d v1.0.0
+git push origin --delete v1.0.0
+
+# 현재 버전 확인
+git describe --tags --always --dirty
+```
+
 ### 사전 요구사항
 - Go 1.21 이상 (GOTOOLCHAIN으로 Go 1.20 자동 다운로드하여 Windows 7+ 호환 빌드)
 - (Windows 하드웨어 모니터링 시) .NET 8 SDK
@@ -38,20 +88,30 @@
 # 의존성 다운로드
 go mod tidy
 
+# 버전 정보 (git tag 기반)
+VERSION=$(git describe --tags --always --dirty)
+BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS="-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
+
 # Linux 빌드 (Go 1.20 툴체인 — CentOS 6+ 호환)
-GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/resourceagent
+GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o resourceagent ./cmd/resourceagent
 
 # Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
-GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o ResourceAgent.exe ./cmd/resourceagent
 ```
 
 **PowerShell (Windows):**
 ```powershell
+# 버전 정보 (git tag 기반)
+$Version = git describe --tags --always --dirty
+$BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$Ldflags = "-X main.version=$Version -X main.buildTime=$BuildTime"
+
 # Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
 $env:GOTOOLCHAIN="go1.20.14"; $env:GOOS="windows"; $env:GOARCH="amd64"
-go build -o ResourceAgent.exe ./cmd/resourceagent
+go build -ldflags "$Ldflags" -o ResourceAgent.exe ./cmd/resourceagent
 
-# 또는 패키지 스크립트 사용 (빌드 + 패키징)
+# 또는 패키지 스크립트 사용 (빌드 + 패키징, 버전 자동 주입)
 .\scripts\package.ps1 -Build -IncludeLhmHelper
 ```
 

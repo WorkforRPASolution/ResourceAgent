@@ -40,10 +40,16 @@ if ($Build) {
         Write-Error "go command not found. Install Go 1.21+ first."
         exit 1
     }
+    # Resolve version from git tag
+    try { $BuildVersion = & git describe --tags --always --dirty 2>$null } catch { $BuildVersion = $null }
+    if (-not $BuildVersion) { $BuildVersion = "dev" }
+    $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $Ldflags = "-X main.version=$BuildVersion -X main.buildTime=$BuildTime"
+    Write-Host "  Version: $BuildVersion  BuildTime: $BuildTime"
     $env:GOTOOLCHAIN = $GoToolchain
     $env:GOOS = "windows"
     $env:GOARCH = "amd64"
-    & go build -o (Join-Path $ProjectDir "ResourceAgent.exe") ./cmd/resourceagent
+    & go build -ldflags "$Ldflags" -o (Join-Path $ProjectDir "ResourceAgent.exe") ./cmd/resourceagent
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build ResourceAgent.exe"
         exit 1
