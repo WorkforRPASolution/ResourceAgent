@@ -15,6 +15,7 @@ import (
 	"resourceagent/internal/config"
 	"resourceagent/internal/discovery"
 	"resourceagent/internal/eqpinfo"
+	"resourceagent/internal/heartbeat"
 	"resourceagent/internal/logger"
 	"resourceagent/internal/network"
 	"resourceagent/internal/scheduler"
@@ -522,6 +523,15 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	}
 	if infra.syncer != nil {
 		defer infra.syncer.Stop()
+	}
+
+	// Phase 1.5: Heartbeat
+	if cfg.EqpInfo != nil {
+		redisAddr := fmt.Sprintf("%s:%d", infra.virtualIP, cfg.Redis.Port)
+		hb := heartbeat.NewSender(redisAddr, cfg.Redis, infra.dialFunc,
+			cfg.EqpInfo.Process, cfg.EqpInfo.EqpModel, cfg.EqpInfo.EqpID)
+		hb.Start(ctx)
+		defer hb.Stop()
 	}
 
 	// Phase 2: LHM Provider
