@@ -116,6 +116,56 @@ func init() {
 	_ = logger.Init(logger.Config{Level: "disabled"})
 }
 
+func TestLastActivity_ZeroOnNewScheduler(t *testing.T) {
+	snd := &mockSender{}
+	source := &mockCollectorSource{}
+
+	sched := New(source, snd, "agent1", "host1")
+
+	// A new scheduler should have zero LastActivity
+	lastAct := sched.LastActivity()
+	if !lastAct.IsZero() {
+		t.Errorf("expected zero time for new scheduler, got %v", lastAct)
+	}
+}
+
+func TestLastActivity_UpdatedAfterCollect(t *testing.T) {
+	mc := newMockCollector("test_la", 50*time.Millisecond, true)
+	snd := &mockSender{}
+	source := &mockCollectorSource{collectors: []*mockCollector{mc}}
+
+	sched := New(source, snd, "agent1", "host1")
+
+	// Before start, LastActivity should be zero
+	if !sched.LastActivity().IsZero() {
+		t.Fatal("expected zero LastActivity before start")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	before := time.Now()
+	_ = sched.Start(ctx)
+
+	// Wait for at least one successful collect cycle
+	time.Sleep(150 * time.Millisecond)
+
+	lastAct := sched.LastActivity()
+	if lastAct.IsZero() {
+		t.Fatal("expected non-zero LastActivity after successful collect")
+	}
+
+	if lastAct.Before(before) {
+		t.Errorf("LastActivity %v should be after test start %v", lastAct, before)
+	}
+
+	if lastAct.After(time.Now()) {
+		t.Errorf("LastActivity %v should not be in the future", lastAct)
+	}
+
+	sched.Stop()
+}
+
 func TestReconfigure_IntervalChange(t *testing.T) {
 	mc := newMockCollector("test_cpu", 50*time.Millisecond, true)
 	snd := &mockSender{}

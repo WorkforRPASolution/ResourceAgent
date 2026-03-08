@@ -4,6 +4,7 @@ package scheduler
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"resourceagent/internal/collector"
@@ -23,13 +24,14 @@ type Scheduler struct {
 	agentID  string
 	hostname string
 
-	mu            sync.Mutex
-	running       bool
-	cancel        context.CancelFunc
-	parentCtx     context.Context
-	wg            sync.WaitGroup
-	log           logger.Config
-	reconfigureMu sync.Mutex // serializes concurrent Reconfigure calls
+	mu             sync.Mutex
+	running        bool
+	cancel         context.CancelFunc
+	parentCtx      context.Context
+	wg             sync.WaitGroup
+	log            logger.Config
+	reconfigureMu  sync.Mutex // serializes concurrent Reconfigure calls
+	lastActivityMs atomic.Int64
 }
 
 // New creates a new scheduler with the given components.
@@ -93,6 +95,16 @@ func (s *Scheduler) IsRunning() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.running
+}
+
+// LastActivity returns the time of the last successful metric collection.
+// Returns zero Time if no successful collection has occurred.
+func (s *Scheduler) LastActivity() time.Time {
+	ms := s.lastActivityMs.Load()
+	if ms == 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms)
 }
 
 func (s *Scheduler) runCollector(ctx context.Context, c collector.Collector) {
@@ -167,6 +179,8 @@ func (s *Scheduler) collect(ctx context.Context, c collector.Collector) {
 			Msg("Failed to send metrics")
 		return
 	}
+
+	s.lastActivityMs.Store(time.Now().UnixMilli())
 
 	log.Debug().
 		Str("collector", name).

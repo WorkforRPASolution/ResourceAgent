@@ -39,7 +39,7 @@ TOTAL=0
 E2E_PROCESS="E2E_PROC"
 E2E_MODEL="E2E_MODEL"
 E2E_EQPID="E2E_$(date +%s)"
-E2E_KEY="AgentRunning:${E2E_PROCESS}-${E2E_MODEL}-${E2E_EQPID}"
+E2E_KEY="AgentHealth:${E2E_PROCESS}-${E2E_MODEL}-${E2E_EQPID}"
 EQPINFO_FIELD="${REDIS_HOST}:_"
 EQPINFO_VALUE="${E2E_PROCESS}:${E2E_MODEL}:${E2E_EQPID}:LINE1:E2E Test:0"
 
@@ -153,7 +153,7 @@ EOF
 cat > "$TMPDIR_E2E/conf/ResourceAgent/Logging.json" << 'EOF'
 {
   "Level": "debug",
-  "Console": false,
+  "Console": true,
   "File": { "Enabled": false }
 }
 EOF
@@ -161,7 +161,7 @@ echo "  Config files created"
 
 # 4. Build ResourceAgent
 echo "  Building ResourceAgent..."
-(cd "$PROJECT_DIR" && go build -o "$TMPDIR_E2E/resourceagent" ./cmd/resourceagent 2>&1 | grep -v "^#\|warning:")
+(cd "$PROJECT_DIR" && go build -o "$TMPDIR_E2E/resourceagent" ./cmd/resourceagent 2>&1)
 assert "ResourceAgent built" $?
 
 # --- Run ---
@@ -190,8 +190,8 @@ assert "Heartbeat key exists in Redis" $?
 
 # Check value is numeric (uptime seconds)
 if [ -n "$HB_VAL" ]; then
-    echo "$HB_VAL" | grep -qE '^[0-9]+$'
-    assert "Heartbeat value is numeric (uptime=${HB_VAL}s)" $?
+    echo "$HB_VAL" | grep -qE '^OK:[0-9]+$'
+    assert "Heartbeat value is OK:N format (value=${HB_VAL})" $?
 fi
 
 # Check TTL is set (should be <= 30)
@@ -217,6 +217,13 @@ RA_EXIT=$?
 [ "$RA_EXIT" -eq 0 ] || [ "$RA_EXIT" -eq 143 ]
 assert "ResourceAgent exited cleanly (code: $RA_EXIT)" $?
 RA_PID=""
+
+# Stop 후 SHUTDOWN 상태 검증
+HB_SHUTDOWN_VAL=$(redis_cli GET "$E2E_KEY")
+if [ -n "$HB_SHUTDOWN_VAL" ]; then
+    echo "$HB_SHUTDOWN_VAL" | grep -qE '^SHUTDOWN:[0-9]+$'
+    assert "Heartbeat SHUTDOWN value format (value=${HB_SHUTDOWN_VAL})" $?
+fi
 
 # Check graceful shutdown log
 grep -q "Received shutdown signal" "$TMPDIR_E2E/ra.log" 2>/dev/null

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"resourceagent/internal/collector"
 	"resourceagent/internal/config"
@@ -526,9 +527,10 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	}
 
 	// Phase 1.5: Heartbeat
+	var hb *heartbeat.Sender
 	if cfg.EqpInfo != nil {
 		redisAddr := fmt.Sprintf("%s:%d", infra.virtualIP, cfg.Redis.Port)
-		hb := heartbeat.NewSender(redisAddr, cfg.Redis, infra.dialFunc,
+		hb = heartbeat.NewSender(redisAddr, cfg.Redis, infra.dialFunc,
 			cfg.EqpInfo.Process, cfg.EqpInfo.EqpModel, cfg.EqpInfo.EqpID)
 		hb.Start(ctx)
 		defer hb.Stop()
@@ -612,6 +614,20 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	sched := scheduler.New(registry, snd, infra.agentID, hostname)
 	if err := sched.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start scheduler: %w", err)
+	}
+
+	// Connect heartbeat watchdog to scheduler activity
+	if hb != nil {
+		hb.SetHealthCheck(func() (string, string) {
+			last := sched.LastActivity()
+			if last.IsZero() {
+				return "OK", "" // 아직 첫 수집 전
+			}
+			if time.Since(last) > heartbeat.StalenessThreshold {
+				return "WARN", "no_collection"
+			}
+			return "OK", ""
+		})
 	}
 
 	// Phase 6: Watchers

@@ -15,27 +15,30 @@ import (
 )
 
 const (
-	DefaultInterval = 10 * time.Second
-	DefaultTTL      = 30 * time.Second
-	KeyPrefix       = "AgentRunning"
+	DefaultInterval    = 10 * time.Second
+	DefaultTTL         = 30 * time.Second
+	HealthKeyPrefix    = "AgentHealth"
+	StalenessThreshold = 90 * time.Second
 )
 
 // Sender periodically sends a heartbeat to Redis via SETEX.
 type Sender struct {
-	redisAddr string
-	redisCfg  config.RedisConfig
-	dialFunc  func(string, string) (net.Conn, error)
-	key       string
-	startTime time.Time
-	interval  time.Duration
-	ttl       time.Duration
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	redisAddr   string
+	redisCfg    config.RedisConfig
+	dialFunc    func(string, string) (net.Conn, error)
+	key         string
+	startTime   time.Time
+	interval    time.Duration
+	ttl         time.Duration
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+	healthCheck func() (string, string) // (status, reason) — nil means always OK
+	mu          sync.RWMutex            // protects healthCheck
 }
 
-// BuildKey returns the Redis key for the heartbeat: "AgentRunning:{process}-{eqpModel}-{eqpID}".
+// BuildKey returns the Redis key for the heartbeat: "AgentHealth:{process}-{eqpModel}-{eqpID}".
 func BuildKey(process, eqpModel, eqpID string) string {
-	return fmt.Sprintf("%s:%s-%s-%s", KeyPrefix, process, eqpModel, eqpID)
+	return fmt.Sprintf("%s:%s-%s-%s", HealthKeyPrefix, process, eqpModel, eqpID)
 }
 
 // NewSender creates a new heartbeat Sender.
@@ -50,6 +53,14 @@ func NewSender(redisAddr string, redisCfg config.RedisConfig, dialFunc func(stri
 		interval:  DefaultInterval,
 		ttl:       DefaultTTL,
 	}
+}
+
+// SetHealthCheck sets a function that returns (status, reason) for heartbeat values.
+// If fn is nil, the heartbeat always reports "OK" with no reason.
+func (s *Sender) SetHealthCheck(fn func() (string, string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.healthCheck = fn
 }
 
 // Start sends the first heartbeat (logging on failure) and starts a background ticker.
@@ -67,12 +78,39 @@ func (s *Sender) Start(ctx context.Context) {
 	log.Info().Str("key", s.key).Dur("interval", s.interval).Msg("heartbeat started")
 }
 
-// Stop cancels the background ticker and waits for it to finish.
+// Stop cancels the background ticker, waits for it to finish, and records a SHUTDOWN heartbeat.
 func (s *Sender) Stop() {
 	if s.cancel != nil {
 		s.cancel()
 	}
 	s.wg.Wait()
+
+	// SHUTDOWN status (best-effort)
+	s.sendShutdown()
+}
+
+func (s *Sender) sendShutdown() {
+	log := logger.WithComponent("heartbeat")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client, err := createRedisClient(s.redisAddr, s.redisCfg, s.dialFunc)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to create Redis client for shutdown heartbeat")
+		return
+	}
+	defer client.Close()
+
+	uptimeSeconds := int64(time.Since(s.startTime).Seconds())
+	value := fmt.Sprintf("SHUTDOWN:%d", uptimeSeconds)
+
+	if err := client.SetEx(ctx, s.key, value, s.ttl).Err(); err != nil {
+		log.Debug().Err(err).Str("key", s.key).Msg("shutdown heartbeat SETEX failed")
+		return
+	}
+
+	log.Info().Str("key", s.key).Str("value", value).Msg("shutdown heartbeat sent")
 }
 
 func (s *Sender) loop(ctx context.Context) {
@@ -106,12 +144,31 @@ func (s *Sender) sendOnce(ctx context.Context) {
 
 	uptimeSeconds := int64(time.Since(s.startTime).Seconds())
 
-	if err := client.SetEx(queryCtx, s.key, uptimeSeconds, s.ttl).Err(); err != nil {
+	// Call healthCheck
+	s.mu.RLock()
+	hc := s.healthCheck
+	s.mu.RUnlock()
+
+	status := "OK"
+	reason := ""
+	if hc != nil {
+		status, reason = hc()
+	}
+
+	// Value format: "OK:3600" or "WARN:3600:no_collection"
+	var value string
+	if reason != "" {
+		value = fmt.Sprintf("%s:%d:%s", status, uptimeSeconds, reason)
+	} else {
+		value = fmt.Sprintf("%s:%d", status, uptimeSeconds)
+	}
+
+	if err := client.SetEx(queryCtx, s.key, value, s.ttl).Err(); err != nil {
 		log.Debug().Err(err).Str("key", s.key).Msg("heartbeat SETEX failed")
 		return
 	}
 
-	log.Debug().Str("key", s.key).Int64("uptime_s", uptimeSeconds).Msg("heartbeat sent")
+	log.Debug().Str("key", s.key).Str("value", value).Msg("heartbeat sent")
 }
 
 // createRedisClient creates a Redis client with optional custom dialer.
