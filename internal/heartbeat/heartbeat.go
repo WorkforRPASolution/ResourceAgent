@@ -18,6 +18,7 @@ const (
 	DefaultInterval    = 10 * time.Second
 	DefaultTTL         = 30 * time.Second
 	HealthKeyPrefix    = "AgentHealth"
+	AgentGroup         = "resource_agent"
 	StalenessThreshold = 90 * time.Second
 	HeartbeatDB        = 0 // AgentHealth always writes to DB 0
 )
@@ -37,9 +38,9 @@ type Sender struct {
 	mu          sync.RWMutex            // protects healthCheck
 }
 
-// BuildKey returns the Redis key for the heartbeat: "AgentHealth:{process}-{eqpModel}-{eqpID}".
-func BuildKey(process, eqpModel, eqpID string) string {
-	return fmt.Sprintf("%s:%s-%s-%s", HealthKeyPrefix, process, eqpModel, eqpID)
+// BuildKey returns the Redis key for the heartbeat: "AgentHealth:{agentGroup}:{process}-{eqpModel}-{eqpID}".
+func BuildKey(agentGroup, process, eqpModel, eqpID string) string {
+	return fmt.Sprintf("%s:%s:%s-%s-%s", HealthKeyPrefix, agentGroup, process, eqpModel, eqpID)
 }
 
 // NewSender creates a new heartbeat Sender.
@@ -49,7 +50,7 @@ func NewSender(redisAddr string, redisCfg config.RedisConfig, dialFunc func(stri
 		redisAddr: redisAddr,
 		redisCfg:  redisCfg,
 		dialFunc:  dialFunc,
-		key:       BuildKey(process, eqpModel, eqpID),
+		key:       BuildKey(AgentGroup, process, eqpModel, eqpID),
 		startTime: time.Now(),
 		interval:  DefaultInterval,
 		ttl:       DefaultTTL,

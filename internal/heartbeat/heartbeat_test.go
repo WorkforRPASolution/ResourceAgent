@@ -28,8 +28,8 @@ func parseHeartbeatValue(val string) (status string, uptime int64, reason string
 }
 
 func TestBuildKey(t *testing.T) {
-	got := BuildKey("ARS", "M1", "EQP01")
-	want := "AgentHealth:ARS-M1-EQP01"
+	got := BuildKey("resource_agent", "ARS", "M1", "EQP01")
+	want := "AgentHealth:resource_agent:ARS-M1-EQP01"
 	if got != want {
 		t.Errorf("BuildKey() = %q, want %q", got, want)
 	}
@@ -45,7 +45,7 @@ func TestSender_SendOnce(t *testing.T) {
 	s.sendOnce(ctx)
 
 	mr.Select(0)
-	key := BuildKey("ARS", "MODEL1", "EQP001")
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP001")
 	val, err := mr.Get(key)
 	if err != nil {
 		t.Fatalf("expected key %s in Redis, got error: %v", key, err)
@@ -87,7 +87,7 @@ func TestSender_UptimeIncreases(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	mr.Select(0)
-	key := BuildKey("ARS", "MODEL1", "EQP002")
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP002")
 	val, err := mr.Get(key)
 	if err != nil {
 		t.Fatalf("expected key %s, got error: %v", key, err)
@@ -129,7 +129,7 @@ func TestSender_Stop(t *testing.T) {
 
 	// After Stop, the value should be "SHUTDOWN:N"
 	mr.Select(0)
-	key := BuildKey("ARS", "MODEL1", "EQP003")
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP003")
 	val, err := mr.Get(key)
 	if err != nil {
 		t.Fatalf("expected key %s after Stop, got error: %v", key, err)
@@ -159,7 +159,7 @@ func TestSender_SetHealthCheck_WARN(t *testing.T) {
 	s.sendOnce(ctx)
 
 	mr.Select(0)
-	key := BuildKey("ARS", "MODEL1", "EQP005")
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP005")
 	val, err := mr.Get(key)
 	if err != nil {
 		t.Fatalf("expected key %s, got error: %v", key, err)
@@ -193,7 +193,7 @@ func TestSender_SetHealthCheck_OK(t *testing.T) {
 	s.sendOnce(ctx)
 
 	mr.Select(0)
-	key := BuildKey("ARS", "MODEL1", "EQP006")
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP006")
 	val, err := mr.Get(key)
 	if err != nil {
 		t.Fatalf("expected key %s, got error: %v", key, err)
@@ -223,7 +223,7 @@ func TestSender_NilHealthCheck(t *testing.T) {
 	s.sendOnce(ctx)
 
 	mr.Select(0)
-	key := BuildKey("ARS", "MODEL1", "EQP007")
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP007")
 	val, err := mr.Get(key)
 	if err != nil {
 		t.Fatalf("expected key %s, got error: %v", key, err)
@@ -274,7 +274,7 @@ func TestE2E_RealRedis(t *testing.T) {
 	}
 
 	cfg := config.RedisConfig{Port: 6379}
-	key := BuildKey("E2E_TEST", "HEARTBEAT", "E2E_001")
+	key := BuildKey(AgentGroup, "E2E_TEST", "HEARTBEAT", "E2E_001")
 
 	// Verify key uses AgentHealth prefix
 	if !strings.HasPrefix(key, "AgentHealth:") {
