@@ -169,7 +169,11 @@ func (s *Sender) sendOnce(ctx context.Context) {
 		return
 	}
 
-	log.Debug().Str("key", s.key).Str("value", value).Msg("heartbeat sent")
+	if status != "OK" {
+		log.Warn().Str("key", s.key).Str("value", value).Msg("heartbeat sent with abnormal status")
+	} else {
+		log.Debug().Str("key", s.key).Str("value", value).Msg("heartbeat sent")
+	}
 }
 
 // createRedisClient creates a Redis client with optional custom dialer.

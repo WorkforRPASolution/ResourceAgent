@@ -1,5 +1,5 @@
 {
-  "SenderType": "kafka",
+  "SenderType": "kafkarest",
   "File": {
     "FilePath": "log/ResourceAgent/metrics.jsonl",
     "MaxSizeMB": 50,
