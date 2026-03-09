@@ -40,6 +40,7 @@ E2E_PROCESS="E2E_PROC"
 E2E_MODEL="E2E_MODEL"
 E2E_EQPID="E2E_$(date +%s)"
 E2E_KEY="AgentHealth:${E2E_PROCESS}-${E2E_MODEL}-${E2E_EQPID}"
+E2E_METAINFO_KEY="ResourceAgentMetaInfo:${E2E_PROCESS}-${E2E_MODEL}"
 EQPINFO_FIELD="${REDIS_HOST}:_"
 EQPINFO_VALUE="${E2E_PROCESS}:${E2E_MODEL}:${E2E_EQPID}:LINE1:E2E Test:0"
 
@@ -69,6 +70,15 @@ redis_cli() {
     fi
 }
 
+# DB 0 helper — heartbeat and metainfo write to DB 0
+redis_cli_db0() {
+    if command -v redis-cli > /dev/null 2>&1; then
+        redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -n 0 "$@" 2>/dev/null
+    else
+        docker exec "$REDIS_CONTAINER" redis-cli -n 0 "$@" 2>/dev/null
+    fi
+}
+
 cleanup() {
     echo ""
     echo "--- Cleanup ---"
@@ -86,8 +96,10 @@ cleanup() {
     fi
     # Remove Redis keys
     redis_cli HDEL EQP_INFO "$EQPINFO_FIELD" > /dev/null 2>&1
-    redis_cli DEL "$E2E_KEY" > /dev/null 2>&1
     redis_cli DEL "EQP_DIFF:${E2E_EQPID}" > /dev/null 2>&1
+    # DB 0 keys (heartbeat + metainfo)
+    redis_cli_db0 DEL "$E2E_KEY" > /dev/null 2>&1
+    redis_cli_db0 HDEL "$E2E_METAINFO_KEY" "$E2E_EQPID" > /dev/null 2>&1
     echo "  Redis keys cleaned"
     # Remove temp files
     rm -rf "$TMPDIR_E2E"
@@ -183,10 +195,10 @@ assert "ResourceAgent process alive after ${RA_RUN_SEC}s" $?
 echo ""
 echo "=== Verify heartbeat ==="
 
-# Check heartbeat key exists
-HB_VAL=$(redis_cli GET "$E2E_KEY")
+# Check heartbeat key exists (DB 0)
+HB_VAL=$(redis_cli_db0 GET "$E2E_KEY")
 [ -n "$HB_VAL" ]
-assert "Heartbeat key exists in Redis" $?
+assert "Heartbeat key exists in Redis DB 0" $?
 
 # Check value is numeric (uptime seconds)
 if [ -n "$HB_VAL" ]; then
@@ -195,7 +207,7 @@ if [ -n "$HB_VAL" ]; then
 fi
 
 # Check TTL is set (should be <= 30)
-HB_TTL=$(redis_cli TTL "$E2E_KEY")
+HB_TTL=$(redis_cli_db0 TTL "$E2E_KEY")
 [ "$HB_TTL" -gt 0 ] && [ "$HB_TTL" -le 30 ]
 assert "Heartbeat TTL valid (${HB_TTL}s, expected 1-30)" $?
 
@@ -206,6 +218,24 @@ assert "Heartbeat log entry found" $?
 # Check EQP_INFO was loaded
 grep -q "EQP_INFO loaded from Redis" "$TMPDIR_E2E/ra.log" 2>/dev/null
 assert "EQP_INFO loaded from Redis" $?
+
+# --- Verify version metainfo ---
+echo ""
+echo "=== Verify version metainfo ==="
+
+# Check ResourceAgentMetaInfo key exists in DB 0
+MI_VAL=$(redis_cli_db0 HGET "$E2E_METAINFO_KEY" "$E2E_EQPID")
+[ -n "$MI_VAL" ]
+assert "ResourceAgentMetaInfo key exists in Redis DB 0" $?
+
+# Check value is a version string (not empty)
+if [ -n "$MI_VAL" ]; then
+    assert "Version value is non-empty (value=${MI_VAL})" 0
+fi
+
+# Check metainfo log entry
+grep -q "version written to Redis" "$TMPDIR_E2E/ra.log" 2>/dev/null
+assert "Version metainfo log entry found" $?
 
 # --- Stop ---
 echo ""
@@ -219,7 +249,7 @@ assert "ResourceAgent exited cleanly (code: $RA_EXIT)" $?
 RA_PID=""
 
 # Stop 후 SHUTDOWN 상태 검증
-HB_SHUTDOWN_VAL=$(redis_cli GET "$E2E_KEY")
+HB_SHUTDOWN_VAL=$(redis_cli_db0 GET "$E2E_KEY")
 if [ -n "$HB_SHUTDOWN_VAL" ]; then
     echo "$HB_SHUTDOWN_VAL" | grep -qE '^SHUTDOWN:[0-9]+$'
     assert "Heartbeat SHUTDOWN value format (value=${HB_SHUTDOWN_VAL})" $?
