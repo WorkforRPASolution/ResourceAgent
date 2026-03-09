@@ -38,13 +38,13 @@ func TestBuildKey(t *testing.T) {
 func TestSender_SendOnce(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP001")
 
 	ctx := context.Background()
 	s.sendOnce(ctx)
 
-	mr.Select(10)
+	mr.Select(0)
 	key := BuildKey("ARS", "MODEL1", "EQP001")
 	val, err := mr.Get(key)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestSender_SendOnce(t *testing.T) {
 func TestSender_UptimeIncreases(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP002")
 	s.interval = 1 * time.Second
 
@@ -86,7 +86,7 @@ func TestSender_UptimeIncreases(t *testing.T) {
 	// Wait for at least one tick
 	time.Sleep(2 * time.Second)
 
-	mr.Select(10)
+	mr.Select(0)
 	key := BuildKey("ARS", "MODEL1", "EQP002")
 	val, err := mr.Get(key)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestSender_UptimeIncreases(t *testing.T) {
 func TestSender_Stop(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP003")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -128,7 +128,7 @@ func TestSender_Stop(t *testing.T) {
 	}
 
 	// After Stop, the value should be "SHUTDOWN:N"
-	mr.Select(10)
+	mr.Select(0)
 	key := BuildKey("ARS", "MODEL1", "EQP003")
 	val, err := mr.Get(key)
 	if err != nil {
@@ -147,7 +147,7 @@ func TestSender_Stop(t *testing.T) {
 func TestSender_SetHealthCheck_WARN(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP005")
 
 	// Set a healthCheck that returns WARN
@@ -158,7 +158,7 @@ func TestSender_SetHealthCheck_WARN(t *testing.T) {
 	ctx := context.Background()
 	s.sendOnce(ctx)
 
-	mr.Select(10)
+	mr.Select(0)
 	key := BuildKey("ARS", "MODEL1", "EQP005")
 	val, err := mr.Get(key)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestSender_SetHealthCheck_WARN(t *testing.T) {
 func TestSender_SetHealthCheck_OK(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP006")
 
 	// Set a healthCheck that returns OK with empty reason
@@ -192,7 +192,7 @@ func TestSender_SetHealthCheck_OK(t *testing.T) {
 	ctx := context.Background()
 	s.sendOnce(ctx)
 
-	mr.Select(10)
+	mr.Select(0)
 	key := BuildKey("ARS", "MODEL1", "EQP006")
 	val, err := mr.Get(key)
 	if err != nil {
@@ -215,14 +215,14 @@ func TestSender_SetHealthCheck_OK(t *testing.T) {
 func TestSender_NilHealthCheck(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP007")
 
 	// healthCheck is nil by default — should produce "OK:N"
 	ctx := context.Background()
 	s.sendOnce(ctx)
 
-	mr.Select(10)
+	mr.Select(0)
 	key := BuildKey("ARS", "MODEL1", "EQP007")
 	val, err := mr.Get(key)
 	if err != nil {
@@ -242,7 +242,7 @@ func TestSender_NilHealthCheck(t *testing.T) {
 }
 
 func TestSender_RedisDown(t *testing.T) {
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	s := NewSender("localhost:1", cfg, nil, "ARS", "MODEL1", "EQP004")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -273,7 +273,7 @@ func TestE2E_RealRedis(t *testing.T) {
 		t.Skip("REDIS_E2E not set, skipping E2E test")
 	}
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	key := BuildKey("E2E_TEST", "HEARTBEAT", "E2E_001")
 
 	// Verify key uses AgentHealth prefix
@@ -282,7 +282,7 @@ func TestE2E_RealRedis(t *testing.T) {
 	}
 
 	// Clean up before and after
-	rdb := redis.NewClient(&redis.Options{Addr: addr, Password: cfg.ResolvePassword(), DB: cfg.DB})
+	rdb := redis.NewClient(&redis.Options{Addr: addr, Password: cfg.ResolvePassword(), DB: HeartbeatDB})
 	defer rdb.Close()
 	ctx := context.Background()
 	rdb.Del(ctx, key)

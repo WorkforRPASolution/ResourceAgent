@@ -79,7 +79,6 @@ const DefaultRedisPassword = "visuallove"
 type RedisConfig struct {
 	Port     int    `json:"Port"`
 	Password string `json:"Password"`
-	DB       int    `json:"DB"`
 }
 
 // ResolvePassword returns the configured password, or DefaultRedisPassword if empty.
@@ -132,7 +131,6 @@ func DefaultConfig() *Config {
 		},
 		Redis: RedisConfig{
 			Port: 6379,
-			DB:   10,
 		},
 		ServiceDiscoveryPort:            50009,
 		ResourceMonitorTopic:            "process",
@@ -230,9 +228,6 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.Redis.Password != "" {
 		c.Redis.Password = other.Redis.Password
-	}
-	if other.Redis.DB != 0 {
-		c.Redis.DB = other.Redis.DB
 	}
 
 	// Merge SOCKS proxy config

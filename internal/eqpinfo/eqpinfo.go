@@ -12,6 +12,9 @@ import (
 	"resourceagent/internal/config"
 )
 
+// EqpInfoDB is the fixed Redis DB for EQP_INFO lookups.
+const EqpInfoDB = 10
+
 // EqpInfo contains equipment information retrieved from Redis.
 type EqpInfo struct {
 	Process  string
@@ -129,7 +132,7 @@ func createRedisClient(redisAddress string, cfg config.RedisConfig, dialFunc fun
 	opts := &redis.Options{
 		Addr:     redisAddress,
 		Password: cfg.ResolvePassword(),
-		DB:       cfg.DB,
+		DB:       EqpInfoDB,
 	}
 
 	if dialFunc != nil {

@@ -15,7 +15,7 @@ import (
 func TestSyncer_Start(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	syncer := NewSyncer(mr.Addr(), cfg, nil, "EQP001", 3600)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -47,7 +47,7 @@ func TestSyncer_Start(t *testing.T) {
 func TestSyncer_PeriodicSync(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	syncer := NewSyncer(mr.Addr(), cfg, nil, "EQP002", 1) // 1 second interval
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -77,7 +77,7 @@ func TestSyncer_PeriodicSync(t *testing.T) {
 func TestSyncer_GetDiff_ThreadSafe(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	syncer := NewSyncer(mr.Addr(), cfg, nil, "EQP003", 3600)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -104,7 +104,7 @@ func TestSyncer_GetDiff_ThreadSafe(t *testing.T) {
 func TestSyncer_Stop(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{Port: 6379, DB: 10}
+	cfg := config.RedisConfig{Port: 6379}
 	syncer := NewSyncer(mr.Addr(), cfg, nil, "EQP004", 3600)
 
 	ctx, cancel := context.WithCancel(context.Background())

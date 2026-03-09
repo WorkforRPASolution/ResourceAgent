@@ -12,9 +12,6 @@ import (
 func TestDefaultConfig_HasRedisDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Redis.DB != 10 {
-		t.Errorf("expected Redis.DB=10, got %d", cfg.Redis.DB)
-	}
 	if cfg.Redis.Port != 6379 {
 		t.Errorf("expected Redis.Port=6379, got %d", cfg.Redis.Port)
 	}
@@ -121,8 +118,7 @@ func TestParse_WithRedisConfig(t *testing.T) {
 		"VirtualAddressList": "10.20.30.40",
 		"Redis": {
 			"Port": 26379,
-			"Password": "secret",
-			"DB": 5
+			"Password": "secret"
 		}
 	}`
 
@@ -139,9 +135,6 @@ func TestParse_WithRedisConfig(t *testing.T) {
 	}
 	if cfg.Redis.Password != "secret" {
 		t.Errorf("expected Redis.Password='secret', got %q", cfg.Redis.Password)
-	}
-	if cfg.Redis.DB != 5 {
-		t.Errorf("expected Redis.DB=5, got %d", cfg.Redis.DB)
 	}
 }
 
@@ -219,9 +212,6 @@ func TestParse_WithoutNewFields_BackwardCompatible(t *testing.T) {
 	if cfg.ResourceMonitorTopic != "process" {
 		t.Errorf("expected ResourceMonitorTopic='process' for backward compat, got %q", cfg.ResourceMonitorTopic)
 	}
-	if cfg.Redis.DB != 10 {
-		t.Errorf("expected Redis.DB=10 (default), got %d", cfg.Redis.DB)
-	}
 	if cfg.SOCKSProxy.Host != "" {
 		t.Errorf("expected SOCKSProxy.Host='', got %q", cfg.SOCKSProxy.Host)
 	}
@@ -242,7 +232,6 @@ func TestMerge_RedisConfig(t *testing.T) {
 		Redis: RedisConfig{
 			Port:     26379,
 			Password: "pass123",
-			DB:       3,
 		},
 	}
 
@@ -256,9 +245,6 @@ func TestMerge_RedisConfig(t *testing.T) {
 	}
 	if base.Redis.Password != "pass123" {
 		t.Errorf("expected Redis.Password='pass123', got %q", base.Redis.Password)
-	}
-	if base.Redis.DB != 3 {
-		t.Errorf("expected Redis.DB=3, got %d", base.Redis.DB)
 	}
 }
 
@@ -297,7 +283,6 @@ func TestMerge_PrivateIPAddressPattern(t *testing.T) {
 func TestMerge_EmptyValuesDoNotOverwrite(t *testing.T) {
 	base := DefaultConfig()
 	base.Redis.Port = 26379
-	base.Redis.DB = 5
 	base.SOCKSProxy.Host = "existing.socks"
 	base.SOCKSProxy.Port = 9999
 	base.PrivateIPAddressPattern = "^10\\..*"
@@ -433,8 +418,7 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 		"ResourceMonitorTopic": "model",
 		"Redis": {
 			"Port": 26379,
-			"Password": "pw",
-			"DB": 7
+			"Password": "pw"
 		},
 		"PrivateIPAddressPattern": "^172\\.16\\..*",
 		"SocksProxy": {
@@ -464,9 +448,6 @@ func TestParse_FullConfig_WithAllNewFields(t *testing.T) {
 	}
 	if cfg.Redis.Password != "pw" {
 		t.Errorf("Redis.Password: got %q", cfg.Redis.Password)
-	}
-	if cfg.Redis.DB != 7 {
-		t.Errorf("Redis.DB: got %d", cfg.Redis.DB)
 	}
 	if cfg.PrivateIPAddressPattern != "^172\\.16\\..*" {
 		t.Errorf("PrivateIPAddressPattern: got %q", cfg.PrivateIPAddressPattern)

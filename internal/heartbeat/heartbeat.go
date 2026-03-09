@@ -19,6 +19,7 @@ const (
 	DefaultTTL         = 30 * time.Second
 	HealthKeyPrefix    = "AgentHealth"
 	StalenessThreshold = 90 * time.Second
+	HeartbeatDB        = 0 // AgentHealth always writes to DB 0
 )
 
 // Sender periodically sends a heartbeat to Redis via SETEX.
@@ -176,7 +177,7 @@ func createRedisClient(redisAddress string, cfg config.RedisConfig, dialFunc fun
 	opts := &redis.Options{
 		Addr:     redisAddress,
 		Password: cfg.ResolvePassword(),
-		DB:       cfg.DB,
+		DB:       HeartbeatDB,
 	}
 
 	if dialFunc != nil {

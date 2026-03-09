@@ -77,15 +77,6 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
-	// Redis.DB
-	if cfg.Redis.DB < 0 || cfg.Redis.DB > 15 {
-		errs = append(errs, ValidationError{
-			Field:   "Redis.DB",
-			Value:   fmt.Sprintf("%d", cfg.Redis.DB),
-			Message: "must be between 0 and 15",
-		})
-	}
-
 	// File.Format
 	switch strings.ToLower(cfg.File.Format) {
 	case "", "json", "grok", "legacy":

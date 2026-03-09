@@ -15,6 +15,9 @@ import (
 	"resourceagent/internal/logger"
 )
 
+// TimeDiffDB is the fixed Redis DB for time diff storage.
+const TimeDiffDB = 10
+
 // Syncer periodically measures the time difference between the local machine and a Redis server.
 type Syncer struct {
 	diff      atomic.Int64
@@ -129,7 +132,7 @@ func createRedisClient(redisAddress string, cfg config.RedisConfig, dialFunc fun
 	opts := &redis.Options{
 		Addr:     redisAddress,
 		Password: cfg.ResolvePassword(),
-		DB:       cfg.DB,
+		DB:       TimeDiffDB,
 	}
 
 	if dialFunc != nil {

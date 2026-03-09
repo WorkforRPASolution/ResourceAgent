@@ -107,18 +107,6 @@ func TestValidateConfig_InvalidPorts(t *testing.T) {
 	assertFieldError(t, errs, "ServiceDiscoveryPort")
 }
 
-func TestValidateConfig_InvalidRedisDB(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.VirtualAddressList = "10.0.0.1"
-	cfg.Redis.DB = 16
-
-	err := ValidateConfig(cfg)
-	if err == nil {
-		t.Fatal("expected error for Redis.DB > 15")
-	}
-	assertFieldError(t, err, "Redis.DB")
-}
-
 func TestValidateConfig_InvalidFileFormat(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.SenderType = "file"

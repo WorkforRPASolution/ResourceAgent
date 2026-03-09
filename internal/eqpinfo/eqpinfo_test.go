@@ -126,8 +126,7 @@ func TestFetchEqpInfo_Success(t *testing.T) {
 	mr.HSet("EQP_INFO", "192.168.1.100:10.0.0.1", "PROCESS:MODEL:EQP001:LINE1:Desc:42")
 
 	cfg := config.RedisConfig{
-		Port:    6379,
-		DB:      10,
+		Port: 6379,
 	}
 
 	info, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.100", "10.0.0.1")
@@ -162,8 +161,7 @@ func TestFetchEqpInfo_KeyNotFound(t *testing.T) {
 
 	// No data seeded - Redis is running but key doesn't exist
 	cfg := config.RedisConfig{
-		Port:    6379,
-		DB:      10,
+		Port: 6379,
 	}
 
 	info, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.100", "10.0.0.1")
@@ -183,8 +181,7 @@ func TestFetchEqpInfo_InvalidValue(t *testing.T) {
 	mr.HSet("EQP_INFO", "192.168.1.100:10.0.0.1", "bad:data")
 
 	cfg := config.RedisConfig{
-		Port:    6379,
-		DB:      10,
+		Port: 6379,
 	}
 
 	_, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.100", "10.0.0.1")
@@ -200,7 +197,7 @@ func TestFetchEqpInfoMulti_FirstMatch(t *testing.T) {
 	mr.Select(10)
 	mr.HSet("EQP_INFO", "11.97.12.34:192.168.10.3", "PROC:MDL:EQP001:LN:DESC:1")
 
-	cfg := config.RedisConfig{DB: 10}
+	cfg := config.RedisConfig{}
 	candidates := []IPCandidate{
 		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.10.3"},
 		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.20.5"},
@@ -227,7 +224,7 @@ func TestFetchEqpInfoMulti_SecondMatch(t *testing.T) {
 	// First candidate not in Redis, second is
 	mr.HSet("EQP_INFO", "11.97.12.34:192.168.20.5", "PROC:MDL:EQP002:LN:DESC:2")
 
-	cfg := config.RedisConfig{DB: 10}
+	cfg := config.RedisConfig{}
 	candidates := []IPCandidate{
 		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.10.3"},
 		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.20.5"},
@@ -251,7 +248,7 @@ func TestFetchEqpInfoMulti_SecondMatch(t *testing.T) {
 func TestFetchEqpInfoMulti_NoMatch(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{DB: 10}
+	cfg := config.RedisConfig{}
 	candidates := []IPCandidate{
 		{IPAddr: "11.97.12.34", IPAddrLocal: "192.168.10.3"},
 	}
@@ -271,7 +268,7 @@ func TestFetchEqpInfoMulti_NoMatch(t *testing.T) {
 func TestFetchEqpInfoMulti_EmptyCandidates(t *testing.T) {
 	mr := miniredis.RunT(t)
 
-	cfg := config.RedisConfig{DB: 10}
+	cfg := config.RedisConfig{}
 
 	info, matched, err := FetchEqpInfoMulti(context.Background(), mr.Addr(), cfg, nil, nil)
 	if err != nil {
@@ -293,8 +290,7 @@ func TestFetchEqpInfo_WithUnderscoreIPAddrLocal(t *testing.T) {
 	mr.HSet("EQP_INFO", "192.168.1.1:_", "PROC:MDL:EQP999:LN:DESC:0")
 
 	cfg := config.RedisConfig{
-		Port:    6379,
-		DB:      10,
+		Port: 6379,
 	}
 
 	info, err := FetchEqpInfo(context.Background(), mr.Addr(), cfg, nil, "192.168.1.1", "_")

@@ -27,8 +27,7 @@
   "UpdateServerAddressInterval": "10m",
   "Redis": {
     "Port": 6379,
-    "Password": "",
-    "DB": 10
+    "Password": ""
   },
   "PrivateIPAddressPattern": "",
   "SocksProxy": {
