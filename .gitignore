@@ -28,6 +28,8 @@ Thumbs.db
 # Install package
 /install_package_windows/
 /install_package_windows.zip
+/install_package_windows_x86/
+/install_package_windows_x86.zip
 
 # Temporary files
 *.tmp

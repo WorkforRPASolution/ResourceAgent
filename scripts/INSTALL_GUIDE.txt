@@ -68,6 +68,20 @@
   (ARSAgent 파일은 삭제되지 않습니다)
 
 
+[Windows 32-bit 설치]
+
+  Windows 7 32-bit 전용 패키지를 사용합니다.
+  (패키지명: install_package_windows_x86.zip)
+
+  설치 방법은 64-bit와 동일합니다. install_ResourceAgent.bat 실행.
+
+  차이점:
+    - 32-bit ResourceAgent.exe가 bin\x86\ 에 포함됩니다.
+    - LhmHelper/PawnIO는 64-bit 전용이므로 패키지에 미포함됩니다.
+      Windows 7 32-bit에서는 하드웨어 센서(온도, GPU 등) 수집이 불가하며,
+      CPU/Memory/Disk/Network 등 OS 메트릭은 정상 수집됩니다.
+
+
 [Linux 설치]
 
   sudo ./install_ResourceAgent.sh --base-path /opt/EEGAgent

@@ -3,28 +3,36 @@
 # Creates a self-contained install package for deployment to factory PCs.
 #
 # Usage:
-#   ./scripts/package.sh                        # without LhmHelper
-#   ./scripts/package.sh --lhmhelper             # with LhmHelper + PawnIO
-#   ./scripts/package.sh --build                # auto-build with Go 1.20 (Win7+)
-#   ./scripts/package.sh --build --lhmhelper     # build + LhmHelper
+#   ./scripts/package.sh                        # without LhmHelper (64-bit)
+#   ./scripts/package.sh --lhmhelper             # with LhmHelper + PawnIO (64-bit)
+#   ./scripts/package.sh --build                # auto-build with Go 1.20 (Win7+, 64-bit)
+#   ./scripts/package.sh --build --lhmhelper     # build + LhmHelper (64-bit)
+#   ./scripts/package.sh --build --arch 386      # 32-bit build (Win7 32-bit)
+#
+# Architecture:
+#   --arch amd64   64-bit (default, Windows 7+ 64-bit)
+#   --arch 386     32-bit (Windows 7+ 32-bit, LhmHelper auto-excluded)
 #
 # Prerequisites:
 #   - ResourceAgent.exe must be built first, OR use --build flag
 #   - --build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
 #   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
+#   - LhmHelper is 64-bit only; automatically excluded for --arch 386
 #
 # Output:
-#   install_package_windows/                     # package folder
-#   install_package_windows.zip                  # compressed package
+#   install_package_windows/                     # package folder (amd64)
+#   install_package_windows.zip                  # compressed package (amd64)
+#   install_package_windows_x86/                 # package folder (386)
+#   install_package_windows_x86.zip              # compressed package (386)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PACKAGE_DIR="$PROJECT_DIR/install_package_windows"
 INCLUDE_LHM=false
 AUTO_BUILD=false
 GO_TOOLCHAIN="go1.20.14"
+TARGET_ARCH="amd64"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -37,19 +45,42 @@ while [[ $# -gt 0 ]]; do
             AUTO_BUILD=true
             shift
             ;;
+        --arch)
+            TARGET_ARCH="$2"
+            if [[ "$TARGET_ARCH" != "amd64" && "$TARGET_ARCH" != "386" ]]; then
+                echo "ERROR: --arch must be 'amd64' or '386' (got '$TARGET_ARCH')"
+                exit 1
+            fi
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--build] [--lhmhelper]"
+            echo "Usage: $0 [--build] [--lhmhelper] [--arch amd64|386]"
             exit 1
             ;;
     esac
 done
 
-echo "Building ResourceAgent install package..."
+# 32-bit: LhmHelper is win-x64 only, auto-exclude with warning
+if [[ "$TARGET_ARCH" == "386" && "$INCLUDE_LHM" == "true" ]]; then
+    echo "WARNING: LhmHelper is 64-bit only. Automatically excluded for 32-bit package."
+    INCLUDE_LHM=false
+fi
+
+# Set package directory and binary name based on architecture
+if [[ "$TARGET_ARCH" == "386" ]]; then
+    PACKAGE_DIR="$PROJECT_DIR/install_package_windows_x86"
+    BINARY_NAME="ResourceAgent_x86.exe"
+else
+    PACKAGE_DIR="$PROJECT_DIR/install_package_windows"
+    BINARY_NAME="ResourceAgent.exe"
+fi
+
+echo "Building ResourceAgent install package (arch=$TARGET_ARCH)..."
 
 # --- Auto-build ResourceAgent.exe (optional) ---
 if [ "$AUTO_BUILD" = true ]; then
-    echo "  Building ResourceAgent.exe with $GO_TOOLCHAIN (Windows 7+ compatible)..."
+    echo "  Building $BINARY_NAME with $GO_TOOLCHAIN (Windows 7+, $TARGET_ARCH)..."
     if ! command -v go &> /dev/null; then
         echo "ERROR: go command not found. Install Go 1.21+ first."
         exit 1
@@ -59,9 +90,9 @@ if [ "$AUTO_BUILD" = true ]; then
     BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     LDFLAGS="-X main.version=${BUILD_VERSION} -X main.buildTime=${BUILD_TIME}"
     echo "  Version: $BUILD_VERSION  BuildTime: $BUILD_TIME"
-    GOTOOLCHAIN="$GO_TOOLCHAIN" GOOS=windows GOARCH=amd64 \
-        go build -ldflags "$LDFLAGS" -o "$PROJECT_DIR/ResourceAgent.exe" ./cmd/resourceagent
-    echo "  Built ResourceAgent.exe successfully"
+    GOTOOLCHAIN="$GO_TOOLCHAIN" GOOS=windows GOARCH="$TARGET_ARCH" \
+        go build -ldflags "$LDFLAGS" -o "$PROJECT_DIR/$BINARY_NAME" ./cmd/resourceagent
+    echo "  Built $BINARY_NAME successfully"
 fi
 
 # Clean previous package
@@ -74,14 +105,16 @@ mkdir -p "$PACKAGE_DIR/bin/x86"
 mkdir -p "$PACKAGE_DIR/conf/ResourceAgent"
 
 # --- Copy ResourceAgent.exe ---
-BINARY="$PROJECT_DIR/ResourceAgent.exe"
+BINARY="$PROJECT_DIR/$BINARY_NAME"
 if [ ! -f "$BINARY" ]; then
-    echo "ERROR: ResourceAgent.exe not found."
-    echo "       Build it first: GOOS=windows GOARCH=amd64 go build -o ResourceAgent.exe ./cmd/resourceagent"
+    echo "ERROR: $BINARY_NAME not found."
+    echo "       Build it first: GOOS=windows GOARCH=$TARGET_ARCH go build -o $BINARY_NAME ./cmd/resourceagent"
+    echo "       Or use --build flag to auto-build."
     exit 1
 fi
-cp "$BINARY" "$PACKAGE_DIR/bin/x86/"
-echo "  Copied ResourceAgent.exe"
+# Install as ResourceAgent.exe regardless of source name (install scripts expect this name)
+cp "$BINARY" "$PACKAGE_DIR/bin/x86/ResourceAgent.exe"
+echo "  Copied $BINARY_NAME → bin/x86/ResourceAgent.exe"
 
 # --- Copy config files ---
 CONF_DIR="$PROJECT_DIR/conf/ResourceAgent"
@@ -125,11 +158,12 @@ if [ "$INCLUDE_LHM" = true ]; then
 fi
 
 # --- Create zip ---
-ZIP_FILE="$PROJECT_DIR/install_package_windows.zip"
+PACKAGE_BASENAME=$(basename "$PACKAGE_DIR")
+ZIP_FILE="$PROJECT_DIR/${PACKAGE_BASENAME}.zip"
 if [ -f "$ZIP_FILE" ]; then
     rm "$ZIP_FILE"
 fi
-(cd "$PROJECT_DIR" && zip -r "install_package_windows.zip" "install_package_windows/")
+(cd "$PROJECT_DIR" && zip -r "${PACKAGE_BASENAME}.zip" "${PACKAGE_BASENAME}/")
 echo ""
 echo "Package created successfully!"
 echo "  Folder: $PACKAGE_DIR"
