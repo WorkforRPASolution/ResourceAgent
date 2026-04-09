@@ -162,15 +162,16 @@ func TestConvertToEARSRows_MemoryProcess(t *testing.T) {
 		Timestamp: testTimestamp,
 		Data: collector.ProcessMemoryData{
 			Processes: []collector.ProcessMemory{
-				{PID: 1234, Name: "python.exe", RSS: 104857600},
+				{PID: 1234, Name: "python.exe", RSS: 104857600, MemoryPercent: 12.5},
 			},
 		},
 	}
 	rows := ConvertToEARSRows(data)
-	if len(rows) != 1 {
-		t.Fatalf("expected 1 row, got %d", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
 	}
 	assertRow(t, rows[0], "memory", 1234, "python.exe", "used", 104857600)
+	assertRow(t, rows[1], "memory", 1234, "python.exe", "used_pct", 12.5)
 }
 
 func TestConvertToEARSRows_Temperature(t *testing.T) {

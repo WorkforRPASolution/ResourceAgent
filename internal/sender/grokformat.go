@@ -267,7 +267,7 @@ func convertMemoryProcess(data *collector.MetricData) []EARSRow {
 	if !ok {
 		return nil
 	}
-	rows := make([]EARSRow, 0, len(d.Processes))
+	rows := make([]EARSRow, 0, len(d.Processes)*2)
 	for _, p := range d.Processes {
 		rows = append(rows, EARSRow{
 			Timestamp: data.Timestamp,
@@ -276,6 +276,14 @@ func convertMemoryProcess(data *collector.MetricData) []EARSRow {
 			ProcName:  p.Name,
 			Metric:    "used",
 			Value:     float64(p.RSS),
+		})
+		rows = append(rows, EARSRow{
+			Timestamp: data.Timestamp,
+			Category:  "memory",
+			PID:       int(p.PID),
+			ProcName:  p.Name,
+			Metric:    "used_pct",
+			Value:     p.MemoryPercent,
 		})
 	}
 	return rows

@@ -384,7 +384,7 @@ func TestFileSender_Grok_MemoryProcess(t *testing.T) {
 		Timestamp: fileTestTimestamp,
 		Data: collector.ProcessMemoryData{
 			Processes: []collector.ProcessMemory{
-				{PID: 1234, Name: "python.exe", RSS: 104857600},
+				{PID: 1234, Name: "python.exe", RSS: 104857600, MemoryPercent: 12.5},
 			},
 		},
 	}
@@ -393,11 +393,14 @@ func TestFileSender_Grok_MemoryProcess(t *testing.T) {
 	}
 
 	lines := readGrokOutput(t, cfg.FilePath)
-	if len(lines) != 1 {
-		t.Fatalf("expected 1 line, got %d", len(lines))
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
 	if !strings.Contains(lines[0], "category:memory,pid:1234,proc:python.exe,metric:used,value:104857600") {
-		t.Errorf("unexpected line: %s", lines[0])
+		t.Errorf("unexpected line[0]: %s", lines[0])
+	}
+	if !strings.Contains(lines[1], "category:memory,pid:1234,proc:python.exe,metric:used_pct,value:12.5") {
+		t.Errorf("unexpected line[1]: %s", lines[1])
 	}
 }
 
