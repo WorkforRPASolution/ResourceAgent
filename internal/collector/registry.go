@@ -115,6 +115,7 @@ func DefaultRegistry() *Registry {
 	_ = r.Register(NewMotherboardTempCollector())
 	_ = r.Register(NewUptimeCollector())
 	_ = r.Register(NewProcessWatchCollector())
+	_ = r.Register(NewStorageHealthCollector())
 
 	return r
 }

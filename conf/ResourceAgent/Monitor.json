@@ -69,6 +69,11 @@
       "Interval": "60s",
       "RequiredProcesses": [],
       "ForbiddenProcesses": []
+    },
+    "StorageHealth": {
+      "Enabled": true,
+      "Interval": "300s",
+      "Disks": []
     }
   }
 }

@@ -768,6 +768,43 @@ func TestToParsedData_Sanitize(t *testing.T) {
 	}
 }
 
+func TestConvertToEARSRows_StorageHealth(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "StorageHealth",
+		Timestamp: testTimestamp,
+		Data: collector.StorageHealthData{
+			Disks: []collector.StorageHealthDisk{
+				{Name: "Samsung SSD 860 PRO", Status: "OK", RawStatus: "OK", DiskType: "SSD"},
+				{Name: "WDC WD10EZEX", Status: "DEGRADED", RawStatus: "Degraded", DiskType: "HDD"},
+				{Name: "ST500DM002", Status: "PRED_FAIL", RawStatus: "Pred Fail", DiskType: "HDD"},
+				{Name: "INTEL SSDSC2", Status: "FAIL", RawStatus: "Error", DiskType: "SSD"},
+				{Name: "nvme0n1", Status: "UNKNOWN", RawStatus: "", DiskType: "NVMe"},
+			},
+		},
+	}
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 5 {
+		t.Fatalf("expected 5 rows, got %d", len(rows))
+	}
+	assertRow(t, rows[0], "storage_health", 0, "@system", "Samsung SSD 860 PRO_status", 0)
+	assertRow(t, rows[1], "storage_health", 0, "@system", "WDC WD10EZEX_status", 1)
+	assertRow(t, rows[2], "storage_health", 0, "@system", "ST500DM002_status", 2)
+	assertRow(t, rows[3], "storage_health", 0, "@system", "INTEL SSDSC2_status", 3)
+	assertRow(t, rows[4], "storage_health", 0, "@system", "nvme0n1_status", -1)
+}
+
+func TestConvertToEARSRows_StorageHealth_Empty(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "StorageHealth",
+		Timestamp: testTimestamp,
+		Data:      collector.StorageHealthData{Disks: []collector.StorageHealthDisk{}},
+	}
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 0 {
+		t.Fatalf("expected 0 rows for empty disks, got %d", len(rows))
+	}
+}
+
 // --- Benchmarks ---
 
 func BenchmarkToGrokString(b *testing.B) {

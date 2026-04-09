@@ -32,7 +32,7 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
 
 ## 개요
 
-ResourceAgent는 14개의 수집기를 제공합니다:
+ResourceAgent는 15개의 수집기를 제공합니다:
 
 | Collector | 설명 | 플랫폼 |
 |-----------|------|--------|
@@ -45,13 +45,15 @@ ResourceAgent는 14개의 수집기를 제공합니다:
 | temperature | CPU 온도 | Windows (LHM), Linux |
 | fan | 팬 속도 | Windows (LHM) |
 | gpu | GPU 메트릭 | Windows (LHM) |
-| storage_smart | S.M.A.R.T 디스크 상태 | Windows (LHM) |
+| storage_smart | S.M.A.R.T 디스크 상세 메트릭 | Windows (LHM) |
+| storage_health | 디스크 건강 상태 (OK/FAIL) | Windows (WMI), Linux (smartctl) |
 | voltage | 전압 센서 | Windows (LHM) |
 | motherboard_temp | 메인보드 온도 | Windows (LHM) |
 | uptime | 시스템 부팅 시각 및 가동 시간 | Windows, Linux |
 | process_watch | 필수/금지 프로세스 감시 | Windows, Linux |
 
 > **LHM**: LibreHardwareMonitor 기반 (Windows 전용, 관리자 권한 필요)
+> **storage_health**: LHM 불필요. Windows는 WMI `Win32_DiskDrive.Status`, Linux는 `smartctl -H` 사용 (root 권한 필요)
 
 ---
 
@@ -1396,6 +1398,64 @@ cd C:\Path\To\ResourceAgent
   }
 }
 ```
+
+---
+
+## Storage Health Collector
+
+디스크의 건강 상태를 5단계(OK/DEGRADED/PRED_FAIL/FAIL/UNKNOWN)로 수집합니다.
+기존 StorageSmart Collector와 달리 LhmHelper에 의존하지 않으며, Windows 32-bit를 포함한 모든 지원 플랫폼에서 동작합니다.
+
+### 플랫폼별 구현
+
+| 플랫폼 | 방법 | 권한 |
+|--------|------|------|
+| Windows | WMI `Win32_DiskDrive.Status` | 일반 사용자 가능 |
+| Linux | `smartctl -H /dev/sdX` | root 또는 CAP_SYS_RAWIO |
+| Darwin | 빈 배열 반환 (개발용) | - |
+
+### 상태값 매핑
+
+| Status | EARS value | 의미 | 매핑되는 원문 |
+|--------|-----------|------|-------------|
+| OK | 0 | 정상 | OK, PASSED |
+| DEGRADED | 1 | 성능 저하/부분 장애 | Degraded, Stressed |
+| PRED_FAIL | 2 | S.M.A.R.T 예측 고장 (교체 필요) | Pred Fail |
+| FAIL | 3 | 실패/에러 (즉시 조치) | FAILED!, Error, NonRecover, Lost Comm, No Contact |
+| UNKNOWN | -1 | 판별 불가 | 빈값, Unknown, smartctl 미설치, 권한 부족 |
+
+### 설정
+
+```json
+{
+  "StorageHealth": {
+    "Enabled": true,
+    "Interval": "300s",
+    "Disks": []
+  }
+}
+```
+
+| 필드 | 설명 | 기본값 |
+|------|------|--------|
+| `Enabled` | 수집기 활성화 | `true` |
+| `Interval` | 수집 주기 | `300s` |
+| `Disks` | 대상 디스크 필터 (빈 배열=전체) | `[]` |
+
+### EARS 출력 예시
+
+**Grok 포맷** (kafkarest):
+```
+2026-04-09 16:49:00,123 category:storage_health,pid:0,proc:@system,metric:Samsung_SSD_860_PRO_status,value:0
+2026-04-09 16:49:00,123 category:storage_health,pid:0,proc:@system,metric:WDC_WD10EZEX_status,value:2
+```
+
+### 참고사항
+
+- Windows에서 USB/이동식 디스크는 자동 제외됩니다.
+- Linux에서 smartmontools가 설치되지 않은 경우 빈 배열을 반환하며, 로그에 1회 경고가 기록됩니다.
+- `Disks` 필터는 Windows에서는 모델명, Linux에서는 디바이스명(sda, nvme0n1 등)으로 매칭됩니다.
+- StorageSmart Collector와 독립적으로 동작합니다. 둘 다 활성화해도 무방합니다.
 
 ---
 

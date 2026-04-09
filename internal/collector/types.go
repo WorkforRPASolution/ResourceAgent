@@ -215,6 +215,19 @@ type ProcessWatchStatus struct {
 	Type    string `json:"type"` // "required" or "forbidden"
 }
 
+// StorageHealthData contains health status for storage devices.
+type StorageHealthData struct {
+	Disks []StorageHealthDisk `json:"disks"`
+}
+
+// StorageHealthDisk contains health status for a single storage device.
+type StorageHealthDisk struct {
+	Name      string `json:"name"`       // disk model (Windows) or device name (Linux: sda, nvme0n1)
+	Status    string `json:"status"`     // "OK", "DEGRADED", "PRED_FAIL", "FAIL", "UNKNOWN"
+	RawStatus string `json:"raw_status"` // original: "OK", "PASSED", "Pred Fail", "FAILED!" etc.
+	DiskType  string `json:"disk_type"`  // "HDD", "SSD", "NVMe", "" (unknown)
+}
+
 // UptimeData contains system uptime and boot time metrics.
 type UptimeData struct {
 	BootTimeUnix  int64   `json:"boot_time_unix"`

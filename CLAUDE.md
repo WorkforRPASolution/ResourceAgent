@@ -20,14 +20,18 @@ VERSION=$(git describe --tags --always --dirty)
 BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS="-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
-# Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
+# Windows 64-bit 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
 GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o ResourceAgent.exe ./cmd/resourceagent
+
+# Windows 32-bit 빌드 (Go 1.20 툴체인 — Windows 7 32-bit 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=386 go build -ldflags "$LDFLAGS" -o ResourceAgent_x86.exe ./cmd/resourceagent
 
 # Linux 빌드 (Go 1.20 툴체인 — CentOS 6+ 호환)
 GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o resourceagent ./cmd/resourceagent
 
 # 패키지 스크립트로 빌드+패키징 (--build 시 Go 1.20 + 버전 자동 주입)
-./scripts/package.sh --build --lhmhelper
+./scripts/package.sh --build --lhmhelper              # 64-bit (기본)
+./scripts/package.sh --build --arch 386               # 32-bit (LhmHelper 자동 제외)
 
 # 테스트 실행
 go test ./...
@@ -51,7 +55,7 @@ ConfigManager ──► Scheduler ──► Collectors ──► Sender (Kafka)
 
 ### 핵심 인터페이스
 
-- **Collector**: 특정 자원 메트릭 수집 (CPU, Memory, Disk, Network, Temperature, Uptime, ProcessWatch 등 14종)
+- **Collector**: 특정 자원 메트릭 수집 (CPU, Memory, Disk, Network, Temperature, StorageHealth, Uptime, ProcessWatch 등 15종)
 - **Sender**: Kafka로 메트릭 전송
 - **ConfigManager**: 설정 로드, 변경 감지, Hot Reload 처리
 

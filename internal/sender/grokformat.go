@@ -136,6 +136,8 @@ func ConvertToEARSRows(data *collector.MetricData) []EARSRow {
 		return convertMotherboardTemp(data)
 	case "StorageSmart":
 		return convertStorageSmart(data)
+	case "StorageHealth":
+		return convertStorageHealth(data)
 	case "Uptime":
 		return convertUptime(data)
 	case "ProcessWatch":
@@ -435,4 +437,21 @@ func convertUptime(data *collector.MetricData) []EARSRow {
 		systemRow(data.Timestamp, "uptime", "boot_time_unix", float64(d.BootTimeUnix)),
 		systemRow(data.Timestamp, "uptime", "uptime_minutes", d.UptimeMinutes),
 	}
+}
+
+func convertStorageHealth(data *collector.MetricData) []EARSRow {
+	d, ok := unmarshalData[collector.StorageHealthData](data.Data)
+	if !ok {
+		return nil
+	}
+	rows := make([]EARSRow, 0, len(d.Disks))
+	for _, disk := range d.Disks {
+		rows = append(rows, systemRow(
+			data.Timestamp,
+			"storage_health",
+			disk.Name+"_status",
+			collector.HealthStatusValue(disk.Status),
+		))
+	}
+	return rows
 }

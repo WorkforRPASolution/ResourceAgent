@@ -4,7 +4,7 @@
 
 ## 주요 기능
 
-- **14종 메트릭 수집**: CPU, Memory, Disk, Network, Temperature, Fan, GPU, Voltage, Motherboard Temperature, Storage S.M.A.R.T, Uptime, ProcessWatch, 프로세스 CPU/Memory
+- **15종 메트릭 수집**: CPU, Memory, Disk, Network, Temperature, Fan, GPU, Voltage, Motherboard Temperature, Storage S.M.A.R.T, Storage Health, Uptime, ProcessWatch, 프로세스 CPU/Memory
 - **Windows 하드웨어 모니터링**: LibreHardwareMonitor (LhmHelper) 연동으로 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.R.T 수집
 - **유연한 전송 방식**: `file`, `kafka`, `kafkarest` 3가지 sender 지원
 - **EARS 호환 포맷**: ARSAgent 호환 Grok 평문 및 JSON(ParsedDataList) 포맷 지원
@@ -96,8 +96,11 @@ LDFLAGS="-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 # Linux 빌드 (Go 1.20 툴체인 — CentOS 6+ 호환)
 GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o resourceagent ./cmd/resourceagent
 
-# Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
+# Windows 64-bit 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
 GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o ResourceAgent.exe ./cmd/resourceagent
+
+# Windows 32-bit 빌드 (Go 1.20 툴체인 — Windows 7 32-bit 호환)
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=386 go build -ldflags "$LDFLAGS" -o ResourceAgent_x86.exe ./cmd/resourceagent
 ```
 
 **PowerShell (Windows):**
@@ -107,12 +110,17 @@ $Version = git describe --tags --always --dirty
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $Ldflags = "-X main.version=$Version -X main.buildTime=$BuildTime"
 
-# Windows 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
+# Windows 64-bit 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
 $env:GOTOOLCHAIN="go1.20.14"; $env:GOOS="windows"; $env:GOARCH="amd64"
 go build -ldflags "$Ldflags" -o ResourceAgent.exe ./cmd/resourceagent
 
+# Windows 32-bit 빌드 (Go 1.20 툴체인 — Windows 7 32-bit 호환)
+$env:GOTOOLCHAIN="go1.20.14"; $env:GOOS="windows"; $env:GOARCH="386"
+go build -ldflags "$Ldflags" -o ResourceAgent_x86.exe ./cmd/resourceagent
+
 # 또는 패키지 스크립트 사용 (빌드 + 패키징, 버전 자동 주입)
-.\scripts\package.ps1 -Build -IncludeLhmHelper
+.\scripts\package.ps1 -Build -IncludeLhmHelper          # 64-bit
+.\scripts\package.ps1 -Build -Arch 386                   # 32-bit
 ```
 
 ### LhmHelper 빌드 (Windows 하드웨어 모니터링)
@@ -300,11 +308,14 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 개발 PC에서 패키지를 생성하고, 현장 PC에 배포합니다.
 
 ```bash
-# 빌드 + 패키징 (Go 1.20 자동 사용, LhmHelper 포함)
+# 64-bit: 빌드 + 패키징 (Go 1.20 자동 사용, LhmHelper 포함)
 ./scripts/package.sh --build --lhmhelper
 
-# 빌드 + 패키징 (LhmHelper 없이)
+# 64-bit: 빌드 + 패키징 (LhmHelper 없이)
 ./scripts/package.sh --build
+
+# 32-bit: 빌드 + 패키징 (Windows 7 32-bit용, LhmHelper 자동 제외)
+./scripts/package.sh --build --arch 386
 
 # 이미 빌드된 바이너리로 패키징만
 ./scripts/package.sh --lhmhelper
@@ -313,8 +324,11 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 Windows에서 패키지 생성 시:
 
 ```powershell
-# 빌드 + 패키징 (Go 1.20 자동 사용, LhmHelper 포함)
+# 64-bit: 빌드 + 패키징 (Go 1.20 자동 사용, LhmHelper 포함)
 .\scripts\package.ps1 -Build -IncludeLhmHelper
+
+# 32-bit: 빌드 + 패키징 (Windows 7 32-bit용, LhmHelper 자동 제외)
+.\scripts\package.ps1 -Build -Arch 386
 
 # 이미 빌드된 바이너리로 패키징만
 .\scripts\package.ps1 -IncludeLhmHelper
@@ -323,12 +337,12 @@ Windows에서 패키지 생성 시:
 생성되는 패키지 구조:
 
 ```
-install_package_windows/
-├── INSTALL_GUIDE.txt                    # 설치 가이드 (현장 담당자용)
-├── install_ResourceAgent.bat             # 설치 스크립트
-├── install_ResourceAgent.ps1             # PowerShell 설치 스크립트
+install_package_windows/                 ← 64-bit (기본)
+├── INSTALL_GUIDE.txt
+├── install_ResourceAgent.bat
+├── install_ResourceAgent.ps1
 ├── bin\x86\
-│   └── ResourceAgent.exe
+│   └── ResourceAgent.exe                # 64-bit 바이너리
 ├── conf\ResourceAgent\
 │   ├── ResourceAgent.json
 │   ├── Monitor.json
@@ -336,9 +350,27 @@ install_package_windows/
 └── utils\lhm-helper\                   (--lhmhelper 옵션 시)
     ├── LhmHelper.exe
     └── PawnIO_setup.exe
+
+install_package_windows_x86/             ← 32-bit (--arch 386)
+├── INSTALL_GUIDE.txt
+├── install_ResourceAgent.bat
+├── install_ResourceAgent.ps1
+├── bin\x86\
+│   └── ResourceAgent.exe                # 32-bit 바이너리
+└── conf\ResourceAgent\
+    ├── ResourceAgent.json
+    ├── Monitor.json
+    └── Logging.json
+    (LhmHelper 미포함 — 64-bit 전용)
 ```
 
-> `install_package_windows.zip`도 함께 생성됩니다. 현장 PC에 zip을 복사 후 압축 해제하여 사용합니다.
+> 각각 `.zip`도 함께 생성됩니다. 현장 PC에 zip을 복사 후 압축 해제하여 사용합니다.
+
+**32-bit 패키지 참고사항:**
+- LhmHelper는 64-bit 전용이므로 32-bit 패키지에 자동 제외됩니다.
+- 32-bit Windows에서는 하드웨어 센서(온도, GPU, 팬, 전압, 메인보드 온도, S.M.A.R.T) 수집이 불가합니다.
+- CPU, Memory, Disk, Network, Uptime, ProcessWatch 등 OS 메트릭은 정상 수집됩니다.
+- 설치 스크립트(`install_ResourceAgent.bat`)는 64-bit/32-bit 패키지 모두 동일하게 동작합니다.
 
 ### Windows 설치
 
