@@ -199,11 +199,30 @@ category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 
 ### memory (memory_process collector)
 
-프로세스마다 1개 row 생성.
+프로세스마다 2개 rows 생성.
 
 | category | metric | 설명 | 단위 | 예시 |
 |----------|--------|------|------|------|
 | `memory` | `used` | 프로세스 RSS (Resident Set Size) | bytes | pid=`1234`, proc=`python.exe`, value=`104857600` |
+| `memory` | `used_pct` | 프로세스 메모리 사용률 | % | pid=`1234`, proc=`python.exe`, value=`12.5` |
+
+### storage_health (storage_health collector)
+
+디스크마다 1개 row 생성. LhmHelper 불필요. Windows: WMI, Linux: smartctl.
+
+| category | metric | 설명 | 단위 | 예시 |
+|----------|--------|------|------|------|
+| `storage_health` | `{disk}_status` | 디스크 건강 상태 | 0=OK, 1=DEGRADED, 2=PRED_FAIL, 3=FAIL, -1=UNKNOWN | proc=`@system`, metric=`Samsung_SSD_860_PRO_status`, value=`0` |
+
+**상태값 매핑:**
+
+| Status | value | 의미 | 매핑되는 원문 |
+|--------|-------|------|-------------|
+| OK | 0 | 정상 | OK, PASSED |
+| DEGRADED | 1 | 성능 저하 | Degraded, Stressed |
+| PRED_FAIL | 2 | 예측 고장 (교체 필요) | Pred Fail |
+| FAIL | 3 | 실패/에러 (즉시 조치) | FAILED!, Error, NonRecover |
+| UNKNOWN | -1 | 판별 불가 | 빈값, Unknown, smartctl 미설치 |
 
 ---
 

@@ -596,7 +596,7 @@ tail -f log/ResourceAgent/metrics.jsonl
 ```
 
 > EARS Grok 포맷 상세 명세는 [`docs/EARS-METRICS-REFERENCE.md`](docs/EARS-METRICS-REFERENCE.md) 참조.
-> 14종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
+> 15종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
 
 ## 운영
 

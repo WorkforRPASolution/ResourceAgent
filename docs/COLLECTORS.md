@@ -1166,6 +1166,7 @@ category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 | fan | ✓ (LHM) | - | - |
 | gpu | ✓ (LHM) | - | - |
 | storage_smart | ✓ (LHM) | - | - |
+| storage_health | ✓ (WMI) | ✓ (smartctl) | - |
 | voltage | ✓ (LHM) | - | - |
 | motherboard_temp | ✓ (LHM) | - | - |
 | uptime | ✓ | ✓ | ✓ |
