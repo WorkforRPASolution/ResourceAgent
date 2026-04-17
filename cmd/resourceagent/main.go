@@ -132,6 +132,7 @@ type infraResult struct {
 	syncer       *timediff.Syncer
 	virtualIP    string
 	dialFunc     func(string, string) (net.Conn, error)
+	discClient   *discovery.Client
 }
 
 // setupInfrastructure resolves Redis EQP_INFO, ServiceDiscovery, and TimeDiff.
@@ -160,7 +161,11 @@ func setupInfrastructure(ctx context.Context, cfg *config.Config, agentID string
 	// 2. Create SOCKS dialer if configured
 	var dialFunc func(string, string) (net.Conn, error)
 	if cfg.SOCKSProxy.Host != "" && cfg.SOCKSProxy.Port > 0 {
-		dialFunc = network.DialerFunc(cfg.SOCKSProxy.Host, cfg.SOCKSProxy.Port)
+		df, err := network.DialerFunc(cfg.SOCKSProxy.Host, cfg.SOCKSProxy.Port)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SOCKS dialer: %w", err)
+		}
+		dialFunc = df
 		log.Info().
 			Str("socks_host", cfg.SOCKSProxy.Host).
 			Int("socks_port", cfg.SOCKSProxy.Port).
@@ -176,6 +181,7 @@ func setupInfrastructure(ctx context.Context, cfg *config.Config, agentID string
 
 	result.virtualIP = virtualIP
 	result.dialFunc = dialFunc
+	result.discClient = discovery.NewClient(dialFunc)
 
 	if dialFunc != nil {
 		return setupWithProxy(ctx, cfg, result, virtualIP, redisAddress, dialFunc)
@@ -191,7 +197,7 @@ func setupWithProxy(ctx context.Context, cfg *config.Config, result *infraResult
 	log := logger.WithComponent("main")
 
 	// 1. ServiceDiscovery (index="0") → KafkaRest + EARSInterfaceSrv
-	services, err := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, "0", dialFunc)
+	services, err := result.discClient.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, "0")
 	if err != nil {
 		return nil, fmt.Errorf("ServiceDiscovery (index=0) failed: %w", err)
 	}
@@ -208,7 +214,7 @@ func setupWithProxy(ctx context.Context, cfg *config.Config, result *infraResult
 	log.Info().Str("ears_interface_addr", earsIfAddr).Msg("EARSInterfaceSrv address resolved")
 
 	// 2. FetchExternalIP → 외부 IP
-	externalIP, err := discovery.FetchExternalIP(ctx, earsIfAddr, dialFunc)
+	externalIP, err := result.discClient.FetchExternalIP(ctx, earsIfAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch external IP: %w", err)
 	}
@@ -244,7 +250,7 @@ func setupWithProxy(ctx context.Context, cfg *config.Config, result *infraResult
 	applyEqpInfo(cfg, result, info)
 
 	// 6. ServiceDiscovery (실제 index) → KafkaRest 갱신
-	services, err = discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, dialFunc)
+	services, err = result.discClient.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index)
 	if err != nil {
 		return nil, fmt.Errorf("ServiceDiscovery (index=%s) failed: %w", info.Index, err)
 	}
@@ -303,7 +309,7 @@ func setupWithoutProxy(ctx context.Context, cfg *config.Config, result *infraRes
 	applyEqpInfo(cfg, result, info)
 
 	// 5. ServiceDiscovery
-	services, err := discovery.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index, nil)
+	services, err := result.discClient.FetchServices(ctx, virtualIP, cfg.ServiceDiscoveryPort, info.Index)
 	if err != nil {
 		return nil, fmt.Errorf("ServiceDiscovery failed: %w", err)
 	}
@@ -368,15 +374,24 @@ func buildCandidatesProxy(externalIP string, ipInfo *network.IPInfo) []eqpinfo.I
 }
 
 // buildCandidatesNoProxy builds IP candidates for no-proxy flow.
-// inner_ip is always "_". If DetectIPByDial succeeded, use that single IP.
-// Otherwise, try all NIC IPs as external IP.
+// inner_ip is always "_". detectedIP (from DetectIPByDial) is tried first,
+// then all other NIC IPs as fallback — DetectIPByDial returns the OS-chosen
+// source IP, but EQP_INFO may have been registered using a different NIC IP
+// when multiple NICs share the same subnet.
 func buildCandidatesNoProxy(detectedIP string, allIPs []string) []eqpinfo.IPCandidate {
+	seen := make(map[string]bool, len(allIPs)+1)
+	candidates := make([]eqpinfo.IPCandidate, 0, len(allIPs)+1)
+
 	if detectedIP != "" {
-		return []eqpinfo.IPCandidate{{IPAddr: detectedIP, IPAddrLocal: "_"}}
+		candidates = append(candidates, eqpinfo.IPCandidate{IPAddr: detectedIP, IPAddrLocal: "_"})
+		seen[detectedIP] = true
 	}
-	candidates := make([]eqpinfo.IPCandidate, 0, len(allIPs))
 	for _, ip := range allIPs {
+		if seen[ip] {
+			continue
+		}
 		candidates = append(candidates, eqpinfo.IPCandidate{IPAddr: ip, IPAddrLocal: "_"})
+		seen[ip] = true
 	}
 	return candidates
 }
@@ -526,6 +541,9 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 	if infra.syncer != nil {
 		defer infra.syncer.Stop()
 	}
+	if infra.discClient != nil {
+		defer infra.discClient.Close()
+	}
 
 	// Phase 1.5: Heartbeat
 	var hb *heartbeat.Sender
@@ -593,8 +611,8 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 			}
 
 			refresher.SetFetchAddr(func(fetchCtx context.Context) (string, error) {
-				services, err := discovery.FetchServices(fetchCtx, infra.virtualIP,
-					cfg.ServiceDiscoveryPort, cfg.EqpInfo.Index, infra.dialFunc)
+				services, err := infra.discClient.FetchServices(fetchCtx, infra.virtualIP,
+					cfg.ServiceDiscoveryPort, cfg.EqpInfo.Index)
 				if err != nil {
 					return "", err
 				}

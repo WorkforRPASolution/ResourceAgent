@@ -22,8 +22,10 @@ const (
 
 // HTTPTransport implements KafkaTransport via the KafkaRest HTTP proxy.
 type HTTPTransport struct {
-	client  *http.Client
-	baseURL string
+	client    *http.Client
+	transport *http.Transport
+	baseURL   string
+	closeOnce sync.Once
 }
 
 // NewHTTPTransport creates a new HTTP-based Kafka REST transport.
@@ -39,8 +41,9 @@ func NewHTTPTransport(kafkaRestAddr string, socksCfg config.SOCKSConfig) (*HTTPT
 	}
 
 	return &HTTPTransport{
-		client:  client,
-		baseURL: ensureHTTPScheme(kafkaRestAddr),
+		client:    client,
+		transport: transport,
+		baseURL:   ensureHTTPScheme(kafkaRestAddr),
 	}, nil
 }
 
@@ -90,8 +93,12 @@ func (t *HTTPTransport) Deliver(ctx context.Context, topic string, records []Kaf
 	return fmt.Errorf("KafkaRest send failed after %d retries: %w", defaultRetries, lastErr)
 }
 
-// Close is a no-op for HTTP transport.
+// Close releases idle TCP connections in the transport pool.
+// Safe to call multiple times.
 func (t *HTTPTransport) Close() error {
+	t.closeOnce.Do(func() {
+		t.transport.CloseIdleConnections()
+	})
 	return nil
 }
 
@@ -124,17 +131,19 @@ type bufferedEntry struct {
 
 // BufferedHTTPTransport implements KafkaTransport with buffered batch delivery via HTTP.
 type BufferedHTTPTransport struct {
-	client   *http.Client
-	baseURL  string
-	batchCfg config.BatchConfig
+	client    *http.Client
+	transport *http.Transport
+	baseURL   string
+	batchCfg  config.BatchConfig
 
 	mu     sync.Mutex
 	buffer []bufferedEntry
 	topic  string // current topic (assumes single topic per sender)
 
-	flushCh chan struct{} // signal to flush immediately
-	stopCh  chan struct{}
-	doneCh  chan struct{}
+	flushCh   chan struct{} // signal to flush immediately
+	stopCh    chan struct{}
+	doneCh    chan struct{}
+	closeOnce sync.Once
 }
 
 // NewBufferedHTTPTransport creates a new buffered HTTP transport with batch delivery.
@@ -150,12 +159,13 @@ func NewBufferedHTTPTransport(kafkaRestAddr string, socksCfg config.SOCKSConfig,
 	}
 
 	t := &BufferedHTTPTransport{
-		client:   client,
-		baseURL:  ensureHTTPScheme(kafkaRestAddr),
-		batchCfg: batchCfg,
-		flushCh:  make(chan struct{}, 1),
-		stopCh:   make(chan struct{}),
-		doneCh:   make(chan struct{}),
+		client:    client,
+		transport: transport,
+		baseURL:   ensureHTTPScheme(kafkaRestAddr),
+		batchCfg:  batchCfg,
+		flushCh:   make(chan struct{}, 1),
+		stopCh:    make(chan struct{}),
+		doneCh:    make(chan struct{}),
 	}
 
 	go t.flushLoop()
@@ -180,10 +190,14 @@ func (t *BufferedHTTPTransport) Deliver(_ context.Context, topic string, records
 	return nil
 }
 
-// Close stops the flush loop and flushes remaining records.
+// Close stops the flush loop, flushes remaining records, and releases idle TCP connections.
+// Safe to call multiple times.
 func (t *BufferedHTTPTransport) Close() error {
-	close(t.stopCh)
-	<-t.doneCh
+	t.closeOnce.Do(func() {
+		close(t.stopCh)
+		<-t.doneCh
+		t.transport.CloseIdleConnections()
+	})
 	return nil
 }
 
