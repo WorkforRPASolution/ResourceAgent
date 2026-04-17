@@ -374,15 +374,24 @@ func buildCandidatesProxy(externalIP string, ipInfo *network.IPInfo) []eqpinfo.I
 }
 
 // buildCandidatesNoProxy builds IP candidates for no-proxy flow.
-// inner_ip is always "_". If DetectIPByDial succeeded, use that single IP.
-// Otherwise, try all NIC IPs as external IP.
+// inner_ip is always "_". detectedIP (from DetectIPByDial) is tried first,
+// then all other NIC IPs as fallback — DetectIPByDial returns the OS-chosen
+// source IP, but EQP_INFO may have been registered using a different NIC IP
+// when multiple NICs share the same subnet.
 func buildCandidatesNoProxy(detectedIP string, allIPs []string) []eqpinfo.IPCandidate {
+	seen := make(map[string]bool, len(allIPs)+1)
+	candidates := make([]eqpinfo.IPCandidate, 0, len(allIPs)+1)
+
 	if detectedIP != "" {
-		return []eqpinfo.IPCandidate{{IPAddr: detectedIP, IPAddrLocal: "_"}}
+		candidates = append(candidates, eqpinfo.IPCandidate{IPAddr: detectedIP, IPAddrLocal: "_"})
+		seen[detectedIP] = true
 	}
-	candidates := make([]eqpinfo.IPCandidate, 0, len(allIPs))
 	for _, ip := range allIPs {
+		if seen[ip] {
+			continue
+		}
 		candidates = append(candidates, eqpinfo.IPCandidate{IPAddr: ip, IPAddrLocal: "_"})
+		seen[ip] = true
 	}
 	return candidates
 }
