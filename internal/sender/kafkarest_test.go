@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -800,5 +801,183 @@ func TestBufferedHTTPTransport_EmptyClose(t *testing.T) {
 
 	if atomic.LoadInt32(&httpCalls) != 0 {
 		t.Errorf("expected 0 HTTP calls for empty Close, got %d", httpCalls)
+	}
+}
+
+// T11: Close()는 idempotent해야 함 (이중 호출에도 panic 없음)
+func TestBufferedHTTPTransport_Close_Idempotent(t *testing.T) {
+	batchCfg := newTestBatchConfig()
+	transport, server := newTestBufferedTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}, batchCfg)
+	defer server.Close()
+
+	// 첫 번째 Close
+	if err := transport.Close(); err != nil {
+		t.Fatalf("first Close returned error: %v", err)
+	}
+
+	// 두 번째 Close — panic 발생하면 안 됨
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("second Close panicked: %v", r)
+		}
+	}()
+	if err := transport.Close(); err != nil {
+		t.Fatalf("second Close returned error: %v", err)
+	}
+
+	// 세 번째 Close도 안전해야 함
+	if err := transport.Close(); err != nil {
+		t.Fatalf("third Close returned error: %v", err)
+	}
+}
+
+// T12: Close()는 keep-alive idle connection을 즉시 정리해야 함
+func TestBufferedHTTPTransport_Close_ClosesIdleConnections(t *testing.T) {
+	var stateMu sync.Mutex
+	connStates := make(map[string][]http.ConnState)
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	server.Config.ConnState = func(c net.Conn, state http.ConnState) {
+		stateMu.Lock()
+		key := c.RemoteAddr().String()
+		connStates[key] = append(connStates[key], state)
+		stateMu.Unlock()
+	}
+	server.Start()
+	defer server.Close()
+
+	batchCfg := newTestBatchConfig()
+	batchCfg.FlushFrequency = 50 * time.Millisecond
+	batchCfg.FlushMessages = 1000
+
+	transport, err := NewBufferedHTTPTransport(server.URL, config.SOCKSConfig{}, batchCfg)
+	if err != nil {
+		t.Fatalf("failed to create BufferedHTTPTransport: %v", err)
+	}
+
+	transport.Deliver(context.Background(), "test-topic", makeTestRecords(1))
+
+	// flush + idle 상태 진입 대기
+	time.Sleep(200 * time.Millisecond)
+
+	stateMu.Lock()
+	hasIdle := false
+	for _, states := range connStates {
+		for _, s := range states {
+			if s == http.StateIdle {
+				hasIdle = true
+			}
+		}
+	}
+	stateMu.Unlock()
+
+	if !hasIdle {
+		t.Skip("connection did not reach idle state — keep-alive may not be active in this env")
+	}
+
+	// Close 호출 → idle conn 정리되어야 함
+	transport.Close()
+
+	// state 전파 대기
+	time.Sleep(100 * time.Millisecond)
+
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	closedAfterClose := false
+	for _, states := range connStates {
+		// idle 이후 closed가 와야 정상
+		for i, s := range states {
+			if s == http.StateClosed && i > 0 {
+				closedAfterClose = true
+			}
+		}
+	}
+	if !closedAfterClose {
+		t.Errorf("expected connection to transition to StateClosed after transport.Close(), states=%v", connStates)
+	}
+}
+
+// T13: HTTPTransport.Close()도 idempotent해야 함
+func TestHTTPTransport_Close_Idempotent(t *testing.T) {
+	transport, err := NewHTTPTransport("http://example.invalid", config.SOCKSConfig{})
+	if err != nil {
+		t.Fatalf("failed to create HTTPTransport: %v", err)
+	}
+
+	if err := transport.Close(); err != nil {
+		t.Fatalf("first Close returned error: %v", err)
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("second Close panicked: %v", r)
+		}
+	}()
+	if err := transport.Close(); err != nil {
+		t.Fatalf("second Close returned error: %v", err)
+	}
+}
+
+// T14: HTTPTransport.Close()도 keep-alive idle connection을 정리해야 함
+func TestHTTPTransport_Close_ClosesIdleConnections(t *testing.T) {
+	var stateMu sync.Mutex
+	connStates := make(map[string][]http.ConnState)
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	server.Config.ConnState = func(c net.Conn, state http.ConnState) {
+		stateMu.Lock()
+		key := c.RemoteAddr().String()
+		connStates[key] = append(connStates[key], state)
+		stateMu.Unlock()
+	}
+	server.Start()
+	defer server.Close()
+
+	transport, err := NewHTTPTransport(server.URL, config.SOCKSConfig{})
+	if err != nil {
+		t.Fatalf("failed to create HTTPTransport: %v", err)
+	}
+
+	if err := transport.Deliver(context.Background(), "test-topic", makeTestRecords(1)); err != nil {
+		t.Fatalf("Deliver failed: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	stateMu.Lock()
+	hasIdle := false
+	for _, states := range connStates {
+		for _, s := range states {
+			if s == http.StateIdle {
+				hasIdle = true
+			}
+		}
+	}
+	stateMu.Unlock()
+	if !hasIdle {
+		t.Skip("connection did not reach idle state")
+	}
+
+	transport.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	closedAfterClose := false
+	for _, states := range connStates {
+		for i, s := range states {
+			if s == http.StateClosed && i > 0 {
+				closedAfterClose = true
+			}
+		}
+	}
+	if !closedAfterClose {
+		t.Errorf("expected connection to transition to StateClosed after transport.Close(), states=%v", connStates)
 	}
 }

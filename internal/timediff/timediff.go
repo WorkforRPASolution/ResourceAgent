@@ -28,6 +28,7 @@ type Syncer struct {
 	interval  time.Duration
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
+	client    *redis.Client // owned by Syncer; created in Start, closed in Stop
 }
 
 // NewSyncer creates a new Syncer.
@@ -41,10 +42,18 @@ func NewSyncer(redisAddr string, redisCfg config.RedisConfig, dialFunc func(stri
 	}
 }
 
-// Start performs the first sync synchronously (returns error on failure),
+// Start creates the Redis client, performs the first sync synchronously (returns error on failure),
 // then starts a background ticker for periodic syncs.
 func (s *Syncer) Start(ctx context.Context) error {
+	client, err := createRedisClient(s.redisAddr, s.redisCfg, s.dialFunc)
+	if err != nil {
+		return fmt.Errorf("failed to create Redis client: %w", err)
+	}
+	s.client = client
+
 	if err := s.syncOnce(ctx); err != nil {
+		s.client.Close()
+		s.client = nil
 		return fmt.Errorf("initial time diff sync failed: %w", err)
 	}
 
@@ -57,12 +66,17 @@ func (s *Syncer) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop cancels the background ticker and waits for it to finish.
+// Stop cancels the background ticker, waits for it to finish, and closes the Redis client.
 func (s *Syncer) Stop() {
 	if s.cancel != nil {
 		s.cancel()
 	}
 	s.wg.Wait()
+
+	if s.client != nil {
+		s.client.Close()
+		s.client = nil
+	}
 }
 
 // GetDiff returns the current time difference in milliseconds (local - server).
@@ -92,16 +106,14 @@ func (s *Syncer) loop(ctx context.Context) {
 func (s *Syncer) syncOnce(ctx context.Context) error {
 	log := logger.WithComponent("timediff")
 
-	client, err := createRedisClient(s.redisAddr, s.redisCfg, s.dialFunc)
-	if err != nil {
-		return fmt.Errorf("failed to create Redis client: %w", err)
+	if s.client == nil {
+		return fmt.Errorf("Redis client not initialised")
 	}
-	defer client.Close()
 
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	serverTime, err := client.Time(queryCtx).Result()
+	serverTime, err := s.client.Time(queryCtx).Result()
 	if err != nil {
 		return fmt.Errorf("Redis TIME failed: %w", err)
 	}
@@ -112,7 +124,7 @@ func (s *Syncer) syncOnce(ctx context.Context) error {
 
 	// Store diff in Redis
 	key := fmt.Sprintf("EQP_DIFF:%s", s.eqpID)
-	if err := client.Set(queryCtx, key, diff, 0).Err(); err != nil {
+	if err := s.client.Set(queryCtx, key, diff, 0).Err(); err != nil {
 		return fmt.Errorf("Redis SET %s failed: %w", key, err)
 	}
 

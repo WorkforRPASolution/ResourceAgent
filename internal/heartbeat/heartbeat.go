@@ -36,6 +36,9 @@ type Sender struct {
 	wg          sync.WaitGroup
 	healthCheck func() (string, string) // (status, reason) — nil means always OK
 	mu          sync.RWMutex            // protects healthCheck
+
+	clientMu sync.Mutex
+	client   *redis.Client // lazy-initialised on first send
 }
 
 // BuildKey returns the Redis key for the heartbeat: "AgentHealth:{agentGroup}:{process}-{eqpModel}-{eqpID}".
@@ -89,6 +92,29 @@ func (s *Sender) Stop() {
 
 	// SHUTDOWN status (best-effort)
 	s.sendShutdown()
+
+	s.clientMu.Lock()
+	if s.client != nil {
+		s.client.Close()
+		s.client = nil
+	}
+	s.clientMu.Unlock()
+}
+
+// ensureClient returns the Redis client, lazily creating it on first use.
+// Returns nil if creation fails — callers must treat heartbeat as best-effort.
+func (s *Sender) ensureClient() *redis.Client {
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
+	if s.client != nil {
+		return s.client
+	}
+	c, err := createRedisClient(s.redisAddr, s.redisCfg, s.dialFunc)
+	if err != nil {
+		return nil
+	}
+	s.client = c
+	return s.client
 }
 
 func (s *Sender) sendShutdown() {
@@ -97,12 +123,11 @@ func (s *Sender) sendShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client, err := createRedisClient(s.redisAddr, s.redisCfg, s.dialFunc)
-	if err != nil {
-		log.Warn().Err(err).Msg("failed to create Redis client for shutdown heartbeat")
+	client := s.ensureClient()
+	if client == nil {
+		log.Warn().Msg("Redis client unavailable for shutdown heartbeat")
 		return
 	}
-	defer client.Close()
 
 	uptimeSeconds := int64(time.Since(s.startTime).Seconds())
 	value := fmt.Sprintf("SHUTDOWN:%d", uptimeSeconds)
@@ -134,12 +159,11 @@ func (s *Sender) loop(ctx context.Context) {
 func (s *Sender) sendOnce(ctx context.Context) {
 	log := logger.WithComponent("heartbeat")
 
-	client, err := createRedisClient(s.redisAddr, s.redisCfg, s.dialFunc)
-	if err != nil {
-		log.Warn().Err(err).Msg("failed to create Redis client for heartbeat")
+	client := s.ensureClient()
+	if client == nil {
+		log.Warn().Msg("Redis client unavailable for heartbeat (will retry on next tick)")
 		return
 	}
-	defer client.Close()
 
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

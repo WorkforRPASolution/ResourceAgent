@@ -265,6 +265,70 @@ func TestSender_RedisDown(t *testing.T) {
 	}
 }
 
+// 핵심: 다회 sendOnce 호출 시 redis.Client는 1회만 생성되어 재사용되어야 함.
+func TestSender_ReusesRedisClient(t *testing.T) {
+	mr := miniredis.RunT(t)
+	cfg := config.RedisConfig{Port: 6379}
+	s := NewSender(mr.Addr(), cfg, nil, "ARS", "MODEL1", "EQP010")
+
+	ctx := context.Background()
+
+	// 첫 호출 전: client는 아직 없어야 함 (lazy init)
+	if s.client != nil {
+		t.Fatal("expected client to be nil before first sendOnce (lazy init)")
+	}
+
+	s.sendOnce(ctx)
+	first := s.client
+	if first == nil {
+		t.Fatal("expected client to be initialised after first sendOnce")
+	}
+
+	for i := 0; i < 5; i++ {
+		s.sendOnce(ctx)
+		if s.client != first {
+			t.Fatalf("client changed between sendOnce calls (iter %d)", i)
+		}
+	}
+}
+
+// 핵심: 시작 시 Redis가 죽어 있어도 best-effort로 살아남고,
+// Redis 복구 시 lazy로 client를 만들어 정상 동작해야 함.
+func TestSender_LazyInit_RecoversAfterRedisDown(t *testing.T) {
+	cfg := config.RedisConfig{Port: 6379}
+	s := NewSender("127.0.0.1:1", cfg, nil, "ARS", "MODEL1", "EQP011")
+
+	ctx := context.Background()
+
+	// 잘못된 주소로 호출 — panic 없이 그냥 fail해야 함
+	s.sendOnce(ctx)
+
+	// client가 만들어졌어도 (go-redis는 즉시 dial하지 않음) 또는 nil 이어도 무방
+	// 핵심은 sendOnce가 panic 없이 리턴하는 것
+
+	// 실제 Redis로 주소 변경 후 client를 비워주면 lazy init이 다시 시도됨
+	mr := miniredis.RunT(t)
+	s.redisAddr = mr.Addr()
+	s.clientMu.Lock()
+	if s.client != nil {
+		s.client.Close()
+		s.client = nil
+	}
+	s.clientMu.Unlock()
+
+	s.sendOnce(ctx)
+
+	mr.Select(0)
+	key := BuildKey(AgentGroup, "ARS", "MODEL1", "EQP011")
+	val, err := mr.Get(key)
+	if err != nil {
+		t.Fatalf("expected key after recovery, got error: %v", err)
+	}
+	if val == "" {
+		t.Fatal("expected non-empty value after recovery")
+	}
+}
+
 // TestE2E_RealRedis verifies heartbeat against a real Redis instance.
 // Run with: REDIS_E2E=localhost:6379 go test ./internal/heartbeat/... -v -run TestE2E
 func TestE2E_RealRedis(t *testing.T) {
