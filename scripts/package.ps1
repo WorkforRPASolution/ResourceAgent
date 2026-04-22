@@ -16,8 +16,11 @@
 #   - ResourceAgent.exe must be built first, OR use -Build flag
 #   - -Build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
 #   - (optional) LhmHelper must be built: cd utils\lhm-helper; dotnet publish -c Release
-#   - (optional) scripts\vendor\NDP48-x86-x64-AllOS-ENU.exe (.NET Framework 4.8 installer)
 #   - LhmHelper runs as AnyCPU but is currently packaged for 64-bit only (-Arch 386 excludes it)
+#
+# .NET Framework 4.8 installer:
+#   NOT bundled in this package. Distributed separately via .\scripts\package_ndp48.ps1
+#   so that factory equipment PCs can be deployed without triggering system-level installs.
 #
 # Output:
 #   install_package_windows\                     # package folder (amd64)
@@ -129,7 +132,10 @@ if (Test-Path $SitesConf) {
 }
 Write-Host "  Copied install scripts + guide"
 
-# --- Copy LhmHelper + PawnIO + .NET Framework 4.8 installer (optional) ---
+# --- Copy LhmHelper + PawnIO (optional) ---
+# .NET Framework 4.8 installer is NOT bundled here. It is distributed as a
+# separate package (.\scripts\package_ndp48.ps1) so that factory equipment PCs
+# do not trigger system-level installs during ResourceAgent deployment.
 if ($IncludeLhmHelper) {
     $ToolsDir = Join-Path $PackageDir "utils\lhm-helper"
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
@@ -163,16 +169,6 @@ if ($IncludeLhmHelper) {
     }
     Copy-Item $PawnIO -Destination "$ToolsDir\PawnIO_setup.exe"
     Write-Host "  Copied PawnIO_setup.exe"
-
-    # .NET Framework 4.8 offline installer (~112MB). Required for LhmHelper on
-    # PCs with < .NET Framework 4.8. install_ResourceAgent.bat auto-detects and installs.
-    $Ndp48 = Join-Path $ProjectDir "scripts\vendor\NDP48-x86-x64-AllOS-ENU.exe"
-    if (-not (Test-Path $Ndp48)) {
-        Write-Error ".NET Framework 4.8 installer not found at scripts\vendor\NDP48-x86-x64-AllOS-ENU.exe`nDownload from https://dotnet.microsoft.com/download/dotnet-framework/net48`nSee scripts\vendor\README.md for details."
-        exit 1
-    }
-    Copy-Item $Ndp48 -Destination "$ToolsDir\NDP48-x86-x64-AllOS-ENU.exe"
-    Write-Host "  Copied NDP48-x86-x64-AllOS-ENU.exe (.NET Framework 4.8 installer)"
 }
 
 # --- Create zip ---

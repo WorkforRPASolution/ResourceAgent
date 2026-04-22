@@ -17,8 +17,12 @@
 #   - ResourceAgent.exe must be built first, OR use --build flag
 #   - --build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
 #   - (optional) LhmHelper must be built: cd utils/lhm-helper && dotnet publish -c Release
-#   - (optional) scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe (.NET Framework 4.8 installer)
 #   - LhmHelper runs as AnyCPU but is currently packaged for 64-bit only (--arch 386 excludes it)
+#
+# .NET Framework 4.8 installer:
+#   NOT bundled in this package. Distributed separately via ./scripts/package_ndp48.sh
+#   so that factory equipment PCs can be deployed without triggering system-level installs.
+#   Administrators should run NDP48 manually only when authorized.
 #
 # Output:
 #   install_package_windows/                     # package folder (amd64)
@@ -136,7 +140,10 @@ if [ -f "$SCRIPT_DIR/sites.conf" ]; then
 fi
 echo "  Copied install scripts + guide"
 
-# --- Copy LhmHelper + PawnIO + .NET Framework 4.8 installer (optional) ---
+# --- Copy LhmHelper + PawnIO (optional) ---
+# .NET Framework 4.8 installer is NOT bundled here. It is distributed as a
+# separate package (./scripts/package_ndp48.sh) so that factory equipment PCs
+# do not trigger system-level installs during ResourceAgent deployment.
 if [ "$INCLUDE_LHM" = true ]; then
     mkdir -p "$PACKAGE_DIR/utils/lhm-helper"
 
@@ -165,18 +172,6 @@ if [ "$INCLUDE_LHM" = true ]; then
     fi
     cp "$PAWNIO" "$PACKAGE_DIR/utils/lhm-helper/"
     echo "  Copied PawnIO_setup.exe"
-
-    # .NET Framework 4.8 offline installer (~112MB). Required for LhmHelper on
-    # PCs with < .NET Framework 4.8. install_ResourceAgent.bat auto-detects and installs.
-    NDP48="$PROJECT_DIR/scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe"
-    if [ ! -f "$NDP48" ]; then
-        echo "ERROR: .NET Framework 4.8 installer not found at scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe"
-        echo "       Download from https://dotnet.microsoft.com/download/dotnet-framework/net48"
-        echo "       See scripts/vendor/README.md for details."
-        exit 1
-    fi
-    cp "$NDP48" "$PACKAGE_DIR/utils/lhm-helper/"
-    echo "  Copied NDP48-x86-x64-AllOS-ENU.exe (.NET Framework 4.8 installer)"
 fi
 
 # --- Create zip ---

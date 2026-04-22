@@ -34,8 +34,7 @@ set "SERVICE_NAME=ResourceAgent"
 set "DISPLAY_NAME=Resource Monitoring Service"
 set "DESCRIPTION=Lightweight monitoring agent for collecting hardware resource metrics"
 set "NDP_RELEASE=0"
-set "NDP_RC="
-set "NEED_REBOOT=0"
+set "NDP_WARNED=0"
 
 REM --- Parse arguments ---
 :parse_args
@@ -244,43 +243,44 @@ if exist "!RA_CONFIG!" (
 
 if "%NO_COPY%"=="1" goto :nocopy_lhm
 
-REM --- Check .NET Framework 4.8+ before LhmHelper install ---
+REM --- Check .NET Framework 4.8+ for LhmHelper (warn only, no auto-install) ---
 REM LhmHelper targets .NET Framework 4.7.2 (works with 4.8+ runtime).
-REM If installed Release < 528040, install .NET Framework 4.8 from bundled installer.
+REM Factory equipment PCs must not have system-level installs triggered automatically;
+REM administrator must install .NET Framework 4.8 manually if needed.
 if "%INCLUDE_LHM%"=="1" (
     set "NDP_RELEASE=0"
     for /f "tokens=3" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release 2^>nul ^| findstr /i "Release"') do (
         set "NDP_RELEASE=%%A"
     )
 
-    set "NEEDS_NDP48=0"
-    if !NDP_RELEASE! LSS 528040 set "NEEDS_NDP48=1"
+    set "NDP_OK=0"
+    if !NDP_RELEASE! GEQ 528040 set "NDP_OK=1"
 
-    if "!NEEDS_NDP48!"=="1" (
-        echo   .NET Framework 4.8 not detected ^(current Release: !NDP_RELEASE!^). Installing...
-        if not exist "%PKG_DIR%utils\lhm-helper\NDP48-x86-x64-AllOS-ENU.exe" (
-            echo ERROR: .NET Framework 4.8 installer not found in package.
-            echo        Use /nolhm to skip LhmHelper, or rebuild package with installer.
-            exit /b 1
-        )
-        "%PKG_DIR%utils\lhm-helper\NDP48-x86-x64-AllOS-ENU.exe" /passive /norestart
-        set "NDP_RC=!errorlevel!"
-
-        REM Use exact equality (not `if errorlevel`) because errorlevel 3010 matches any value >= 3010.
-        if "!NDP_RC!"=="0" (
-            echo   .NET Framework 4.8 installed successfully.
-        ) else if "!NDP_RC!"=="3010" (
-            echo   .NET Framework 4.8 installed. REBOOT REQUIRED before service starts.
-            set "NEED_REBOOT=1"
-        ) else if "!NDP_RC!"=="1641" (
-            echo   .NET Framework 4.8 installed. System-initiated reboot scheduled.
-            set "NEED_REBOOT=1"
-        ) else (
-            echo ERROR: .NET Framework 4.8 installation failed ^(exit code !NDP_RC!^).
-            exit /b 1
-        )
+    if "!NDP_OK!"=="1" (
+        echo   .NET Framework 4.8+ detected ^(Release: !NDP_RELEASE!^).
     ) else (
-        echo   .NET Framework 4.8+ already installed ^(Release: !NDP_RELEASE!^).
+        echo.
+        echo ===============================================================
+        echo  WARNING: .NET Framework 4.8+ NOT DETECTED
+        echo    Current Release: !NDP_RELEASE!  ^(required: 528040+^)
+        echo.
+        echo  LhmHelper ^(hardware sensor collection^) requires .NET 4.8+.
+        echo  ResourceAgent will be installed, but LhmHelper will FAIL to start.
+        echo  Hardware sensors ^(temperature, fan, GPU, voltage, S.M.A.R.T^)
+        echo  will return EMPTY data. OS metrics ^(CPU/Memory/Disk/Network^)
+        echo  will continue to work normally.
+        echo.
+        echo  TO ENABLE HARDWARE MONITORING:
+        echo    1. Contact system administrator
+        echo    2. Install .NET Framework 4.8 offline installer:
+        echo       https://dotnet.microsoft.com/download/dotnet-framework/net48
+        echo    3. Reboot the PC
+        echo    4. Restart ResourceAgent service:
+        echo       sc.exe stop ResourceAgent
+        echo       sc.exe start ResourceAgent
+        echo ===============================================================
+        echo.
+        set "NDP_WARNED=1"
     )
 )
 
@@ -408,24 +408,8 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 (
     echo install_timestamp=!date! !time!
     echo ndp_release=!NDP_RELEASE!
-    echo ndp_installer_exit_code=!NDP_RC!
-    echo need_reboot=!NEED_REBOOT!
+    echo ndp_warned=!NDP_WARNED!
 ) > "%LOG_DIR%\install_result.txt"
-
-if "!NEED_REBOOT!"=="1" (
-    echo.
-    echo ===============================================================
-    echo  SERVICE REGISTERED BUT NOT STARTED
-    echo  .NET Framework 4.8 installation requires a reboot.
-    echo  Please REBOOT this PC. Service will auto-start on next boot.
-    echo ===============================================================
-    echo.
-    echo   BasePath: %BASE_PATH%
-    echo   Binary:   %BIN_DIR%\ResourceAgent.exe
-    echo   Config:   %CONF_DIR%\
-    echo   Logs:     %LOG_DIR%\
-    goto :eof
-)
 
 echo   Starting service...
 sc.exe start %SERVICE_NAME% >nul 2>&1
@@ -440,6 +424,11 @@ if not errorlevel 1 (
     echo   Binary:   %BIN_DIR%\ResourceAgent.exe
     echo   Config:   %CONF_DIR%\
     echo   Logs:     %LOG_DIR%\
+    if "!NDP_WARNED!"=="1" (
+        echo.
+        echo   NOTE: LhmHelper will fail until .NET Framework 4.8 is installed.
+        echo         Hardware sensors ^(temperature/fan/GPU/S.M.A.R.T^) unavailable.
+    )
 ) else (
     echo WARNING: Service installed but not running. Check logs for details.
 )

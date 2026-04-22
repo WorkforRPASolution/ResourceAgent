@@ -18,10 +18,12 @@
      * ARSAgent가 없으면 /basepath 옵션을 지정해야 합니다.
      * LhmHelper + PawnIO 드라이버가 기본 포함됩니다.
      * LhmHelper는 .NET Framework 4.8 이상이 필요합니다.
-       - 설치되어 있지 않으면 오프라인 설치기가 자동 실행됩니다 (~112MB).
-       - 설치 후 재부팅이 필요할 수 있으며, 이 경우 서비스는 등록만 되고
-         재부팅 이후 자동 시작됩니다 (start=auto).
-       - Windows Update로 4.8 이상이 설치된 PC는 자동 스킵됩니다.
+       - 설치 스크립트가 자동으로 감지하지만 **자동 설치하지 않습니다**
+         (장비 PC의 임의 시스템 변경 방지).
+       - 4.8 미설치 시 경고 메시지만 출력되고 설치는 정상 진행됩니다.
+       - LhmHelper 수집기만 작동하지 않으며 나머지 OS 메트릭은 정상 수집됩니다.
+       - .NET Framework 4.8 수동 설치가 필요한 경우 별도 패키지
+         (install_package_ndp48.zip)를 관리자 승인 후 설치하세요.
 
   2. 하드웨어 센서 수집이 필요 없는 경우:
      명령 프롬프트를 관리자 권한으로 열고 다음을 실행합니다.
@@ -144,15 +146,14 @@
       LhmHelper가 내장 WinRing0 드라이버로 자동 폴백하여
       온도/GPU 등 하드웨어 센서를 정상 수집합니다.
 
-  ".NET Framework 4.8 installation failed" 오류:
-    → Windows Update가 실행 중이면 종료 후 재시도
-    → WSUS 정책이 .NET 설치를 차단하는 환경이면 관리자에게 문의
-    → /nolhm 옵션으로 LhmHelper만 제외하여 우선 설치 가능
+  "WARNING: .NET Framework 4.8+ NOT DETECTED" 메시지:
+    → ResourceAgent 서비스는 정상 설치됩니다. LhmHelper만 실패합니다.
+    → 하드웨어 센서(온도/팬/GPU/S.M.A.R.T) 수집이 필요하면
+      관리자 승인 후 별도 NDP48 패키지(install_package_ndp48.zip)를 설치하세요.
 
-  "REBOOT REQUIRED before service starts" 메시지:
-    → .NET Framework 4.8 설치 후 재부팅 필요 상태.
-      PC를 재부팅하면 ResourceAgent 서비스가 자동으로 시작됩니다.
-      (start=auto로 등록되어 있음)
+  로그에 "LhmHelper daemon failed to start" + "pipe being closed":
+    → .NET Framework 4.8 미설치 PC에서 LhmHelper 실행 실패 전형 패턴.
+    → 로그에 "HINT: ..." 섹션이 나오면 해당 안내 따라 조치.
 
   서비스가 시작되지 않을 때:
     → 로그 확인: D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log

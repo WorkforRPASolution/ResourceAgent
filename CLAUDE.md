@@ -167,9 +167,10 @@ dotnet publish -c Release
 ```
 
 **.NET Framework 4.8 오프라인 설치기**:
-- 현장 PC 설치용. `scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe` (~112MB)에 배치 후 `package.sh --lhmhelper`로 패키지에 포함.
-- 수동 다운로드 필요 (git에 커밋되지 않음). 상세: `scripts/vendor/README.md`
-- install_ResourceAgent.bat이 레지스트리 검사 후 필요 시 자동 실행 (재부팅 필요 시 서비스는 등록만 하고 재부팅 후 자동 시작).
+- **메인 설치 패키지에 번들링되지 않음** (장비 PC의 임의 시스템 변경 방지 정책)
+- `scripts/package_ndp48.sh` / `package_ndp48.ps1`로 **별도 패키지 생성**
+- `scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe` (~112MB)에 수동 배치 필요 (git에 커밋되지 않음). 상세: `scripts/vendor/README.md`
+- `install_ResourceAgent.bat`은 .NET 버전 감지 후 미달 시 **경고만 출력**, 자동 설치하지 않음. 관리자 승인 후 별도 NDP48 패키지를 수동 설치.
 
 **PawnIO 드라이버**:
 - LibreHardwareMonitor의 하드웨어 접근 드라이버 (WinRing0 대체)
@@ -178,10 +179,11 @@ dotnet publish -c Release
 - Microsoft 서명 버전 제공
 - Windows 7에서는 미지원이므로 WinRing0 fallback
 
-**배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 설치 패키지 생성
+**배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 메인 설치 패키지 생성
 - 패키지에 ResourceAgent.exe, 설정 파일, install_ResourceAgent.bat/ps1, INSTALL_GUIDE.txt 포함
-- LhmHelper 디렉토리(폴더 전체) + PawnIO_setup.exe + NDP48 설치기 기본 포함 (`/nolhm` 옵션으로 제외 가능)
-- PawnIO 드라이버 및 .NET Framework 4.8 설치/제거도 install_ResourceAgent.bat에서 자동 처리
+- LhmHelper 디렉토리(폴더 전체) + PawnIO_setup.exe 포함 (`/nolhm` 옵션으로 제외 가능)
+- **.NET Framework 4.8 설치기는 메인 패키지에 없음** — `scripts/package_ndp48.sh`로 별도 패키지 생성
+- PawnIO 드라이버 설치/제거는 `install_ResourceAgent.bat`에서 자동 처리. .NET Framework는 경고만.
 
 ### 데이터 흐름
 

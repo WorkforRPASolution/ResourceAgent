@@ -41,4 +41,24 @@ MS 공식 URL이 사라질 리스크 대비 **회사 내부 파일 서버에 동
 
 ## 사용
 
-파일 배치 후 `./scripts/package.sh --build --lhmhelper` 실행 시 자동으로 패키지에 포함됩니다. 누락 시 빌드 에러.
+**중요**: 이 설치기는 **메인 ResourceAgent 패키지에 포함되지 않습니다**. 장비 PC에서 시스템 레벨 설치가 자동으로 트리거되는 것을 방지하기 위함입니다.
+
+### 별도 NDP48 설치 패키지 생성
+
+```bash
+./scripts/package_ndp48.sh        # Linux/macOS
+.\scripts\package_ndp48.ps1       # Windows
+```
+
+출력:
+- `install_package_ndp48/` 폴더
+- `install_package_ndp48.zip` (~112MB)
+
+### 현장 배포 시나리오
+
+1. **메인 패키지 배포** (모든 PC): `install_package_windows.zip`
+   - ResourceAgent 서비스 설치
+   - .NET Framework 4.8 미설치 PC는 LhmHelper만 실패 (서비스는 정상)
+2. **NDP48 패키지 배포** (관리자 승인 PC만): `install_package_ndp48.zip`
+   - 관리자가 `install_ndp48.bat` 수동 실행
+   - 재부팅 후 ResourceAgent 서비스 재시작 → LhmHelper 정상 동작

@@ -128,7 +128,7 @@ go build -ldflags "$Ldflags" -o ResourceAgent_x86.exe ./cmd/resourceagent
 
 Windows에서 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.R.T를 수집하려면 LhmHelper가 필요합니다.
 
-TargetFramework는 **.NET Framework 4.7.2 (`net472`)**이며, 현장 PC에는 **.NET Framework 4.8 런타임**이 필요합니다 (Windows Update로 대부분 자동 설치되어 있으며, 미설치 PC는 `install_ResourceAgent.bat`이 번들된 오프라인 설치기를 자동 실행).
+TargetFramework는 **.NET Framework 4.7.2 (`net472`)**이며, 현장 PC에는 **.NET Framework 4.8 런타임**이 필요합니다 (Windows Update로 대부분 자동 설치되어 있음). 미설치 PC에서는 `install_ResourceAgent.bat`이 **경고 메시지만 출력**하고 ResourceAgent 서비스 자체는 정상 설치합니다 (장비 PC의 임의 시스템 변경 방지). .NET Framework 4.8 설치가 필요한 경우 별도 패키지(`install_package_ndp48.zip`, `scripts/package_ndp48.sh`로 생성)를 관리자 승인 후 적용합니다.
 
 ```bash
 cd utils/lhm-helper
@@ -359,8 +359,12 @@ install_package_windows/                 ← 64-bit (기본)
 │   └── Logging.json
 └── utils\lhm-helper\                   (--lhmhelper 옵션 시)
     ├── LhmHelper.exe + 의존 DLL 10개+
-    ├── PawnIO_setup.exe
-    └── NDP48-x86-x64-AllOS-ENU.exe     # .NET Framework 4.8 오프라인 설치기
+    └── PawnIO_setup.exe
+
+install_package_ndp48/                   ← .NET 4.8 설치 전용 별도 패키지
+├── NDP48-x86-x64-AllOS-ENU.exe          # ~112MB
+├── install_ndp48.bat                    # 관리자가 수동 실행
+└── README.txt
 
 install_package_windows_x86/             ← 32-bit (--arch 386)
 ├── INSTALL_GUIDE.txt
