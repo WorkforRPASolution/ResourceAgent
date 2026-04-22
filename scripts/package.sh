@@ -147,7 +147,7 @@ echo "  Copied install scripts + guide"
 if [ "$INCLUDE_LHM" = true ]; then
     mkdir -p "$PACKAGE_DIR/utils/lhm-helper"
 
-    # .NET Framework 4.7 build: copy entire publish directory (exe + config + DLLs).
+    # .NET Framework 4.7 build with Costura.Fody: all dependencies embedded into LhmHelper.exe.
     # AppendTargetFrameworkToOutputPath=false → output may be at either path.
     LHM_PUBLISH_DIR=""
     if [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/publish" ]; then
@@ -161,9 +161,11 @@ if [ "$INCLUDE_LHM" = true ]; then
         echo "       Build it first: cd utils/lhm-helper && dotnet publish -c Release"
         exit 1
     fi
-    cp -r "$LHM_PUBLISH_DIR"/* "$PACKAGE_DIR/utils/lhm-helper/"
-    LHM_FILE_COUNT=$(find "$PACKAGE_DIR/utils/lhm-helper" -maxdepth 1 -type f | wc -l | tr -d ' ')
-    echo "  Copied LhmHelper ($LHM_FILE_COUNT files from $LHM_PUBLISH_DIR)"
+    cp "$LHM_PUBLISH_DIR/LhmHelper.exe" "$PACKAGE_DIR/utils/lhm-helper/"
+    if [ -f "$LHM_PUBLISH_DIR/LhmHelper.exe.config" ]; then
+        cp "$LHM_PUBLISH_DIR/LhmHelper.exe.config" "$PACKAGE_DIR/utils/lhm-helper/"
+    fi
+    echo "  Copied LhmHelper.exe (single-file with embedded dependencies)"
 
     PAWNIO="$PROJECT_DIR/utils/lhm-helper/PawnIO_setup.exe"
     if [ ! -f "$PAWNIO" ]; then

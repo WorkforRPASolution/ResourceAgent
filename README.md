@@ -134,7 +134,7 @@ TargetFramework는 **.NET Framework 4.7 (`net47`)**이며, 현장 PC에는 **.NE
 cd utils/lhm-helper
 dotnet publish -c Release
 # 출력: bin/Release/publish/ (또는 bin/Release/net47/publish/)
-# LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 다수 (LibreHardwareMonitorLib, HidSharp, System.Text.Json 등)
+# LhmHelper.exe + LhmHelper.exe.config (Costura.Fody로 모든 의존 DLL을 exe에 embed, 단일 파일 배포)
 ```
 
 > .NET 8 self-contained에서 net47로 전환한 배경은 `docs/issues/win7-net8-modified-memory.md` 참조. Windows 7 PC에서 "Modified" 메모리 폭증 이슈 해결을 위한 조치.
@@ -305,11 +305,8 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 │       └── metrics.jsonl
 └── utils\
     └── lhm-helper\                       # Windows 전용
-        ├── LhmHelper.exe                 # 하드웨어 센서 헬퍼 (.NET Framework 4.7)
+        ├── LhmHelper.exe                 # 하드웨어 센서 헬퍼 (.NET Framework 4.7, 단일 exe)
         ├── LhmHelper.exe.config
-        ├── LibreHardwareMonitorLib.dll
-        ├── HidSharp.dll
-        ├── System.Text.Json.dll 및 의존 DLL 다수
         └── PawnIO_setup.exe              # 드라이버 설치/제거 (Win8+만)
 ```
 
@@ -358,7 +355,8 @@ install_package_windows/                 ← 64-bit (기본)
 │   ├── Monitor.json
 │   └── Logging.json
 └── utils\lhm-helper\                   (--lhmhelper 옵션 시)
-    ├── LhmHelper.exe + 의존 DLL 다수 (net47 빌드)
+    ├── LhmHelper.exe                   # net47 단일 exe (의존성 embed)
+    ├── LhmHelper.exe.config
     └── PawnIO_setup.exe
 
 install_package_ndp48/                   ← .NET 4.8 설치 전용 별도 패키지 (옵션)
@@ -676,7 +674,7 @@ LHM은 하드웨어 접근 드라이버를 자동으로 선택합니다:
 
 ### 필요 파일
 
-1. **LhmHelper.exe** + 의존 DLL — C# LibreHardwareMonitor 헬퍼 (.NET Framework 4.7 타겟)
+1. **LhmHelper.exe** — C# LibreHardwareMonitor 헬퍼 (.NET Framework 4.7 타겟, Costura.Fody로 의존 DLL 내장)
 2. **.NET Framework 4.7 런타임** — Windows 7 공장 PC는 대부분 기본 설치되어 있음 (추가 설치 불필요)
 3. **PawnIO 드라이버** (Windows 8+ 전용) — 하드웨어 접근 드라이버 (Microsoft 서명)
 

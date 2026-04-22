@@ -121,12 +121,8 @@
   │   ├── ResourceAgent.log        ← 에이전트 로그
   │   └── metrics.jsonl            ← 수집 메트릭 (file sender 사용 시)
   └── utils\lhm-helper\            ← 기본 포함 (/nolhm 시 제외)
-      ├── LhmHelper.exe            ← C# 하드웨어 센서 헬퍼
+      ├── LhmHelper.exe            ← C# 하드웨어 센서 헬퍼 (단일 exe, 모든 의존성 내장)
       ├── LhmHelper.exe.config
-      ├── LibreHardwareMonitorLib.dll
-      ├── HidSharp.dll
-      ├── System.Management.dll
-      ├── System.Text.Json.dll 및 의존 DLL 다수
       └── PawnIO_setup.exe         ← Win8+ 드라이버 (Win7은 자동 스킵)
 
 

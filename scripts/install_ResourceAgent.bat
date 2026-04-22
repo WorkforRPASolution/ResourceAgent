@@ -296,19 +296,17 @@ REM --- Copy LhmHelper + PawnIO (optional) ---
 if "%INCLUDE_LHM%"=="1" (
     if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
 
-    REM Copy LhmHelper directory (exe + config + dependency DLLs)
+    REM Copy LhmHelper single-file exe (Costura.Fody embeds all dependencies)
     if not exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" (
         echo ERROR: utils\lhm-helper\LhmHelper.exe not found in package.
         echo        Rebuild package with: package.sh --lhmhelper or use /nolhm to skip
         exit /b 1
     )
-    REM Exclude .NET Framework installer from being copied to target (~112MB, only needed during install).
     xcopy /y /i "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\" >nul
     if exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe.config" (
         xcopy /y /i "%PKG_DIR%utils\lhm-helper\LhmHelper.exe.config" "%TOOLS_DIR%\" >nul
     )
-    xcopy /y /i "%PKG_DIR%utils\lhm-helper\*.dll" "%TOOLS_DIR%\" >nul 2>&1
-    echo   Copied LhmHelper and dependency DLLs
+    echo   Copied LhmHelper.exe
 
     REM Detect OS version to determine PawnIO compatibility
     REM PawnIO requires Windows 8+ (version 6.2+). Windows 7 = 6.1.

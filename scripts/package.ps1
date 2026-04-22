@@ -140,7 +140,7 @@ if ($IncludeLhmHelper) {
     $ToolsDir = Join-Path $PackageDir "utils\lhm-helper"
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
 
-    # .NET Framework 4.7 build: copy entire publish directory (exe + config + DLLs).
+    # .NET Framework 4.7 build with Costura.Fody: all dependencies embedded into LhmHelper.exe.
     # AppendTargetFrameworkToOutputPath=false -> output may be at either path.
     $PublishCandidates = @(
         (Join-Path $ProjectDir "utils\lhm-helper\bin\Release\publish"),
@@ -157,9 +157,12 @@ if ($IncludeLhmHelper) {
         Write-Error "LhmHelper publish output not found. Build it first: cd utils\lhm-helper; dotnet publish -c Release"
         exit 1
     }
-    Copy-Item "$LhmPublishDir\*" -Destination $ToolsDir -Recurse -Force
-    $LhmFileCount = (Get-ChildItem $ToolsDir -File).Count
-    Write-Host "  Copied LhmHelper ($LhmFileCount files from $LhmPublishDir)"
+    Copy-Item (Join-Path $LhmPublishDir "LhmHelper.exe") -Destination $ToolsDir -Force
+    $LhmConfig = Join-Path $LhmPublishDir "LhmHelper.exe.config"
+    if (Test-Path $LhmConfig) {
+        Copy-Item $LhmConfig -Destination $ToolsDir -Force
+    }
+    Write-Host "  Copied LhmHelper.exe (single-file with embedded dependencies)"
 
     # PawnIO_setup.exe
     $PawnIO = Join-Path $ProjectDir "utils\lhm-helper\PawnIO_setup.exe"
