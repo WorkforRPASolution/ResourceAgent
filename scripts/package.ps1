@@ -70,7 +70,7 @@ if ($Build) {
         exit 1
     }
     # Resolve version from git tag
-    try { $BuildVersion = & git describe --tags --always --dirty 2>$null } catch { $BuildVersion = $null }
+    try { $BuildVersion = & git describe --tags --always 2>$null } catch { $BuildVersion = $null }
     if (-not $BuildVersion) { $BuildVersion = "dev" }
     $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     $Ldflags = "-X main.version=$BuildVersion -X main.buildTime=$BuildTime"

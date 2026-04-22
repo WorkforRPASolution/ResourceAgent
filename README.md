@@ -29,7 +29,7 @@
 
 ### 버전 관리
 
-git tag 기반으로 버전을 관리합니다. 빌드 시 `git describe --tags --always --dirty`로 버전을 추출하여 `-ldflags`로 바이너리에 주입합니다.
+git tag 기반으로 버전을 관리합니다. 빌드 시 `git describe --tags --always`로 버전을 추출하여 `-ldflags`로 바이너리에 주입합니다. (`--dirty` 플래그는 사용하지 않음 — Fody 등 빌드 도구가 FodyWeavers.xml을 일시적으로 수정해도 버전에 `-dirty`가 붙지 않도록 함.)
 
 **버전 문자열 형식:**
 
@@ -38,7 +38,6 @@ git tag 기반으로 버전을 관리합니다. 빌드 시 `git describe --tags 
 | 태그가 가리키는 커밋 | `v{major}.{minor}.{patch}` | `v1.0.0` |
 | 태그 이후 추가 커밋 | `v{tag}-{N}-g{hash}` | `v1.0.0-3-gabcdef1` |
 | 태그 없음 | `{short hash}` | `abcdef1` |
-| 수정된 파일 있음 | `...--dirty` | `v1.0.0-dirty` |
 | git 저장소 아님 | `dev` (fallback) | `dev` |
 
 **시작 로그에 `version`과 `build_time`이 출력됩니다:**
@@ -74,7 +73,7 @@ git tag -d v1.0.0
 git push origin --delete v1.0.0
 
 # 현재 버전 확인
-git describe --tags --always --dirty
+git describe --tags --always
 ```
 
 ### 사전 요구사항
@@ -90,7 +89,7 @@ git describe --tags --always --dirty
 go mod tidy
 
 # 버전 정보 (git tag 기반)
-VERSION=$(git describe --tags --always --dirty)
+VERSION=$(git describe --tags --always)
 BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS="-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
@@ -107,7 +106,7 @@ GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=386 go build -ldflags "$LDFLAGS" -o Re
 **PowerShell (Windows):**
 ```powershell
 # 버전 정보 (git tag 기반)
-$Version = git describe --tags --always --dirty
+$Version = git describe --tags --always
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $Ldflags = "-X main.version=$Version -X main.buildTime=$BuildTime"
 
