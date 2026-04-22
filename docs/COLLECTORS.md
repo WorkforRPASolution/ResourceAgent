@@ -587,7 +587,7 @@ CPU 사용률이 높은 상위 프로세스를 수집합니다.
 ResourceAgent (Go)
        │
        ▼ exec.Command()
-LhmHelper.exe (C#/.NET Framework 4.8)
+LhmHelper.exe (C#/.NET Framework 4.7)
        │
        ▼ LibreHardwareMonitorLib
 PawnIO Driver (Kernel)

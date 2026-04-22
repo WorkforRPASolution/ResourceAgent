@@ -147,13 +147,13 @@ echo "  Copied install scripts + guide"
 if [ "$INCLUDE_LHM" = true ]; then
     mkdir -p "$PACKAGE_DIR/utils/lhm-helper"
 
-    # .NET Framework 4.7.2 build: copy entire publish directory (exe + config + DLLs).
+    # .NET Framework 4.7 build: copy entire publish directory (exe + config + DLLs).
     # AppendTargetFrameworkToOutputPath=false → output may be at either path.
     LHM_PUBLISH_DIR=""
     if [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/publish" ]; then
         LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/publish"
-    elif [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/net472/publish" ]; then
-        LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/net472/publish"
+    elif [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/net47/publish" ]; then
+        LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/net47/publish"
     fi
 
     if [ -z "$LHM_PUBLISH_DIR" ] || [ ! -f "$LHM_PUBLISH_DIR/LhmHelper.exe" ]; then

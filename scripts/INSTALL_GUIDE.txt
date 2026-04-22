@@ -17,13 +17,14 @@
      * ARSAgent가 이미 설치되어 있으면 설치 경로를 자동으로 감지합니다.
      * ARSAgent가 없으면 /basepath 옵션을 지정해야 합니다.
      * LhmHelper + PawnIO 드라이버가 기본 포함됩니다.
-     * LhmHelper는 .NET Framework 4.8 이상이 필요합니다.
+     * LhmHelper는 .NET Framework 4.7 이상이 필요합니다.
+       - 대부분의 Windows 7 공장 PC는 4.7이 기본 설치되어 있어 추가 조치 불필요.
        - 설치 스크립트가 자동으로 감지하지만 **자동 설치하지 않습니다**
          (장비 PC의 임의 시스템 변경 방지).
-       - 4.8 미설치 시 경고 메시지만 출력되고 설치는 정상 진행됩니다.
+       - 4.7 미설치 PC에서는 경고 메시지만 출력되고 설치는 정상 진행됩니다.
        - LhmHelper 수집기만 작동하지 않으며 나머지 OS 메트릭은 정상 수집됩니다.
-       - .NET Framework 4.8 수동 설치가 필요한 경우 별도 패키지
-         (install_package_ndp48.zip)를 관리자 승인 후 설치하세요.
+       - 예외적으로 4.6 이하 PC에서 .NET Framework 업그레이드가 필요한 경우
+         별도 패키지(install_package_ndp48.zip)를 관리자 승인 후 설치하세요.
 
   2. 하드웨어 센서 수집이 필요 없는 경우:
      명령 프롬프트를 관리자 권한으로 열고 다음을 실행합니다.
@@ -146,13 +147,13 @@
       LhmHelper가 내장 WinRing0 드라이버로 자동 폴백하여
       온도/GPU 등 하드웨어 센서를 정상 수집합니다.
 
-  "WARNING: .NET Framework 4.8+ NOT DETECTED" 메시지:
+  "WARNING: .NET Framework 4.7+ NOT DETECTED" 메시지:
     → ResourceAgent 서비스는 정상 설치됩니다. LhmHelper만 실패합니다.
     → 하드웨어 센서(온도/팬/GPU/S.M.A.R.T) 수집이 필요하면
       관리자 승인 후 별도 NDP48 패키지(install_package_ndp48.zip)를 설치하세요.
 
   로그에 "LhmHelper daemon failed to start" + "pipe being closed":
-    → .NET Framework 4.8 미설치 PC에서 LhmHelper 실행 실패 전형 패턴.
+    → .NET Framework 4.7 미설치 PC에서 LhmHelper 실행 실패 전형 패턴.
     → 로그에 "HINT: ..." 섹션이 나오면 해당 안내 따라 조치.
 
   서비스가 시작되지 않을 때:

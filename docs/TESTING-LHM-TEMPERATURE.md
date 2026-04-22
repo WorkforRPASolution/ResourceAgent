@@ -5,8 +5,8 @@ LibreHardwareMonitor 기반 CPU 온도 수집 기능 테스트 방법입니다.
 ## 사전 요구사항
 
 - Windows 7 SP1+ 또는 Windows Server 2008 R2 SP1+
-- .NET SDK 6+ (LhmHelper 빌드용, net472 타겟 지원하는 SDK 필요)
-- .NET Framework 4.8 (런타임 — 테스트 PC에 설치)
+- .NET SDK 6+ (LhmHelper 빌드용, net47 타겟 지원하는 SDK 필요)
+- .NET Framework 4.7 이상 (런타임 — Windows 7 공장 PC는 대부분 이미 설치됨)
 - Go 1.21+ (ResourceAgent 빌드용)
 - 관리자 권한
 
@@ -31,7 +31,7 @@ cd utils/lhm-helper
 dotnet publish -c Release
 ```
 
-**출력 위치**: `utils/lhm-helper/bin/Release/publish/` (또는 `bin/Release/net472/publish/`)
+**출력 위치**: `utils/lhm-helper/bin/Release/publish/` (또는 `bin/Release/net47/publish/`)
 - LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 10개+ (LibreHardwareMonitorLib, HidSharp, System.Text.Json 등)
 - **배포 시 폴더 전체를 같이 복사**해야 Windows가 DLL을 로드함
 
@@ -177,7 +177,7 @@ cd C:\Test\ResourceAgent
 | 단계 | 명령어 |
 |------|--------|
 | 브랜치 체크아웃 | `git checkout feature/lhm-temperature` |
-| LhmHelper 빌드 | `dotnet publish -c Release` (net472 타겟) |
+| LhmHelper 빌드 | `dotnet publish -c Release` (net47 타겟) |
 | Agent 빌드 | `go build -o ResourceAgent.exe ./cmd/resourceagent` |
 | LhmHelper 테스트 | `.\LhmHelper.exe` (관리자 권한) |
 | Agent 테스트 | `.\ResourceAgent.exe -config config.json` |
@@ -188,7 +188,7 @@ cd C:\Test\ResourceAgent
 ResourceAgent (Go)
        │
        ▼ exec.Command()
-LhmHelper.exe (C#/.NET Framework 4.8)
+LhmHelper.exe (C#/.NET Framework 4.7)
        │
        ▼ LibreHardwareMonitorLib
 PawnIO Driver (Kernel)
