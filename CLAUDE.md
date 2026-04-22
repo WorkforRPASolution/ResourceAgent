@@ -155,22 +155,35 @@ ResourceAgent (Go)                         LhmHelper.exe --daemon (C#)
 - **하위호환**: `--daemon` 플래그 없으면 기존 one-shot 모드로 동작
 
 **LhmHelper 빌드**:
+- TargetFramework: **.NET Framework 4.7.2 (`net472`)** — Windows 7 공식 지원. 과거 .NET 8 self-contained는 Win7에서 Modified 메모리 폭증 이슈(`docs/issues/win7-net8-modified-memory.md`)로 전환.
+- 요구 NuGet: `LibreHardwareMonitorLib` 0.9.4, `System.Text.Json` 8.0.5 (net472 기본 미제공)
+- 런타임: **.NET Framework 4.8 이상**이 현장 PC에 필요 (Release ≥ 528040). `install_ResourceAgent.bat`이 자동 감지/설치.
+
 ```bash
 cd utils/lhm-helper
-dotnet publish -c Release -r win-x64 --self-contained
-# 출력: bin/Release/net8.0/win-x64/publish/LhmHelper.exe
+dotnet publish -c Release
+# 출력: bin/Release/publish/ (또는 bin/Release/net472/publish/)
+# LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 10개+ (LibreHardwareMonitorLib, HidSharp, System.Text.Json 등)
 ```
+
+**.NET Framework 4.8 오프라인 설치기**:
+- **메인 설치 패키지에 번들링되지 않음** (장비 PC의 임의 시스템 변경 방지 정책)
+- `scripts/package_ndp48.sh` / `package_ndp48.ps1`로 **별도 패키지 생성**
+- `scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe` (~112MB)에 수동 배치 필요 (git에 커밋되지 않음). 상세: `scripts/vendor/README.md`
+- `install_ResourceAgent.bat`은 .NET 버전 감지 후 미달 시 **경고만 출력**, 자동 설치하지 않음. 관리자 승인 후 별도 NDP48 패키지를 수동 설치.
 
 **PawnIO 드라이버**:
 - LibreHardwareMonitor의 하드웨어 접근 드라이버 (WinRing0 대체)
 - 설치: `PawnIO_setup.exe /S` (사일런트 설치)
 - 재부팅 불필요
 - Microsoft 서명 버전 제공
+- Windows 7에서는 미지원이므로 WinRing0 fallback
 
-**배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 설치 패키지 생성
+**배포**: `scripts/package.sh --lhmhelper` 또는 `scripts/package.ps1 -IncludeLhmHelper`로 메인 설치 패키지 생성
 - 패키지에 ResourceAgent.exe, 설정 파일, install_ResourceAgent.bat/ps1, INSTALL_GUIDE.txt 포함
-- LhmHelper.exe + PawnIO_setup.exe 기본 포함 (`/nolhm` 옵션으로 제외 가능)
-- PawnIO 드라이버 설치/제거도 install_ResourceAgent.bat에서 자동 처리
+- LhmHelper 디렉토리(폴더 전체) + PawnIO_setup.exe 포함 (`/nolhm` 옵션으로 제외 가능)
+- **.NET Framework 4.8 설치기는 메인 패키지에 없음** — `scripts/package_ndp48.sh`로 별도 패키지 생성
+- PawnIO 드라이버 설치/제거는 `install_ResourceAgent.bat`에서 자동 처리. .NET Framework는 경고만.
 
 ### 데이터 흐름
 

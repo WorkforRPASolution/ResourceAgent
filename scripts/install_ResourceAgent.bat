@@ -20,6 +20,13 @@ REM   install_ResourceAgent.bat /uninstall                         (uninstall)
 
 setlocal enabledelayedexpansion
 
+REM --- Ensure core system paths are in PATH ---
+REM Factory PCs sometimes have a corrupted/overwritten PATH env var that is
+REM missing System32. Without this, net/sc/reg/xcopy/fsutil/timeout all fail
+REM with "command not found", which previously surfaced as a false
+REM "requires Administrator privileges" error.
+set "PATH=%SystemRoot%\System32;%SystemRoot%;%SystemRoot%\System32\Wbem;%PATH%"
+
 REM --- Package directory = where this script lives ---
 set "PKG_DIR=%~dp0"
 
@@ -33,6 +40,8 @@ set "SITE_ADDR_ARG="
 set "SERVICE_NAME=ResourceAgent"
 set "DISPLAY_NAME=Resource Monitoring Service"
 set "DESCRIPTION=Lightweight monitoring agent for collecting hardware resource metrics"
+set "NDP_RELEASE=0"
+set "NDP_WARNED=0"
 
 REM --- Parse arguments ---
 :parse_args
@@ -241,18 +250,64 @@ if exist "!RA_CONFIG!" (
 
 if "%NO_COPY%"=="1" goto :nocopy_lhm
 
+REM --- Check .NET Framework 4.8+ for LhmHelper (warn only, no auto-install) ---
+REM LhmHelper targets .NET Framework 4.7.2 (works with 4.8+ runtime).
+REM Factory equipment PCs must not have system-level installs triggered automatically;
+REM administrator must install .NET Framework 4.8 manually if needed.
+if "%INCLUDE_LHM%"=="1" (
+    set "NDP_RELEASE=0"
+    for /f "tokens=3" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release 2^>nul ^| findstr /i "Release"') do (
+        set "NDP_RELEASE=%%A"
+    )
+
+    set "NDP_OK=0"
+    if !NDP_RELEASE! GEQ 528040 set "NDP_OK=1"
+
+    if "!NDP_OK!"=="1" (
+        echo   .NET Framework 4.8+ detected ^(Release: !NDP_RELEASE!^).
+    ) else (
+        echo.
+        echo ===============================================================
+        echo  WARNING: .NET Framework 4.8+ NOT DETECTED
+        echo    Current Release: !NDP_RELEASE!  ^(required: 528040+^)
+        echo.
+        echo  LhmHelper ^(hardware sensor collection^) requires .NET 4.8+.
+        echo  ResourceAgent will be installed, but LhmHelper will FAIL to start.
+        echo  Hardware sensors ^(temperature, fan, GPU, voltage, S.M.A.R.T^)
+        echo  will return EMPTY data. OS metrics ^(CPU/Memory/Disk/Network^)
+        echo  will continue to work normally.
+        echo.
+        echo  TO ENABLE HARDWARE MONITORING:
+        echo    1. Contact system administrator
+        echo    2. Install .NET Framework 4.8 offline installer:
+        echo       https://dotnet.microsoft.com/download/dotnet-framework/net48
+        echo    3. Reboot the PC
+        echo    4. Restart ResourceAgent service:
+        echo       sc.exe stop ResourceAgent
+        echo       sc.exe start ResourceAgent
+        echo ===============================================================
+        echo.
+        set "NDP_WARNED=1"
+    )
+)
+
 REM --- Copy LhmHelper + PawnIO (optional) ---
 if "%INCLUDE_LHM%"=="1" (
     if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
 
-    REM Copy LhmHelper.exe
+    REM Copy LhmHelper directory (exe + config + dependency DLLs)
     if not exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" (
         echo ERROR: utils\lhm-helper\LhmHelper.exe not found in package.
         echo        Rebuild package with: package.sh --lhmhelper or use /nolhm to skip
         exit /b 1
     )
-    copy /y "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\LhmHelper.exe" >nul
-    echo   Copied LhmHelper.exe
+    REM Exclude .NET Framework installer from being copied to target (~112MB, only needed during install).
+    xcopy /y /i "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\" >nul
+    if exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe.config" (
+        xcopy /y /i "%PKG_DIR%utils\lhm-helper\LhmHelper.exe.config" "%TOOLS_DIR%\" >nul
+    )
+    xcopy /y /i "%PKG_DIR%utils\lhm-helper\*.dll" "%TOOLS_DIR%\" >nul 2>&1
+    echo   Copied LhmHelper and dependency DLLs
 
     REM Detect OS version to determine PawnIO compatibility
     REM PawnIO requires Windows 8+ (version 6.2+). Windows 7 = 6.1.
@@ -355,6 +410,14 @@ sc.exe create %SERVICE_NAME% binPath= "%SERVICE_PATH%" start= auto DisplayName= 
 sc.exe description %SERVICE_NAME% "%DESCRIPTION%" >nul
 sc.exe failure %SERVICE_NAME% reset= 86400 actions= restart/5000/restart/10000/restart/30000 >nul
 
+REM Record install result for ResourceAgent to report to Kafka on first run.
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+(
+    echo install_timestamp=!date! !time!
+    echo ndp_release=!NDP_RELEASE!
+    echo ndp_warned=!NDP_WARNED!
+) > "%LOG_DIR%\install_result.txt"
+
 echo   Starting service...
 sc.exe start %SERVICE_NAME% >nul 2>&1
 
@@ -368,6 +431,11 @@ if not errorlevel 1 (
     echo   Binary:   %BIN_DIR%\ResourceAgent.exe
     echo   Config:   %CONF_DIR%\
     echo   Logs:     %LOG_DIR%\
+    if "!NDP_WARNED!"=="1" (
+        echo.
+        echo   NOTE: LhmHelper will fail until .NET Framework 4.8 is installed.
+        echo         Hardware sensors ^(temperature/fan/GPU/S.M.A.R.T^) unavailable.
+    )
 ) else (
     echo WARNING: Service installed but not running. Check logs for details.
 )

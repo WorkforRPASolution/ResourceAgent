@@ -79,7 +79,8 @@ git describe --tags --always --dirty
 
 ### 사전 요구사항
 - Go 1.21 이상 (GOTOOLCHAIN으로 Go 1.20 자동 다운로드하여 Windows 7+ 호환 빌드)
-- (Windows 하드웨어 모니터링 시) .NET 8 SDK
+- (Windows 하드웨어 모니터링 시) .NET SDK 6+ (net472 타겟 빌드 지원)
+- (Windows 하드웨어 모니터링 배포 PC) .NET Framework 4.8 런타임 — 설치 스크립트가 자동 감지/설치
 
 ### ResourceAgent 빌드
 
@@ -127,11 +128,16 @@ go build -ldflags "$Ldflags" -o ResourceAgent_x86.exe ./cmd/resourceagent
 
 Windows에서 온도, 팬, GPU, 전압, 메인보드 온도, 스토리지 S.M.A.R.T를 수집하려면 LhmHelper가 필요합니다.
 
+TargetFramework는 **.NET Framework 4.7.2 (`net472`)**이며, 현장 PC에는 **.NET Framework 4.8 런타임**이 필요합니다 (Windows Update로 대부분 자동 설치되어 있음). 미설치 PC에서는 `install_ResourceAgent.bat`이 **경고 메시지만 출력**하고 ResourceAgent 서비스 자체는 정상 설치합니다 (장비 PC의 임의 시스템 변경 방지). .NET Framework 4.8 설치가 필요한 경우 별도 패키지(`install_package_ndp48.zip`, `scripts/package_ndp48.sh`로 생성)를 관리자 승인 후 적용합니다.
+
 ```bash
 cd utils/lhm-helper
-dotnet publish -c Release -r win-x64 --self-contained
-# 출력: bin/Release/net8.0/win-x64/publish/LhmHelper.exe
+dotnet publish -c Release
+# 출력: bin/Release/publish/ (또는 bin/Release/net472/publish/)
+# LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 10개+ (LibreHardwareMonitorLib, HidSharp, System.Text.Json 등)
 ```
+
+> .NET 8 self-contained에서 net472로 전환한 배경은 `docs/issues/win7-net8-modified-memory.md` 참조. Windows 7 PC에서 "Modified" 메모리 폭증 이슈 해결을 위한 조치.
 
 ### 테스트
 
@@ -299,8 +305,12 @@ ResourceAgent는 ARSAgent와 공유 basePath에 통합 배포됩니다.
 │       └── metrics.jsonl
 └── utils\
     └── lhm-helper\                       # Windows 전용
-        ├── LhmHelper.exe                 # 하드웨어 센서 헬퍼
-        └── PawnIO_setup.exe              # 드라이버 설치/제거
+        ├── LhmHelper.exe                 # 하드웨어 센서 헬퍼 (.NET Framework 4.8)
+        ├── LhmHelper.exe.config
+        ├── LibreHardwareMonitorLib.dll
+        ├── HidSharp.dll
+        ├── System.Text.Json.dll 및 의존 DLL 다수
+        └── PawnIO_setup.exe              # 드라이버 설치/제거 (Win8+만)
 ```
 
 ### Windows 설치 패키지 만들기
@@ -348,8 +358,13 @@ install_package_windows/                 ← 64-bit (기본)
 │   ├── Monitor.json
 │   └── Logging.json
 └── utils\lhm-helper\                   (--lhmhelper 옵션 시)
-    ├── LhmHelper.exe
+    ├── LhmHelper.exe + 의존 DLL 10개+
     └── PawnIO_setup.exe
+
+install_package_ndp48/                   ← .NET 4.8 설치 전용 별도 패키지
+├── NDP48-x86-x64-AllOS-ENU.exe          # ~112MB
+├── install_ndp48.bat                    # 관리자가 수동 실행
+└── README.txt
 
 install_package_windows_x86/             ← 32-bit (--arch 386)
 ├── INSTALL_GUIDE.txt
@@ -367,7 +382,8 @@ install_package_windows_x86/             ← 32-bit (--arch 386)
 > 각각 `.zip`도 함께 생성됩니다. 현장 PC에 zip을 복사 후 압축 해제하여 사용합니다.
 
 **32-bit 패키지 참고사항:**
-- LhmHelper는 64-bit 전용이므로 32-bit 패키지에 자동 제외됩니다.
+- LhmHelper는 이제 AnyCPU로 빌드되어 32-bit Windows에서도 실행 가능하나, 현재 패키지는 64-bit에만 포함됩니다 (안전 유지).
+- 32-bit Windows에서 LhmHelper 포함 배포는 향후 별도 검증 후 지원 예정.
 - 32-bit Windows에서는 하드웨어 센서(온도, GPU, 팬, 전압, 메인보드 온도, S.M.A.R.T) 수집이 불가합니다.
 - CPU, Memory, Disk, Network, Uptime, ProcessWatch 등 OS 메트릭은 정상 수집됩니다.
 - 설치 스크립트(`install_ResourceAgent.bat`)는 64-bit/32-bit 패키지 모두 동일하게 동작합니다.
@@ -660,8 +676,9 @@ LHM은 하드웨어 접근 드라이버를 자동으로 선택합니다:
 
 ### 필요 파일
 
-1. **LhmHelper.exe** — C# LibreHardwareMonitor 헬퍼 (~60-80MB, self-contained)
-2. **PawnIO 드라이버** (Windows 8+ 전용) — 하드웨어 접근 드라이버 (Microsoft 서명)
+1. **LhmHelper.exe** + 의존 DLL — C# LibreHardwareMonitor 헬퍼 (.NET Framework 4.7.2 타겟, 폴더 전체 ~10MB)
+2. **.NET Framework 4.8 런타임** — 현장 PC에 설치 필요 (대부분 Windows Update로 자동 설치되어 있음)
+3. **PawnIO 드라이버** (Windows 8+ 전용) — 하드웨어 접근 드라이버 (Microsoft 서명)
 
 > Windows 7에서는 PawnIO가 지원되지 않으며, `install_ResourceAgent.bat`이 OS 버전을 감지하여 자동으로 설치를 건너뜁니다.
 > LHM이 내장 WinRing0 드라이버로 폴백하여 온도/GPU 등 하드웨어 센서를 정상 수집합니다.

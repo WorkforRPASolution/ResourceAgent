@@ -16,8 +16,13 @@
 # Prerequisites:
 #   - ResourceAgent.exe must be built first, OR use --build flag
 #   - --build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
-#   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
-#   - LhmHelper is 64-bit only; automatically excluded for --arch 386
+#   - (optional) LhmHelper must be built: cd utils/lhm-helper && dotnet publish -c Release
+#   - LhmHelper runs as AnyCPU but is currently packaged for 64-bit only (--arch 386 excludes it)
+#
+# .NET Framework 4.8 installer:
+#   NOT bundled in this package. Distributed separately via ./scripts/package_ndp48.sh
+#   so that factory equipment PCs can be deployed without triggering system-level installs.
+#   Administrators should run NDP48 manually only when authorized.
 #
 # Output:
 #   install_package_windows/                     # package folder (amd64)
@@ -136,17 +141,29 @@ fi
 echo "  Copied install scripts + guide"
 
 # --- Copy LhmHelper + PawnIO (optional) ---
+# .NET Framework 4.8 installer is NOT bundled here. It is distributed as a
+# separate package (./scripts/package_ndp48.sh) so that factory equipment PCs
+# do not trigger system-level installs during ResourceAgent deployment.
 if [ "$INCLUDE_LHM" = true ]; then
     mkdir -p "$PACKAGE_DIR/utils/lhm-helper"
 
-    LHM_EXE="$PROJECT_DIR/utils/lhm-helper/bin/Release/net8.0/win-x64/publish/LhmHelper.exe"
-    if [ ! -f "$LHM_EXE" ]; then
-        echo "ERROR: LhmHelper.exe not found."
-        echo "       Build it first: cd utils/lhm-helper && dotnet publish -c Release -r win-x64 --self-contained"
+    # .NET Framework 4.7.2 build: copy entire publish directory (exe + config + DLLs).
+    # AppendTargetFrameworkToOutputPath=false → output may be at either path.
+    LHM_PUBLISH_DIR=""
+    if [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/publish" ]; then
+        LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/publish"
+    elif [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/net472/publish" ]; then
+        LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/net472/publish"
+    fi
+
+    if [ -z "$LHM_PUBLISH_DIR" ] || [ ! -f "$LHM_PUBLISH_DIR/LhmHelper.exe" ]; then
+        echo "ERROR: LhmHelper publish output not found."
+        echo "       Build it first: cd utils/lhm-helper && dotnet publish -c Release"
         exit 1
     fi
-    cp "$LHM_EXE" "$PACKAGE_DIR/utils/lhm-helper/"
-    echo "  Copied LhmHelper.exe"
+    cp -r "$LHM_PUBLISH_DIR"/* "$PACKAGE_DIR/utils/lhm-helper/"
+    LHM_FILE_COUNT=$(find "$PACKAGE_DIR/utils/lhm-helper" -maxdepth 1 -type f | wc -l | tr -d ' ')
+    echo "  Copied LhmHelper ($LHM_FILE_COUNT files from $LHM_PUBLISH_DIR)"
 
     PAWNIO="$PROJECT_DIR/utils/lhm-helper/PawnIO_setup.exe"
     if [ ! -f "$PAWNIO" ]; then

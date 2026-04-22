@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -162,10 +163,37 @@ func (p *LhmProvider) Start(ctx context.Context) error {
 	if err := p.startProcess(); err != nil {
 		p.started = false
 		p.cancel()
-		return fmt.Errorf("failed to start LhmHelper daemon: %w", err)
+		return fmt.Errorf("failed to start LhmHelper daemon: %w%s", err, diagnoseStartupFailure(err))
 	}
 
 	return nil
+}
+
+// diagnoseStartupFailure returns a user-friendly hint appended to startup errors.
+// The most common LhmHelper startup failure on Windows 7 is a missing or
+// outdated .NET Framework: the process exits before Go can write to stdin,
+// surfacing as "pipe being closed" / "broken pipe" / "file already closed".
+// LhmHelper targets .NET Framework 4.7.2 and requires runtime 4.8+ on the host.
+func diagnoseStartupFailure(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.ToLower(err.Error())
+	isPipeError := strings.Contains(msg, "pipe is being closed") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "file already closed") ||
+		strings.Contains(msg, "initial collection failed")
+	if !isPipeError {
+		return ""
+	}
+	return "\n\nHINT: LhmHelper.exe exited before responding. Most common causes:\n" +
+		"  1. .NET Framework 4.8 (or later) not installed on this PC.\n" +
+		"     Check: reg query \"HKLM\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\" /v Release\n" +
+		"     Required: 528040 or higher.\n" +
+		"     Install via the separate NDP48 package (install_package_ndp48.zip) if authorized by administrator.\n" +
+		"  2. Missing dependency DLLs next to LhmHelper.exe (LibreHardwareMonitorLib.dll, System.Text.Json.dll, etc).\n" +
+		"  3. Antivirus quarantined LhmHelper.exe.\n" +
+		"Run LhmHelper.exe manually from a command prompt to see the exact error."
 }
 
 // Stop shuts down the LhmHelper daemon process gracefully.
