@@ -20,6 +20,13 @@ REM   install_ResourceAgent.bat /uninstall                         (uninstall)
 
 setlocal enabledelayedexpansion
 
+REM --- Ensure core system paths are in PATH ---
+REM Factory PCs sometimes have a corrupted/overwritten PATH env var that is
+REM missing System32. Without this, net/sc/reg/xcopy/fsutil/timeout all fail
+REM with "command not found", which previously surfaced as a false
+REM "requires Administrator privileges" error.
+set "PATH=%SystemRoot%\System32;%SystemRoot%;%SystemRoot%\System32\Wbem;%PATH%"
+
 REM --- Package directory = where this script lives ---
 set "PKG_DIR=%~dp0"
 
