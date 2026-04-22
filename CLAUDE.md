@@ -163,7 +163,7 @@ ResourceAgent (Go)                         LhmHelper.exe --daemon (C#)
 cd utils/lhm-helper
 dotnet publish -c Release
 # 출력: bin/Release/publish/ (또는 bin/Release/net47/publish/)
-# LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 다수
+# LhmHelper.exe + LhmHelper.exe.config (Costura.Fody로 의존 DLL을 exe에 embed, 단일 파일)
 ```
 
 **.NET Framework 4.8 오프라인 설치기 (옵션)**:
