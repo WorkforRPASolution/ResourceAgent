@@ -250,37 +250,38 @@ if exist "!RA_CONFIG!" (
 
 if "%NO_COPY%"=="1" goto :nocopy_lhm
 
-REM --- Check .NET Framework 4.8+ for LhmHelper (warn only, no auto-install) ---
-REM LhmHelper targets .NET Framework 4.7.2 (works with 4.8+ runtime).
-REM Factory equipment PCs must not have system-level installs triggered automatically;
-REM administrator must install .NET Framework 4.8 manually if needed.
+REM --- Check .NET Framework 4.7+ for LhmHelper (warn only, no auto-install) ---
+REM LhmHelper targets .NET Framework 4.7 (net47).
+REM Factory Windows 7 PCs already ship with .NET Framework 4.7 installed,
+REM so no additional install is typically needed.
 if "%INCLUDE_LHM%"=="1" (
     set "NDP_RELEASE=0"
     for /f "tokens=3" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release 2^>nul ^| findstr /i "Release"') do (
         set "NDP_RELEASE=%%A"
     )
 
+    REM 460798 = .NET Framework 4.7 (Windows 10 Creators); 460805 = other OS (incl. Win7 SP1)
     set "NDP_OK=0"
-    if !NDP_RELEASE! GEQ 528040 set "NDP_OK=1"
+    if !NDP_RELEASE! GEQ 460798 set "NDP_OK=1"
 
     if "!NDP_OK!"=="1" (
-        echo   .NET Framework 4.8+ detected ^(Release: !NDP_RELEASE!^).
+        echo   .NET Framework 4.7+ detected ^(Release: !NDP_RELEASE!^).
     ) else (
         echo.
         echo ===============================================================
-        echo  WARNING: .NET Framework 4.8+ NOT DETECTED
-        echo    Current Release: !NDP_RELEASE!  ^(required: 528040+^)
+        echo  WARNING: .NET Framework 4.7+ NOT DETECTED
+        echo    Current Release: !NDP_RELEASE!  ^(required: 460798+^)
         echo.
-        echo  LhmHelper ^(hardware sensor collection^) requires .NET 4.8+.
+        echo  LhmHelper ^(hardware sensor collection^) requires .NET 4.7+.
         echo  ResourceAgent will be installed, but LhmHelper will FAIL to start.
         echo  Hardware sensors ^(temperature, fan, GPU, voltage, S.M.A.R.T^)
         echo  will return EMPTY data. OS metrics ^(CPU/Memory/Disk/Network^)
         echo  will continue to work normally.
         echo.
-        echo  TO ENABLE HARDWARE MONITORING:
+        echo  TO ENABLE HARDWARE MONITORING ^(only if authorized^):
         echo    1. Contact system administrator
-        echo    2. Install .NET Framework 4.8 offline installer:
-        echo       https://dotnet.microsoft.com/download/dotnet-framework/net48
+        echo    2. Install .NET Framework 4.7+ via official installer:
+        echo       https://dotnet.microsoft.com/download/dotnet-framework
         echo    3. Reboot the PC
         echo    4. Restart ResourceAgent service:
         echo       sc.exe stop ResourceAgent
@@ -433,7 +434,7 @@ if not errorlevel 1 (
     echo   Logs:     %LOG_DIR%\
     if "!NDP_WARNED!"=="1" (
         echo.
-        echo   NOTE: LhmHelper will fail until .NET Framework 4.8 is installed.
+        echo   NOTE: LhmHelper will fail until .NET Framework 4.7+ is installed.
         echo         Hardware sensors ^(temperature/fan/GPU/S.M.A.R.T^) unavailable.
     )
 ) else (

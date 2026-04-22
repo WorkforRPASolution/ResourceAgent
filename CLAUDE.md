@@ -155,22 +155,23 @@ ResourceAgent (Go)                         LhmHelper.exe --daemon (C#)
 - **하위호환**: `--daemon` 플래그 없으면 기존 one-shot 모드로 동작
 
 **LhmHelper 빌드**:
-- TargetFramework: **.NET Framework 4.7.2 (`net472`)** — Windows 7 공식 지원. 과거 .NET 8 self-contained는 Win7에서 Modified 메모리 폭증 이슈(`docs/issues/win7-net8-modified-memory.md`)로 전환.
-- 요구 NuGet: `LibreHardwareMonitorLib` 0.9.4, `System.Text.Json` 8.0.5 (net472 기본 미제공)
-- 런타임: **.NET Framework 4.8 이상**이 현장 PC에 필요 (Release ≥ 528040). `install_ResourceAgent.bat`이 자동 감지/설치.
+- TargetFramework: **.NET Framework 4.7 (`net47`)** — Windows 7 공식 지원, 공장 PC에 기본 설치됨. 과거 .NET 8 self-contained는 Win7에서 Modified 메모리 폭증 이슈(`docs/issues/win7-net8-modified-memory.md`)로 전환.
+- 요구 NuGet: `LibreHardwareMonitorLib` 0.9.4 (netstandard2.0 빌드 consume), `System.Text.Json` 8.0.5
+- 런타임: **.NET Framework 4.7 이상** (Release ≥ 460798). **대부분의 공장 PC는 추가 설치 없이 동작**.
 
 ```bash
 cd utils/lhm-helper
 dotnet publish -c Release
-# 출력: bin/Release/publish/ (또는 bin/Release/net472/publish/)
-# LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 10개+ (LibreHardwareMonitorLib, HidSharp, System.Text.Json 등)
+# 출력: bin/Release/publish/ (또는 bin/Release/net47/publish/)
+# LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 다수
 ```
 
-**.NET Framework 4.8 오프라인 설치기**:
-- **메인 설치 패키지에 번들링되지 않음** (장비 PC의 임의 시스템 변경 방지 정책)
+**.NET Framework 4.8 오프라인 설치기 (옵션)**:
+- 대부분의 공장 PC는 .NET Framework 4.7 기본 설치되어 있어 **불필요**
+- 예외적으로 4.6 이하만 있는 PC에서만 필요 (드문 케이스)
 - `scripts/package_ndp48.sh` / `package_ndp48.ps1`로 **별도 패키지 생성**
 - `scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe` (~112MB)에 수동 배치 필요 (git에 커밋되지 않음). 상세: `scripts/vendor/README.md`
-- `install_ResourceAgent.bat`은 .NET 버전 감지 후 미달 시 **경고만 출력**, 자동 설치하지 않음. 관리자 승인 후 별도 NDP48 패키지를 수동 설치.
+- `install_ResourceAgent.bat`은 .NET 4.7 미만 감지 시 **경고만 출력**, 자동 설치하지 않음.
 
 **PawnIO 드라이버**:
 - LibreHardwareMonitor의 하드웨어 접근 드라이버 (WinRing0 대체)

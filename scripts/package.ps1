@@ -140,11 +140,11 @@ if ($IncludeLhmHelper) {
     $ToolsDir = Join-Path $PackageDir "utils\lhm-helper"
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
 
-    # .NET Framework 4.7.2 build: copy entire publish directory (exe + config + DLLs).
+    # .NET Framework 4.7 build: copy entire publish directory (exe + config + DLLs).
     # AppendTargetFrameworkToOutputPath=false -> output may be at either path.
     $PublishCandidates = @(
         (Join-Path $ProjectDir "utils\lhm-helper\bin\Release\publish"),
-        (Join-Path $ProjectDir "utils\lhm-helper\bin\Release\net472\publish")
+        (Join-Path $ProjectDir "utils\lhm-helper\bin\Release\net47\publish")
     )
     $LhmPublishDir = $null
     foreach ($candidate in $PublishCandidates) {
