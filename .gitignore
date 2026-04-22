@@ -45,3 +45,8 @@ Thumbs.db
 .bkit-memory.json
 .pdca-snapshots/
 .pdca-status.json
+
+# .NET build artifacts (LhmHelper)
+utils/lhm-helper/bin/
+utils/lhm-helper/obj/
+utils/lhm-helper/FodyWeavers.xsd
