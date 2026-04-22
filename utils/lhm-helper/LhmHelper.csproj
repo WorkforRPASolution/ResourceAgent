@@ -13,4 +13,14 @@
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
   </ItemGroup>
+  <!--
+    GC tuning for low-memory environments (e.g. Windows 7 PCs with 4GB RAM).
+    Server GC allocates per-core heaps which can reach 500MB+ on multi-core CPUs.
+    Workstation GC uses a single heap, appropriate for a lightweight daemon.
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.Server" Value="false" />
+    <RuntimeHostConfigurationOption Include="System.GC.Concurrent" Value="false" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
 </Project>
