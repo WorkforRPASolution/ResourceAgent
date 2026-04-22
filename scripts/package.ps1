@@ -69,9 +69,14 @@ if ($Build) {
         Write-Error "go command not found. Install Go 1.21+ first."
         exit 1
     }
-    # Resolve version from git tag
+    # Resolve version from git tag and append bit-width suffix
     try { $BuildVersion = & git describe --tags --abbrev=0 2>$null } catch { $BuildVersion = $null }
     if (-not $BuildVersion) { $BuildVersion = "dev" }
+    if ($Arch -eq "386") {
+        $BuildVersion = "$BuildVersion-32bit"
+    } else {
+        $BuildVersion = "$BuildVersion-64bit"
+    }
     $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     $Ldflags = "-X main.version=$BuildVersion -X main.buildTime=$BuildTime"
     Write-Host "  Version: $BuildVersion  BuildTime: $BuildTime"

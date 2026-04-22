@@ -29,19 +29,21 @@
 
 ### 버전 관리
 
-git tag 기반으로 버전을 관리합니다. 빌드 시 `git describe --tags --abbrev=0`로 **가장 최근에 붙은 태그**만 추출하여 `-ldflags`로 바이너리에 주입합니다. 태그 이후의 커밋 수/해시나 `-dirty` suffix는 붙지 않으므로, 동일 태그에서 여러 번 빌드해도 버전 문자열이 일정합니다.
+git tag 기반으로 버전을 관리합니다. 빌드 시 `git describe --tags --abbrev=0`로 **가장 최근에 붙은 태그**만 추출한 뒤 아키텍처별 **bit-width suffix**(`-64bit` 또는 `-32bit`)를 붙여 `-ldflags`로 바이너리에 주입합니다. 태그 이후의 커밋 수/해시나 `-dirty` suffix는 붙지 않으므로, 동일 태그에서 여러 번 빌드해도 버전 문자열이 일정합니다.
 
 **버전 문자열 형식:**
 
-| 상태 | `git describe` 출력 | 예시 |
-|------|---------------------|------|
-| 태그가 있는 경우 (현재 또는 과거 커밋) | `v{major}.{minor}.{patch}` | `v1.0.3` |
-| 태그가 하나도 없음 / git 저장소 아님 | `dev` (fallback) | `dev` |
+| 상태 | 아키텍처 | 예시 |
+|------|----------|------|
+| 태그가 있는 경우 (현재 또는 과거 커밋) | amd64 / linux 64-bit | `v1.0.3-64bit` |
+| 태그가 있는 경우 (현재 또는 과거 커밋) | 386 (Windows 32-bit) | `v1.0.3-32bit` |
+| 태그가 하나도 없음 / git 저장소 아님 | amd64 | `dev-64bit` |
+| 태그가 하나도 없음 / git 저장소 아님 | 386 | `dev-32bit` |
 
 **시작 로그에 `version`과 `build_time`이 출력됩니다:**
 
 ```
-"Starting ResourceAgent" version=v1.0.0 build_time=2026-03-06T12:00:00Z
+"Starting ResourceAgent" version=v1.0.3-64bit build_time=2026-03-06T12:00:00Z
 ```
 
 **바이너리 버전 확인:**
@@ -86,35 +88,41 @@ git describe --tags --abbrev=0
 # 의존성 다운로드
 go mod tidy
 
-# 버전 정보 (최신 git tag만)
+# 버전 정보 (최신 git tag만). -64bit/-32bit suffix는 아키텍처별로 ldflags에 직접 주입
 VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS="-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
-# Linux 빌드 (Go 1.20 툴체인 — CentOS 6+ 호환)
-GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o resourceagent ./cmd/resourceagent
+# Linux 빌드 (Go 1.20 툴체인 — CentOS 6+ 호환, 64-bit)
+GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 \
+    go build -ldflags "-X main.version=${VERSION}-64bit -X main.buildTime=${BUILD_TIME}" \
+    -o resourceagent ./cmd/resourceagent
 
 # Windows 64-bit 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
-GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o ResourceAgent.exe ./cmd/resourceagent
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=amd64 \
+    go build -ldflags "-X main.version=${VERSION}-64bit -X main.buildTime=${BUILD_TIME}" \
+    -o ResourceAgent.exe ./cmd/resourceagent
 
 # Windows 32-bit 빌드 (Go 1.20 툴체인 — Windows 7 32-bit 호환)
-GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=386 go build -ldflags "$LDFLAGS" -o ResourceAgent_x86.exe ./cmd/resourceagent
+GOTOOLCHAIN=go1.20.14 GOOS=windows GOARCH=386 \
+    go build -ldflags "-X main.version=${VERSION}-32bit -X main.buildTime=${BUILD_TIME}" \
+    -o ResourceAgent_x86.exe ./cmd/resourceagent
 ```
 
 **PowerShell (Windows):**
 ```powershell
-# 버전 정보 (최신 git tag만)
+# 버전 정보 (최신 git tag만). -64bit/-32bit suffix는 아키텍처별로 ldflags에 직접 주입
 $Version = (git describe --tags --abbrev=0 2>$null); if (-not $Version) { $Version = "dev" }
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$Ldflags = "-X main.version=$Version -X main.buildTime=$BuildTime"
+$Ldflags64 = "-X main.version=$Version-64bit -X main.buildTime=$BuildTime"
+$Ldflags32 = "-X main.version=$Version-32bit -X main.buildTime=$BuildTime"
 
 # Windows 64-bit 빌드 (Go 1.20 툴체인 — Windows 7+ 호환)
 $env:GOTOOLCHAIN="go1.20.14"; $env:GOOS="windows"; $env:GOARCH="amd64"
-go build -ldflags "$Ldflags" -o ResourceAgent.exe ./cmd/resourceagent
+go build -ldflags "$Ldflags64" -o ResourceAgent.exe ./cmd/resourceagent
 
 # Windows 32-bit 빌드 (Go 1.20 툴체인 — Windows 7 32-bit 호환)
 $env:GOTOOLCHAIN="go1.20.14"; $env:GOOS="windows"; $env:GOARCH="386"
-go build -ldflags "$Ldflags" -o ResourceAgent_x86.exe ./cmd/resourceagent
+go build -ldflags "$Ldflags32" -o ResourceAgent_x86.exe ./cmd/resourceagent
 
 # 또는 패키지 스크립트 사용 (빌드 + 패키징, 버전 자동 주입)
 .\scripts\package.ps1 -Build -IncludeLhmHelper          # 64-bit

@@ -90,8 +90,13 @@ if [ "$AUTO_BUILD" = true ]; then
         echo "ERROR: go command not found. Install Go 1.21+ first."
         exit 1
     fi
-    # Resolve version from git tag
+    # Resolve version from git tag and append bit-width suffix
     BUILD_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+    if [ "$TARGET_ARCH" = "386" ]; then
+        BUILD_VERSION="${BUILD_VERSION}-32bit"
+    else
+        BUILD_VERSION="${BUILD_VERSION}-64bit"
+    fi
     BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     LDFLAGS="-X main.version=${BUILD_VERSION} -X main.buildTime=${BUILD_TIME}"
     echo "  Version: $BUILD_VERSION  BuildTime: $BUILD_TIME"
