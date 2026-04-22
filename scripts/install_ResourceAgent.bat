@@ -33,6 +33,9 @@ set "SITE_ADDR_ARG="
 set "SERVICE_NAME=ResourceAgent"
 set "DISPLAY_NAME=Resource Monitoring Service"
 set "DESCRIPTION=Lightweight monitoring agent for collecting hardware resource metrics"
+set "NDP_RELEASE=0"
+set "NDP_RC="
+set "NEED_REBOOT=0"
 
 REM --- Parse arguments ---
 :parse_args
@@ -241,18 +244,63 @@ if exist "!RA_CONFIG!" (
 
 if "%NO_COPY%"=="1" goto :nocopy_lhm
 
+REM --- Check .NET Framework 4.8+ before LhmHelper install ---
+REM LhmHelper targets .NET Framework 4.7.2 (works with 4.8+ runtime).
+REM If installed Release < 528040, install .NET Framework 4.8 from bundled installer.
+if "%INCLUDE_LHM%"=="1" (
+    set "NDP_RELEASE=0"
+    for /f "tokens=3" %%A in ('reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release 2^>nul ^| findstr /i "Release"') do (
+        set "NDP_RELEASE=%%A"
+    )
+
+    set "NEEDS_NDP48=0"
+    if !NDP_RELEASE! LSS 528040 set "NEEDS_NDP48=1"
+
+    if "!NEEDS_NDP48!"=="1" (
+        echo   .NET Framework 4.8 not detected ^(current Release: !NDP_RELEASE!^). Installing...
+        if not exist "%PKG_DIR%utils\lhm-helper\NDP48-x86-x64-AllOS-ENU.exe" (
+            echo ERROR: .NET Framework 4.8 installer not found in package.
+            echo        Use /nolhm to skip LhmHelper, or rebuild package with installer.
+            exit /b 1
+        )
+        "%PKG_DIR%utils\lhm-helper\NDP48-x86-x64-AllOS-ENU.exe" /passive /norestart
+        set "NDP_RC=!errorlevel!"
+
+        REM Use exact equality (not `if errorlevel`) because errorlevel 3010 matches any value >= 3010.
+        if "!NDP_RC!"=="0" (
+            echo   .NET Framework 4.8 installed successfully.
+        ) else if "!NDP_RC!"=="3010" (
+            echo   .NET Framework 4.8 installed. REBOOT REQUIRED before service starts.
+            set "NEED_REBOOT=1"
+        ) else if "!NDP_RC!"=="1641" (
+            echo   .NET Framework 4.8 installed. System-initiated reboot scheduled.
+            set "NEED_REBOOT=1"
+        ) else (
+            echo ERROR: .NET Framework 4.8 installation failed ^(exit code !NDP_RC!^).
+            exit /b 1
+        )
+    ) else (
+        echo   .NET Framework 4.8+ already installed ^(Release: !NDP_RELEASE!^).
+    )
+)
+
 REM --- Copy LhmHelper + PawnIO (optional) ---
 if "%INCLUDE_LHM%"=="1" (
     if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
 
-    REM Copy LhmHelper.exe
+    REM Copy LhmHelper directory (exe + config + dependency DLLs)
     if not exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" (
         echo ERROR: utils\lhm-helper\LhmHelper.exe not found in package.
         echo        Rebuild package with: package.sh --lhmhelper or use /nolhm to skip
         exit /b 1
     )
-    copy /y "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\LhmHelper.exe" >nul
-    echo   Copied LhmHelper.exe
+    REM Exclude .NET Framework installer from being copied to target (~112MB, only needed during install).
+    xcopy /y /i "%PKG_DIR%utils\lhm-helper\LhmHelper.exe" "%TOOLS_DIR%\" >nul
+    if exist "%PKG_DIR%utils\lhm-helper\LhmHelper.exe.config" (
+        xcopy /y /i "%PKG_DIR%utils\lhm-helper\LhmHelper.exe.config" "%TOOLS_DIR%\" >nul
+    )
+    xcopy /y /i "%PKG_DIR%utils\lhm-helper\*.dll" "%TOOLS_DIR%\" >nul 2>&1
+    echo   Copied LhmHelper and dependency DLLs
 
     REM Detect OS version to determine PawnIO compatibility
     REM PawnIO requires Windows 8+ (version 6.2+). Windows 7 = 6.1.
@@ -354,6 +402,30 @@ echo   Creating Windows service...
 sc.exe create %SERVICE_NAME% binPath= "%SERVICE_PATH%" start= auto DisplayName= "%DISPLAY_NAME%" >nul
 sc.exe description %SERVICE_NAME% "%DESCRIPTION%" >nul
 sc.exe failure %SERVICE_NAME% reset= 86400 actions= restart/5000/restart/10000/restart/30000 >nul
+
+REM Record install result for ResourceAgent to report to Kafka on first run.
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+(
+    echo install_timestamp=!date! !time!
+    echo ndp_release=!NDP_RELEASE!
+    echo ndp_installer_exit_code=!NDP_RC!
+    echo need_reboot=!NEED_REBOOT!
+) > "%LOG_DIR%\install_result.txt"
+
+if "!NEED_REBOOT!"=="1" (
+    echo.
+    echo ===============================================================
+    echo  SERVICE REGISTERED BUT NOT STARTED
+    echo  .NET Framework 4.8 installation requires a reboot.
+    echo  Please REBOOT this PC. Service will auto-start on next boot.
+    echo ===============================================================
+    echo.
+    echo   BasePath: %BASE_PATH%
+    echo   Binary:   %BIN_DIR%\ResourceAgent.exe
+    echo   Config:   %CONF_DIR%\
+    echo   Logs:     %LOG_DIR%\
+    goto :eof
+)
 
 echo   Starting service...
 sc.exe start %SERVICE_NAME% >nul 2>&1

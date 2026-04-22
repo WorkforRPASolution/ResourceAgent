@@ -31,6 +31,10 @@ Thumbs.db
 /install_package_windows_x86/
 /install_package_windows_x86.zip
 
+# Vendor binaries (downloaded manually, too large for git)
+# Covered by *.exe above, but keep explicit for clarity
+/scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe
+
 # Temporary files
 *.tmp
 *.bak

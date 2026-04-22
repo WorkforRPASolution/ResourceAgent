@@ -16,8 +16,9 @@
 # Prerequisites:
 #   - ResourceAgent.exe must be built first, OR use --build flag
 #   - --build requires Go 1.21+ (auto-downloads Go 1.20 toolchain via GOTOOLCHAIN)
-#   - (optional) LhmHelper.exe must be built first (dotnet publish ...)
-#   - LhmHelper is 64-bit only; automatically excluded for --arch 386
+#   - (optional) LhmHelper must be built: cd utils/lhm-helper && dotnet publish -c Release
+#   - (optional) scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe (.NET Framework 4.8 installer)
+#   - LhmHelper runs as AnyCPU but is currently packaged for 64-bit only (--arch 386 excludes it)
 #
 # Output:
 #   install_package_windows/                     # package folder (amd64)
@@ -135,18 +136,27 @@ if [ -f "$SCRIPT_DIR/sites.conf" ]; then
 fi
 echo "  Copied install scripts + guide"
 
-# --- Copy LhmHelper + PawnIO (optional) ---
+# --- Copy LhmHelper + PawnIO + .NET Framework 4.8 installer (optional) ---
 if [ "$INCLUDE_LHM" = true ]; then
     mkdir -p "$PACKAGE_DIR/utils/lhm-helper"
 
-    LHM_EXE="$PROJECT_DIR/utils/lhm-helper/bin/Release/net8.0/win-x64/publish/LhmHelper.exe"
-    if [ ! -f "$LHM_EXE" ]; then
-        echo "ERROR: LhmHelper.exe not found."
-        echo "       Build it first: cd utils/lhm-helper && dotnet publish -c Release -r win-x64 --self-contained"
+    # .NET Framework 4.7.2 build: copy entire publish directory (exe + config + DLLs).
+    # AppendTargetFrameworkToOutputPath=false → output may be at either path.
+    LHM_PUBLISH_DIR=""
+    if [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/publish" ]; then
+        LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/publish"
+    elif [ -d "$PROJECT_DIR/utils/lhm-helper/bin/Release/net472/publish" ]; then
+        LHM_PUBLISH_DIR="$PROJECT_DIR/utils/lhm-helper/bin/Release/net472/publish"
+    fi
+
+    if [ -z "$LHM_PUBLISH_DIR" ] || [ ! -f "$LHM_PUBLISH_DIR/LhmHelper.exe" ]; then
+        echo "ERROR: LhmHelper publish output not found."
+        echo "       Build it first: cd utils/lhm-helper && dotnet publish -c Release"
         exit 1
     fi
-    cp "$LHM_EXE" "$PACKAGE_DIR/utils/lhm-helper/"
-    echo "  Copied LhmHelper.exe"
+    cp -r "$LHM_PUBLISH_DIR"/* "$PACKAGE_DIR/utils/lhm-helper/"
+    LHM_FILE_COUNT=$(find "$PACKAGE_DIR/utils/lhm-helper" -maxdepth 1 -type f | wc -l | tr -d ' ')
+    echo "  Copied LhmHelper ($LHM_FILE_COUNT files from $LHM_PUBLISH_DIR)"
 
     PAWNIO="$PROJECT_DIR/utils/lhm-helper/PawnIO_setup.exe"
     if [ ! -f "$PAWNIO" ]; then
@@ -155,6 +165,18 @@ if [ "$INCLUDE_LHM" = true ]; then
     fi
     cp "$PAWNIO" "$PACKAGE_DIR/utils/lhm-helper/"
     echo "  Copied PawnIO_setup.exe"
+
+    # .NET Framework 4.8 offline installer (~112MB). Required for LhmHelper on
+    # PCs with < .NET Framework 4.8. install_ResourceAgent.bat auto-detects and installs.
+    NDP48="$PROJECT_DIR/scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe"
+    if [ ! -f "$NDP48" ]; then
+        echo "ERROR: .NET Framework 4.8 installer not found at scripts/vendor/NDP48-x86-x64-AllOS-ENU.exe"
+        echo "       Download from https://dotnet.microsoft.com/download/dotnet-framework/net48"
+        echo "       See scripts/vendor/README.md for details."
+        exit 1
+    fi
+    cp "$NDP48" "$PACKAGE_DIR/utils/lhm-helper/"
+    echo "  Copied NDP48-x86-x64-AllOS-ENU.exe (.NET Framework 4.8 installer)"
 fi
 
 # --- Create zip ---

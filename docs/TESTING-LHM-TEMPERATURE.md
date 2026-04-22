@@ -4,8 +4,9 @@ LibreHardwareMonitor 기반 CPU 온도 수집 기능 테스트 방법입니다.
 
 ## 사전 요구사항
 
-- Windows 10+ 또는 Windows Server 2016+
-- .NET 8.0 SDK (LhmHelper 빌드용)
+- Windows 7 SP1+ 또는 Windows Server 2008 R2 SP1+
+- .NET SDK 6+ (LhmHelper 빌드용, net472 타겟 지원하는 SDK 필요)
+- .NET Framework 4.8 (런타임 — 테스트 PC에 설치)
 - Go 1.21+ (ResourceAgent 빌드용)
 - 관리자 권한
 
@@ -27,10 +28,12 @@ Windows에서 실행:
 
 ```bash
 cd utils/lhm-helper
-dotnet publish -c Release -r win-x64 --self-contained
+dotnet publish -c Release
 ```
 
-**출력 위치**: `utils/lhm-helper/bin/Release/net8.0/win-x64/publish/LhmHelper.exe`
+**출력 위치**: `utils/lhm-helper/bin/Release/publish/` (또는 `bin/Release/net472/publish/`)
+- LhmHelper.exe + LhmHelper.exe.config + 의존 DLL 10개+ (LibreHardwareMonitorLib, HidSharp, System.Text.Json 등)
+- **배포 시 폴더 전체를 같이 복사**해야 Windows가 DLL을 로드함
 
 ## 3. Go Agent 빌드
 
@@ -50,7 +53,8 @@ Windows PC에서 PowerShell 실행:
 # 테스트 폴더 생성 및 파일 복사
 mkdir C:\Test\ResourceAgent
 copy ResourceAgent.exe C:\Test\ResourceAgent\
-copy utils\lhm-helper\bin\Release\net8.0\win-x64\publish\LhmHelper.exe C:\Test\ResourceAgent\
+mkdir C:\Test\ResourceAgent\utils\lhm-helper
+copy utils\lhm-helper\bin\Release\publish\* C:\Test\ResourceAgent\utils\lhm-helper\
 ```
 
 ## 5. PawnIO 드라이버 설치
@@ -173,7 +177,7 @@ cd C:\Test\ResourceAgent
 | 단계 | 명령어 |
 |------|--------|
 | 브랜치 체크아웃 | `git checkout feature/lhm-temperature` |
-| LhmHelper 빌드 | `dotnet publish -c Release -r win-x64 --self-contained` |
+| LhmHelper 빌드 | `dotnet publish -c Release` (net472 타겟) |
 | Agent 빌드 | `go build -o ResourceAgent.exe ./cmd/resourceagent` |
 | LhmHelper 테스트 | `.\LhmHelper.exe` (관리자 권한) |
 | Agent 테스트 | `.\ResourceAgent.exe -config config.json` |
@@ -184,7 +188,7 @@ cd C:\Test\ResourceAgent
 ResourceAgent (Go)
        │
        ▼ exec.Command()
-LhmHelper.exe (C#/.NET 8)
+LhmHelper.exe (C#/.NET Framework 4.8)
        │
        ▼ LibreHardwareMonitorLib
 PawnIO Driver (Kernel)

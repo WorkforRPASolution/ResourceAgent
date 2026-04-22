@@ -16,7 +16,12 @@
 
      * ARSAgent가 이미 설치되어 있으면 설치 경로를 자동으로 감지합니다.
      * ARSAgent가 없으면 /basepath 옵션을 지정해야 합니다.
-     * LhmHelper + PawnIO 드라이버가 기본 포함됩니다. (재부팅 불필요)
+     * LhmHelper + PawnIO 드라이버가 기본 포함됩니다.
+     * LhmHelper는 .NET Framework 4.8 이상이 필요합니다.
+       - 설치되어 있지 않으면 오프라인 설치기가 자동 실행됩니다 (~112MB).
+       - 설치 후 재부팅이 필요할 수 있으며, 이 경우 서비스는 등록만 되고
+         재부팅 이후 자동 시작됩니다 (start=auto).
+       - Windows Update로 4.8 이상이 설치된 PC는 자동 스킵됩니다.
 
   2. 하드웨어 센서 수집이 필요 없는 경우:
      명령 프롬프트를 관리자 권한으로 열고 다음을 실행합니다.
@@ -113,8 +118,13 @@
   │   ├── ResourceAgent.log        ← 에이전트 로그
   │   └── metrics.jsonl            ← 수집 메트릭 (file sender 사용 시)
   └── utils\lhm-helper\            ← 기본 포함 (/nolhm 시 제외)
-      ├── LhmHelper.exe
-      └── PawnIO_setup.exe
+      ├── LhmHelper.exe            ← C# 하드웨어 센서 헬퍼
+      ├── LhmHelper.exe.config
+      ├── LibreHardwareMonitorLib.dll
+      ├── HidSharp.dll
+      ├── System.Management.dll
+      ├── System.Text.Json.dll 및 의존 DLL 다수
+      └── PawnIO_setup.exe         ← Win8+ 드라이버 (Win7은 자동 스킵)
 
 
 [문제 해결]
@@ -133,6 +143,16 @@
     → 정상 동작입니다. PawnIO는 Windows 8+ 전용이며,
       LhmHelper가 내장 WinRing0 드라이버로 자동 폴백하여
       온도/GPU 등 하드웨어 센서를 정상 수집합니다.
+
+  ".NET Framework 4.8 installation failed" 오류:
+    → Windows Update가 실행 중이면 종료 후 재시도
+    → WSUS 정책이 .NET 설치를 차단하는 환경이면 관리자에게 문의
+    → /nolhm 옵션으로 LhmHelper만 제외하여 우선 설치 가능
+
+  "REBOOT REQUIRED before service starts" 메시지:
+    → .NET Framework 4.8 설치 후 재부팅 필요 상태.
+      PC를 재부팅하면 ResourceAgent 서비스가 자동으로 시작됩니다.
+      (start=auto로 등록되어 있음)
 
   서비스가 시작되지 않을 때:
     → 로그 확인: D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log
