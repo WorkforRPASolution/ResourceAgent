@@ -132,7 +132,7 @@ func TestNormalizeHealthStatus(t *testing.T) {
 		{"Unknown", "UNKNOWN"},
 		{"UNKNOWN", "UNKNOWN"},
 		{"  ", "UNKNOWN"},
-		{"  OK  ", "OK"},       // trimmed → OK
+		{"  OK  ", "OK"},             // trimmed → OK
 		{" Pred Fail ", "PRED_FAIL"}, // trimmed → PRED_FAIL
 	}
 

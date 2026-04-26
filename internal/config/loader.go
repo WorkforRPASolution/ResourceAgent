@@ -11,38 +11,38 @@ import (
 
 // rawConfig is used for JSON unmarshaling with duration strings.
 type rawConfig struct {
-	SenderType string          `json:"SenderType"`
-	File       FileConfig      `json:"File"`
-	Kafka      rawKafkaConfig  `json:"Kafka"`
-	Batch      rawBatchConfig  `json:"Batch"`
-	VirtualAddressList      string                        `json:"VirtualAddressList"`
-	Redis                   RedisConfig                   `json:"Redis"`
-	PrivateIPAddressPattern string                        `json:"PrivateIPAddressPattern"`
-	SOCKSProxy              SOCKSConfig                   `json:"SocksProxy"`
-	ServiceDiscoveryPort    int                           `json:"ServiceDiscoveryPort"`
-	ResourceMonitorTopic    string                        `json:"ResourceMonitorTopic"`
-	TimeDiffSyncInterval        int                           `json:"TimeDiffSyncInterval"`
-	UpdateServerAddressInterval string                        `json:"UpdateServerAddressInterval"`
+	SenderType                  string         `json:"SenderType"`
+	File                        FileConfig     `json:"File"`
+	Kafka                       rawKafkaConfig `json:"Kafka"`
+	Batch                       rawBatchConfig `json:"Batch"`
+	VirtualAddressList          string         `json:"VirtualAddressList"`
+	Redis                       RedisConfig    `json:"Redis"`
+	PrivateIPAddressPattern     string         `json:"PrivateIPAddressPattern"`
+	SOCKSProxy                  SOCKSConfig    `json:"SocksProxy"`
+	ServiceDiscoveryPort        int            `json:"ServiceDiscoveryPort"`
+	ResourceMonitorTopic        string         `json:"ResourceMonitorTopic"`
+	TimeDiffSyncInterval        int            `json:"TimeDiffSyncInterval"`
+	UpdateServerAddressInterval string         `json:"UpdateServerAddressInterval"`
 }
 
 type rawKafkaConfig struct {
-	BrokerPort     int      `json:"BrokerPort"`
-	Compression    string   `json:"Compression"`
-	RequiredAcks   int      `json:"RequiredAcks"`
-	MaxRetries     int      `json:"MaxRetries"`
-	RetryBackoff   string   `json:"RetryBackoff"`
-	FlushFrequency string   `json:"FlushFrequency"`
-	FlushMessages  int      `json:"FlushMessages"`
-	BatchSize      int      `json:"BatchSize"`
-	Timeout        string   `json:"Timeout"`
-	EnableTLS      bool     `json:"EnableTLS"`
-	TLSCertFile    string   `json:"TLSCertFile"`
-	TLSKeyFile     string   `json:"TLSKeyFile"`
-	TLSCAFile      string   `json:"TLSCAFile"`
-	SASLEnabled    bool     `json:"SASLEnabled"`
-	SASLMechanism  string   `json:"SASLMechanism"`
-	SASLUser       string   `json:"SASLUser"`
-	SASLPassword   string   `json:"SASLPassword"`
+	BrokerPort     int    `json:"BrokerPort"`
+	Compression    string `json:"Compression"`
+	RequiredAcks   int    `json:"RequiredAcks"`
+	MaxRetries     int    `json:"MaxRetries"`
+	RetryBackoff   string `json:"RetryBackoff"`
+	FlushFrequency string `json:"FlushFrequency"`
+	FlushMessages  int    `json:"FlushMessages"`
+	BatchSize      int    `json:"BatchSize"`
+	Timeout        string `json:"Timeout"`
+	EnableTLS      bool   `json:"EnableTLS"`
+	TLSCertFile    string `json:"TLSCertFile"`
+	TLSKeyFile     string `json:"TLSKeyFile"`
+	TLSCAFile      string `json:"TLSCAFile"`
+	SASLEnabled    bool   `json:"SASLEnabled"`
+	SASLMechanism  string `json:"SASLMechanism"`
+	SASLUser       string `json:"SASLUser"`
+	SASLPassword   string `json:"SASLPassword"`
 }
 
 type rawBatchConfig struct {

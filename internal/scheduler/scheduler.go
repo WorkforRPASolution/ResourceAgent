@@ -227,4 +227,3 @@ func (s *Scheduler) Reconfigure() {
 		go s.runCollector(ctx, c)
 	}
 }
-

@@ -26,9 +26,9 @@ type memQuickInfo struct {
 type memMinHeap []memQuickInfo
 
 func (h memMinHeap) Len() int            { return len(h) }
-func (h memMinHeap) Less(i, j int) bool   { return h[i].memoryPercent < h[j].memoryPercent }
-func (h memMinHeap) Swap(i, j int)        { h[i], h[j] = h[j], h[i] }
-func (h *memMinHeap) Push(x interface{})  { *h = append(*h, x.(memQuickInfo)) }
+func (h memMinHeap) Less(i, j int) bool  { return h[i].memoryPercent < h[j].memoryPercent }
+func (h memMinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *memMinHeap) Push(x interface{}) { *h = append(*h, x.(memQuickInfo)) }
 func (h *memMinHeap) Pop() interface{} {
 	old := *h
 	n := len(old)

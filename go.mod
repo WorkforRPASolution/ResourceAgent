@@ -5,11 +5,14 @@ go 1.20
 require (
 	github.com/IBM/sarama v1.43.0
 	github.com/alicebob/miniredis/v2 v2.36.1
+	github.com/benbjohnson/clock v1.3.5
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/rs/zerolog v1.32.0
 	github.com/shirou/gopsutil/v3 v3.24.1
 	github.com/xdg-go/scram v1.1.2
+	github.com/yusufpapurcu/wmi v1.2.3
+	go.uber.org/goleak v1.3.0
 	golang.org/x/net v0.25.0
 	golang.org/x/sys v0.20.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -45,7 +48,6 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 )

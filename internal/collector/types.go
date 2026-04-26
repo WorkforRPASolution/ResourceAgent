@@ -4,11 +4,11 @@ import "time"
 
 // MetricData is the common wrapper for all collected metrics.
 type MetricData struct {
-	Type      string            `json:"type"`
-	Timestamp time.Time         `json:"timestamp"`
-	AgentID  string      `json:"agent_id"`
-	Hostname string      `json:"hostname"`
-	Data     interface{} `json:"data"`
+	Type      string      `json:"type"`
+	Timestamp time.Time   `json:"timestamp"`
+	AgentID   string      `json:"agent_id"`
+	Hostname  string      `json:"hostname"`
+	Data      interface{} `json:"data"`
 }
 
 // CPUData contains overall CPU usage metrics.

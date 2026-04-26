@@ -26,11 +26,11 @@ func TestExtractHost(t *testing.T) {
 
 func TestResolveBrokerAddr(t *testing.T) {
 	tests := []struct {
-		name           string
-		kafkaRestAddr  string
-		brokerPort     int
-		wantAddr       string
-		wantErr        bool
+		name          string
+		kafkaRestAddr string
+		brokerPort    int
+		wantAddr      string
+		wantErr       bool
 	}{
 		{
 			name:          "IP with port",
