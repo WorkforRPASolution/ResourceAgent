@@ -166,6 +166,10 @@ func TestDaemonProcessCrash(t *testing.T) {
 	if len(data.Sensors) != 1 {
 		t.Errorf("expected 1 sensor after restart, got %d", len(data.Sensors))
 	}
+
+	// Cleanup: stop restarted daemon so Windows can release fake_daemon.exe handle
+	// before t.TempDir cleanup (otherwise "Access is denied" on Windows).
+	p.stopProcess()
 }
 
 func TestDaemonBackoff(t *testing.T) {

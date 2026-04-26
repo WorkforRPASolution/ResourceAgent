@@ -152,6 +152,7 @@ func TestInit_ConsoleBlockDoesNotBlockFileWrite(t *testing.T) {
 	if err := Init(cfg); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
+	t.Cleanup(Close) // Release file handle before TempDir removal (Windows)
 
 	// Write a log message - should succeed even though console might block
 	// (In real scenario, stdout blocks from Windows Quick Edit mode)
@@ -191,6 +192,7 @@ func TestInit_FileWriteNotBlockedByConsole(t *testing.T) {
 		os.Stdout = origStdout
 		t.Fatalf("Init failed: %v", err)
 	}
+	t.Cleanup(Close) // Release file + async console handles before TempDir removal (Windows)
 
 	// Write enough data to overflow ANY pipe buffer (~2MB >> 64KB pipe buffer).
 	// If console writer is synchronous, this WILL block.
@@ -250,6 +252,7 @@ func TestInit_ReInitClosesOldWriter(t *testing.T) {
 	if err := Init(cfg); err != nil {
 		t.Fatalf("second Init failed: %v", err)
 	}
+	t.Cleanup(Close) // Release file handle before TempDir removal (Windows)
 	Info().Msg("second message")
 	time.Sleep(50 * time.Millisecond)
 
