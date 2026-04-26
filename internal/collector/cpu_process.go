@@ -24,9 +24,9 @@ type cpuQuickInfo struct {
 type cpuMinHeap []cpuQuickInfo
 
 func (h cpuMinHeap) Len() int            { return len(h) }
-func (h cpuMinHeap) Less(i, j int) bool   { return h[i].cpuPercent < h[j].cpuPercent }
-func (h cpuMinHeap) Swap(i, j int)        { h[i], h[j] = h[j], h[i] }
-func (h *cpuMinHeap) Push(x interface{})  { *h = append(*h, x.(cpuQuickInfo)) }
+func (h cpuMinHeap) Less(i, j int) bool  { return h[i].cpuPercent < h[j].cpuPercent }
+func (h cpuMinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *cpuMinHeap) Push(x interface{}) { *h = append(*h, x.(cpuQuickInfo)) }
 func (h *cpuMinHeap) Pop() interface{} {
 	old := *h
 	n := len(old)

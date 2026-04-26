@@ -1,4 +1,4 @@
-# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.3)
+# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.3.1)
 
 > **변경 이력**:
 > - v1 → v2 (2026-04-22): 전문가 1차 리뷰 반영 — Appendix A
@@ -6,7 +6,7 @@
 > - v2.1 → v2.2 (2026-04-22): 전문가 3차 교차 검증 반영 — Appendix C
 > - 작업량 추정 — Appendix D
 > - 2026-04-24: 전문가 4차 최종 검증 — Appendix E (12건 실행 중 해결 TODO)
-> - **v2.2 → v2.3 (2026-04-26): Codex 5차 교차 검증 반영 — Appendix G**
+> - v2.2 → v2.3 (2026-04-26): Codex 5차 교차 검증 반영 — Appendix G
 >   - **핵심 원칙 재확립**: 증상 감추기(배포 설정 disable) 제거. 코드 버그는 근본 수정, 외부 요인(AV)은 진단 절차 + 사용자 대응 매뉴얼(Appendix F)로 분리.
 >   - Phase 0 축소: 배포 Monitor.json 영구 변경 제거, drainStderr H1 fix만 유지
 >   - Phase 1-2 재정의: C2(WMI goroutine leak)를 **코드 수정**으로 (수집기 유지)
@@ -14,6 +14,13 @@
 >   - M-1 atomic race 제거: enforcement는 mu critical section 내부, atomic은 SelfMetrics 관측용으로만
 >   - M-2 MaxBufferedRecords config 경로 확장 (loader.go, validate.go, 샘플 JSON 포함)
 >   - Appendix F 신설: AV 원인 확정 시 사용자 대응 매뉴얼 (예외 등록 / 대체 API / 수집기 삭제 기준)
+> - **v2.3 → v2.3.1 (2026-04-26): GitHub Actions 미사용 환경 반영 — Appendix G.5 갱신**
+>   - W0-4 재정의: GitHub Actions 조직 승인 → "사내 CI 인프라 조사 (없으면 로컬 스크립트 + CSV 이력 운영)"
+>   - Phase 4-0 변경: `.github/workflows/ci.yml` 매트릭스 → 로컬 `scripts/ci.sh` + `scripts/ci.ps1` + `docs/runbooks/ci-history.csv` (자동 append)
+>   - PR 본문 결과 첨부 정책 폐지 → CSV 이력 통합 추적
+>   - git pre-push hook은 도입하지 않음 (`--no-verify` 우회 + setup 마찰 + 정책 중복)
+>   - **Coverage baseline 실측 (Day 1)**: Overall 58.5%, internal/collector 46.4% (function avg, macOS 측정, Windows-only 제외)
+>   - **Step 0 race detector 발견**: R-1 (FileSender.drainConsole vs 테스트 stdout swap) — `docs/runbooks/known-race-conditions.md` 별도 PR로 fix
 
 ---
 
@@ -116,7 +123,7 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - [ ] W0-1. Alerting 시스템 실사 (Prometheus Alertmanager / Grafana Alerts / 기타)
 - [ ] W0-2. ManagerAgent 워크플로우 엔진 존재 확인
 - [ ] W0-3. RACI 실명 확정 (SRE on-call / 개발 리드 / 보안팀 / 사이트 관리자)
-- [ ] W0-4. GitHub Actions 조직 승인 경로 확인 (CI 리드타임)
+- [ ] W0-4. 사내 CI 인프라 조사 (Jenkins/GitLab CI/기타). 부재 시 로컬 스크립트 + CSV 이력 운영 (v2.3.1: GitHub Actions 사용 불가 확정)
 - [ ] W0-5. FTP 스토리지 용량 산정 (N-1 artifact × 90일 × 사이트 수)
 
 ### Phase A — 현장 진단
@@ -208,13 +215,17 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - [ ] **Informed**: 운영팀 전체 (메일링 리스트 확정)
 - [ ] On-call 15분 응답 정책의 현실성 확인 (주말/야간 대응 가능 여부)
 
-### W0-4. GitHub Actions 조직 승인
+### W0-4. 사내 CI 인프라 조사 (v2.3.1 재정의)
 
-- [ ] 조직의 `.github/workflows/*.yml` 승인 경로 확인
-- [ ] Windows runner (GitHub Actions `windows-2022`) 비용 예산 확보
-  - Linux runner 대비 2배 과금
-  - 월 예상 비용 산정
-- [ ] 필요 시 사내 self-hosted runner 대안 검토
+**v2.3.1 변경 사유**: GitHub Actions 사용 불가 확정. 대안 인프라 조사 + 부재 시 로컬 스크립트 운영.
+
+- [ ] 사내 Jenkins / GitLab CI / TeamCity / 기타 CI 인프라 존재 여부 확인
+- [ ] 존재 시: ResourceAgent 빌드/테스트 통합 가능 여부 + 신청 절차 + 리드타임
+- [ ] 부재 시: 로컬 검증 스크립트 + CSV 이력 운영 정책으로 대체 (Step 0 PR에서 도입 완료)
+  - `scripts/ci.sh` + `scripts/ci.ps1`
+  - `docs/runbooks/ci-history.csv` (자동 append)
+  - `docs/runbooks/ci-history-policy.md`
+- [ ] CI 인프라 발견 시 ci.sh를 entrypoint로 통합 (CSV 형식 유지)
 
 ### W0-5. FTP 스토리지 용량 산정
 
@@ -937,30 +948,29 @@ Phase A-4 결과 Disk 주원인이면 PDH 기반 구현.
 
 ## Phase 4 — 테스트 & 검증
 
-### 4-0. 선결 과제 (v2.2 구체화)
+### 4-0. 선결 과제 (v2.3.1 갱신, Step 0 PR로 도입 완료)
 
-- [ ] **goleak 도입**: `go get go.uber.org/goleak@latest`
-- [ ] **clock**: `benbjohnson/clock v1.3.5`
-  - 기존 `kafkarest_test.go` time.Sleep 계열 3건 migration
-  - MIT 라이선스 확인
-- [ ] **CI**: `.github/workflows/ci.yml`
-  - Matrix: `[ubuntu-22.04, windows-2022]`
-  - PR required check
-  - Jobs: test / build (amd64+386) / goleak-smoke / coverage
-  - Windows runner 비용 예산 (W0-4 확인 완료)
-- [ ] **Coverage baseline**:
-  - **Day 1에 실측** (v2.2 강조):
-    ```
-    go test -coverprofile=c.out ./... 
-    go tool cover -func=c.out | tail -1
-    ```
-  - 결과를 **이 플랜 문서의 "현재 baseline 수치" 섹션에 직접 기록**
-  - 측정 시점: [Day 1 완료 후 기록]
-  - overall: [TBD]%, `internal/collector/`: [TBD]%, `internal/sender/`: [TBD]%
-  - 파일: `docs/plans/coverage-baseline.txt`
-  - Phase 2 완료 후: baseline + 2%p 이상
-  - Phase 3 완료 후: baseline + 5%p 이상
-  - 절대 하한 70%
+- [x] **goleak 도입**: `go.uber.org/goleak v1.3.0` — Step 0 PR
+  - `internal/sender/sender_test.go` TestMain (sarama / http / lumberjack 화이트리스트)
+  - `internal/collector/collector_test.go` TestMain
+  - `docs/runbooks/goleak-whitelist.md`
+- [x] **clock injection**: `benbjohnson/clock v1.3.5` — Step 0 PR
+  - `internal/sender/clock.go` 인터페이스 도입
+  - 테스트 5초 sleep 2곳 단축 (200ms로) + clock 자기검증 테스트
+  - production 코드 교체는 Step 5(Phase 2-1)에서
+- [x] **로컬 CI 스크립트 + CSV 이력 (v2.3.1: GitHub Actions 대체)**: Step 0 PR
+  - `scripts/ci.sh` + `scripts/ci.ps1`: gofmt → vet → test → goleak (basic) → race + cross-build (--full)
+  - `docs/runbooks/ci-history.csv` (자동 append, PASS/FAIL 양쪽 기록)
+  - `docs/runbooks/ci-history-policy.md`
+  - **R-1 race condition 발견** (FileSender stdout swap) → `docs/runbooks/known-race-conditions.md` 별도 fix PR
+- [x] **Coverage baseline 실측 (Day 1)**: 2026-04-26
+  - **Overall: 58.5%** (macOS, Windows-only 코드 제외)
+  - `internal/collector/`: 46.4% (function avg)
+  - `internal/sender/`: 78.9% (function avg)
+  - 파일: `docs/plans/coverage-baseline.txt`, `docs/plans/coverage-baseline.md`
+  - Phase 2 완료 후: 60.5% 이상 (+2%p)
+  - Phase 3 완료 후: 63.5% 이상 (+5%p)
+  - 절대 하한: 70%
 - [ ] **gopsutil mockable seam 감사 리포트** (Phase 3-3 선행)
 
 ### 4-1. 단위 테스트 전면 통과
@@ -1085,7 +1095,7 @@ SelfMetrics + 외부 ping 활성. Dead-man's switch 동작.
 | 3-1 | `process_nt_windows.go` | 신규 NtQuery (6건 주의사항) | 4 |
 | 3-2 | `process_snapshot.go` | 신규 + singleflight + tuple + FILETIME | 2 |
 | 3-3 | `cpu_process.go`, `memory_process.go`, `process_watch.go`, `process_provider.go` | 리팩토링 | 5 |
-| 4-0 | `go.mod`, `.github/workflows/ci.yml`, `coverage-baseline.txt` | 선결 인프라 | 3 |
+| 4-0 | `go.mod`, `scripts/ci.sh`, `scripts/ci.ps1`, `scripts/coverage.sh`, `scripts/coverage.ps1`, `docs/runbooks/ci-history.csv`, `docs/runbooks/ci-history-policy.md`, `docs/runbooks/goleak-whitelist.md`, `docs/runbooks/known-race-conditions.md`, `coverage-baseline.{txt,md}`, `internal/sender/{sender_test.go,clock.go,clock_self_test.go}`, `internal/collector/{collector_test.go,goleak_self_test.go}` | 선결 인프라 (v2.3.1) | 2 (Step 0 완료 — 실 측정) |
 | 4-5 | `testdata/golden/*.json` | 신규 fixture | 2 |
 | 4-6 | `testdata/fake_daemon_harness_test.go` | 신규 | 1 |
 | **F** | **`docs/runbooks/av-mitigation-manual.md`** | **AV 원인 확정 시 대응 매뉴얼 (v2.3 신설)** | **2** |
@@ -1550,6 +1560,44 @@ Phase 3-0 PoC 결과 기반:
 
 **다음 단계**: Week 0 + Phase A + Phase 4-0 + Phase 0(축소판) 병렬 Kickoff. v2.2의 GO 판정은 v2.3에서도 유효.
 
+### G.5 — GitHub Actions 미사용 환경 반영 (v2.3.1, 2026-04-26)
+
+**상황**: 사용자 환경에서 GitHub Actions 사용 불가 확정. 대안 검토 결과 git pre-push hook 도입 부적절(우회 가능 + 마찰 + 정책 중복) → **로컬 스크립트 + CSV 이력**으로 통일.
+
+**v2.3.1 변경 항목**:
+
+1. **W0-4 재정의**: GitHub Actions 조직 승인 → 사내 CI 인프라 조사 (Jenkins/GitLab CI/기타). 부재 시 로컬 스크립트 운영.
+
+2. **Phase 4-0 재구성**:
+   - `.github/workflows/ci.yml` 매트릭스 → `scripts/ci.sh` + `scripts/ci.ps1`
+   - PR 본문 첨부 정책 → `docs/runbooks/ci-history.csv` 자동 append + `docs/runbooks/ci-history-policy.md`
+   - Windows runner 비용 항목 삭제
+
+3. **ci.sh 모드 분리** (Step 0 발견된 race condition 대응):
+   - `basic`: gofmt + vet + test + goleak (PASS 보장, race 없이)
+   - `--full`: 위 + race + cross-build (강한 검증, 알려진 race fix 후 default 승격 검토)
+
+4. **R-1 race condition 발견** (Step 0 race detector 첫 사례):
+   - `internal/sender/file.go:78` `drainConsole` goroutine vs 테스트 `os.Stdout` swap
+   - 운영 영향 없음 (테스트 한정), 별도 fix PR 추적
+   - `docs/runbooks/known-race-conditions.md`
+
+5. **Coverage baseline 실측** (Day 1, 2026-04-26):
+   - macOS 측정 (Windows-only 코드 제외): **Overall 58.5%**
+   - 패키지별: collector 46.4%, sender 78.9%, config 64.6%, scheduler 92.3%, heartbeat 92.5%, timediff 89.9% (function avg)
+   - Phase별 게이트 확정: Phase 2 후 60.5%+, Phase 3 후 63.5%+, 절대 하한 70%
+   - `docs/plans/coverage-baseline.{txt,md}` 생성
+
+6. **수정 대상 파일 표 갱신**: Phase 4-0 row 확장 (스크립트 + 정책 + 자기검증 테스트 + 산출물)
+
+**Step 0 PR 결과**:
+- Step 0.1 ~ 0.5 완료 (Step 0 자체)
+- ci.sh 첫 PASS 행 CSV 기록 완료 (`tail -1 docs/runbooks/ci-history.csv`)
+- goleak 자기검증 (`VERIFY_GOLEAK_INFRA=1`) — 의도적 leak 검출 확인
+- clock 자기검증 (`TestClockMockAdvancesTime`) — mock 시간 진행 확인
+- cross-build (windows amd64/386, linux amd64) 통과
+- gofmt 미준수 12파일 자동 정리 (코드 동작 영향 없음)
+
 ---
 
 ## 문서 이력 종합
@@ -1561,6 +1609,7 @@ Phase 3-0 PoC 결과 기반:
 | v2.1 | 2026-04-22 | 8.5/10 | Appendix B 반영 (30건 정정) |
 | v2.2 | 2026-04-22 | **9.1/10** | Appendix C 반영 (25건 정정) + Appendix D 신설 (작업량) |
 | v2.2 | 2026-04-24 | 9.1/10 | Appendix E 추가 — 4차 검증 GO 판정, 12건 TODO |
-| **v2.3** | **2026-04-26** | **(Codex 5차)** | **Appendix F (AV 운영 매뉴얼) + Appendix G (Codex 검증) — 증상 감추기 제거 원칙 확립** |
+| v2.3 | 2026-04-26 | (Codex 5차) | Appendix F (AV 운영 매뉴얼) + Appendix G (Codex 검증) — 증상 감추기 제거 원칙 확립 |
+| **v2.3.1** | **2026-04-26** | (Step 0 실측) | **G.5 — GitHub Actions 미사용 환경 반영. ci.sh + CSV 이력. coverage baseline 58.5%. R-1 race condition 발견.** |
 
-리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영.
+리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. Step 0 PR로 인프라 도입 완료.

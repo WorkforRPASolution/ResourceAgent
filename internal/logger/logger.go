@@ -97,9 +97,9 @@ func DefaultConfig() Config {
 
 var (
 	globalLogger     zerolog.Logger
-	prevFileWriter   io.Closer     // Previous file writer to close on re-init
-	prevConsoleAsync *asyncWriter  // Previous async console writer to close on re-init
-	serviceMode      bool          // When true, console output is suppressed (no stdout in services)
+	prevFileWriter   io.Closer    // Previous file writer to close on re-init
+	prevConsoleAsync *asyncWriter // Previous async console writer to close on re-init
+	serviceMode      bool         // When true, console output is suppressed (no stdout in services)
 )
 
 // SetServiceMode suppresses console output. Call before Init().

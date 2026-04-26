@@ -208,7 +208,7 @@ func TestHTTPTransport_Close(t *testing.T) {
 
 func TestHTTPTransport_ContextCancelled(t *testing.T) {
 	s, server := newTestHTTPSender(t, func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	})
 	defer server.Close()
@@ -580,7 +580,7 @@ func TestBufferedHTTPTransport_DeliverReturnsNil(t *testing.T) {
 	batchCfg.FlushFrequency = 10 * time.Second
 
 	transport, server := newTestBufferedTransport(t, func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(5 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}, batchCfg)
 	defer server.Close()

@@ -23,7 +23,7 @@ type ProcessWatchCollector struct {
 // NewProcessWatchCollector creates a new process watch collector.
 func NewProcessWatchCollector() *ProcessWatchCollector {
 	return &ProcessWatchCollector{
-		BaseCollector:  NewBaseCollector("ProcessWatch"),
+		BaseCollector:    NewBaseCollector("ProcessWatch"),
 		requiredMatcher:  NewProcessMatcher(nil),
 		forbiddenMatcher: NewProcessMatcher(nil),
 	}

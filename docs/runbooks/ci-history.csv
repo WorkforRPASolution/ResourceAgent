@@ -1,0 +1,5 @@
+timestamp,commit,branch,author,mode,result,failed_step,duration_sec,notes
+2026-04-26T02:56:42Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,FAIL,gofmt,0,Step 0 첫 검증
+2026-04-26T02:57:31Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,FAIL,test,18,Step 0 인프라 도입 후 첫 PASS
+2026-04-26T03:00:24Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,PASS,,15,Step 0 ci.sh 검증
+2026-04-26T03:03:32Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,PASS,,15,Step 0 최종 검증

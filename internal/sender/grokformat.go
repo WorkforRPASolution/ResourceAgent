@@ -22,7 +22,7 @@ type EARSRow struct {
 
 const (
 	grokTimeFmt = "2006-01-02 15:04:05"
-	jsonTimeFmt   = "2006-01-02T15:04:05"
+	jsonTimeFmt = "2006-01-02T15:04:05"
 )
 
 // FormatGrokTimestamp formats to "2006-01-02 15:04:05,000" (Grok TIMESTAMP_ISO8601 compatible).
@@ -91,7 +91,7 @@ type ParsedData struct {
 // ParsedDataList is the container for ParsedData entries with a timestamp.
 type ParsedDataList struct {
 	ISOTimestamp string       `json:"iso_timestamp"`
-	Parsed      []ParsedData `json:"parsed"`
+	Parsed       []ParsedData `json:"parsed"`
 }
 
 // ToParsedData returns a ParsedDataList for the JSON mapper format.

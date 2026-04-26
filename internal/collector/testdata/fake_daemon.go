@@ -18,13 +18,13 @@ import (
 )
 
 type lhmData struct {
-	Sensors          []sensor     `json:"Sensors"`
-	Fans             []fan        `json:"Fans"`
-	Gpus             []gpu        `json:"Gpus"`
-	Storages         []storage    `json:"Storages"`
-	Voltages         []voltage    `json:"Voltages"`
-	MotherboardTemps []mbTemp     `json:"MotherboardTemps"`
-	Error            string       `json:"error,omitempty"`
+	Sensors          []sensor  `json:"Sensors"`
+	Fans             []fan     `json:"Fans"`
+	Gpus             []gpu     `json:"Gpus"`
+	Storages         []storage `json:"Storages"`
+	Voltages         []voltage `json:"Voltages"`
+	MotherboardTemps []mbTemp  `json:"MotherboardTemps"`
+	Error            string    `json:"error,omitempty"`
 }
 
 type sensor struct {
@@ -84,10 +84,10 @@ func main() {
 		Sensors: []sensor{
 			{Name: "CPU Package", Temperature: temp, High: 100, Critical: 105},
 		},
-		Fans:     []fan{{Name: "CPU Fan", RPM: 1200}},
-		Gpus:     []gpu{{Name: "Intel HD Graphics", Temperature: &temp}},
-		Storages: []storage{{Name: "Samsung SSD", Type: "SSD"}},
-		Voltages: []voltage{{Name: "CPU Vcore", Voltage: 1.25}},
+		Fans:             []fan{{Name: "CPU Fan", RPM: 1200}},
+		Gpus:             []gpu{{Name: "Intel HD Graphics", Temperature: &temp}},
+		Storages:         []storage{{Name: "Samsung SSD", Type: "SSD"}},
+		Voltages:         []voltage{{Name: "CPU Vcore", Voltage: 1.25}},
 		MotherboardTemps: []mbTemp{{Name: "System", Temperature: 42}},
 	}
 

@@ -8,20 +8,20 @@ import (
 
 // Config is the root configuration structure.
 type Config struct {
-	SenderType string                     `json:"SenderType"` // "kafka", "kafkarest", or "file"
-	Kafka      KafkaConfig                `json:"Kafka"`
-	Batch      BatchConfig                `json:"Batch"`
-	File       FileConfig                 `json:"File"`
-	VirtualAddressList      string                     `json:"VirtualAddressList"`
-	Redis                   RedisConfig                `json:"Redis"`
-	PrivateIPAddressPattern string                     `json:"PrivateIPAddressPattern"`
-	SOCKSProxy              SOCKSConfig                `json:"SocksProxy"`
-	ServiceDiscoveryPort    int                        `json:"ServiceDiscoveryPort"`
-	ResourceMonitorTopic    string                     `json:"ResourceMonitorTopic"`
-	TimeDiffSyncInterval        int                        `json:"TimeDiffSyncInterval"` // seconds, default 3600
-	UpdateServerAddressInterval time.Duration              `json:"-"` // parsed from duration string, default 5m
-	KafkaRestAddress            string                     `json:"-"` // runtime only, from ServiceDiscovery
-	EqpInfo                     *EqpInfoConfig             `json:"-"` // runtime only, not serialized
+	SenderType                  string         `json:"SenderType"` // "kafka", "kafkarest", or "file"
+	Kafka                       KafkaConfig    `json:"Kafka"`
+	Batch                       BatchConfig    `json:"Batch"`
+	File                        FileConfig     `json:"File"`
+	VirtualAddressList          string         `json:"VirtualAddressList"`
+	Redis                       RedisConfig    `json:"Redis"`
+	PrivateIPAddressPattern     string         `json:"PrivateIPAddressPattern"`
+	SOCKSProxy                  SOCKSConfig    `json:"SocksProxy"`
+	ServiceDiscoveryPort        int            `json:"ServiceDiscoveryPort"`
+	ResourceMonitorTopic        string         `json:"ResourceMonitorTopic"`
+	TimeDiffSyncInterval        int            `json:"TimeDiffSyncInterval"` // seconds, default 3600
+	UpdateServerAddressInterval time.Duration  `json:"-"`                    // parsed from duration string, default 5m
+	KafkaRestAddress            string         `json:"-"`                    // runtime only, from ServiceDiscovery
+	EqpInfo                     *EqpInfoConfig `json:"-"`                    // runtime only, not serialized
 }
 
 // FileConfig contains settings for the file sender.
@@ -61,15 +61,15 @@ type BatchConfig struct {
 
 // CollectorConfig contains settings for individual collectors.
 type CollectorConfig struct {
-	Enabled        bool          `json:"Enabled"`
-	Interval       time.Duration `json:"Interval"`
-	TopN           int           `json:"TopN,omitempty"`
-	Disks          []string      `json:"Disks,omitempty"`
-	Interfaces     []string      `json:"Interfaces,omitempty"`
-	IncludeZones   []string      `json:"IncludeZones,omitempty"`
-	WatchProcesses     []string `json:"WatchProcesses,omitempty"`
-	RequiredProcesses  []string `json:"RequiredProcesses,omitempty"`
-	ForbiddenProcesses []string `json:"ForbiddenProcesses,omitempty"`
+	Enabled            bool          `json:"Enabled"`
+	Interval           time.Duration `json:"Interval"`
+	TopN               int           `json:"TopN,omitempty"`
+	Disks              []string      `json:"Disks,omitempty"`
+	Interfaces         []string      `json:"Interfaces,omitempty"`
+	IncludeZones       []string      `json:"IncludeZones,omitempty"`
+	WatchProcesses     []string      `json:"WatchProcesses,omitempty"`
+	RequiredProcesses  []string      `json:"RequiredProcesses,omitempty"`
+	ForbiddenProcesses []string      `json:"ForbiddenProcesses,omitempty"`
 }
 
 // DefaultRedisPassword is used when Password is empty in config.
@@ -132,10 +132,10 @@ func DefaultConfig() *Config {
 		Redis: RedisConfig{
 			Port: 6379,
 		},
-		ServiceDiscoveryPort:            50009,
-		ResourceMonitorTopic:            "process",
-		TimeDiffSyncInterval:            3600,
-		UpdateServerAddressInterval:     10 * time.Minute,
+		ServiceDiscoveryPort:        50009,
+		ResourceMonitorTopic:        "process",
+		TimeDiffSyncInterval:        3600,
+		UpdateServerAddressInterval: 10 * time.Minute,
 	}
 }
 
