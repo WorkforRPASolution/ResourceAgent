@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -9,6 +10,9 @@ import (
 )
 
 func TestCPUProcessCollector_Collect_WithWatchProcesses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows: 'go'/'zsh' 가정 부적합. docs/runbooks/known-windows-test-failures.md 참조")
+	}
 	collector := NewCPUProcessCollector()
 
 	// Configure with watch_processes (use user-accessible process names)
@@ -82,6 +86,9 @@ func TestCPUProcessCollector_Collect_WithWatchProcesses(t *testing.T) {
 }
 
 func TestCPUProcessCollector_Collect_WatchedFirst(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows: 'go' 프로세스 가정 부적합. docs/runbooks/known-windows-test-failures.md 참조")
+	}
 	collector := NewCPUProcessCollector()
 
 	cfg := config.CollectorConfig{

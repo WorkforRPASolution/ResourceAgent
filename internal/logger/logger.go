@@ -193,6 +193,21 @@ func Init(cfg Config) error {
 	return nil
 }
 
+// Close releases all writers (lumberjack file + async console).
+// Required for Windows test cleanup (TempDir removal) and service shutdown.
+// After Close, the global logger becomes a no-op until next Init.
+func Close() {
+	if prevFileWriter != nil {
+		prevFileWriter.Close()
+		prevFileWriter = nil
+	}
+	if prevConsoleAsync != nil {
+		prevConsoleAsync.Close()
+		prevConsoleAsync = nil
+	}
+	globalLogger = zerolog.Nop()
+}
+
 // Logger returns the global logger instance.
 func Logger() *zerolog.Logger {
 	return &globalLogger
