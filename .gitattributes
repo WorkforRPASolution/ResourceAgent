@@ -1,0 +1,33 @@
+# 모든 OS에서 일관된 line ending. Windows clone 시 CRLF 변환 방지.
+# Git for Windows 기본 core.autocrlf=true 환경에서도 .go/.sh 등은 LF 유지.
+
+# 텍스트 파일 자동 감지 + 기본 LF
+* text=auto eol=lf
+
+# Go 소스: gofmt가 LF 가정. CRLF면 unformatted 보고.
+*.go         text eol=lf
+*.go.tmpl    text eol=lf
+
+# Shell 스크립트: 실행 환경(bash) LF 필수
+*.sh         text eol=lf
+
+# Windows 스크립트: 실행 환경(cmd/powershell) CRLF 필요
+*.ps1        text eol=crlf
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+
+# 설정/데이터: LF
+*.json       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.csv        text eol=lf
+*.md         text eol=lf
+*.txt        text eol=lf
+
+# 바이너리 (line ending 변환 차단)
+*.exe        binary
+*.dll        binary
+*.png        binary
+*.jpg        binary
+*.gz         binary
+*.zip        binary

@@ -3,3 +3,4 @@ timestamp,commit,branch,author,mode,result,failed_step,duration_sec,notes
 2026-04-26T02:57:31Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,FAIL,test,18,Step 0 인프라 도입 후 첫 PASS
 2026-04-26T03:00:24Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,PASS,,15,Step 0 ci.sh 검증
 2026-04-26T03:03:32Z,b0ddcdd,feature/step0-test-infrastructure,Gusrudals,basic,PASS,,15,Step 0 최종 검증
+2026-04-26T21:33:33Z,9897696,chore/gitattributes-line-endings,Gusrudals,basic,PASS,,16,gitattributes 추가 검증
