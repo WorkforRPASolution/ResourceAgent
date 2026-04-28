@@ -1,6 +1,37 @@
-# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.3.1)
+# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.4.0)
 
+> **🔔 v2.4.0 (2026-04-28) — 근본 원인 확정으로 plan 재포지셔닝**:
+>
+> 현장 Win7 SP1 + AhnLab EPS 환경의 1GB Paged Pool 증가 현상의 **근본 원인이 확정됨**:
+> - **원인**: AhnLab EPS (Application Control 정책 캐시 등) 가 ResourceAgent.exe 를 미등록 SW 로 분류하여 행위 추적 + 정책 검사 결과를 NTFS / Filter Manager / Memory Manager / Registry 측 reference 로 캐시 → 점진 누적 후 한도 도달 시 정체.
+> - **결정적 검증**: 동일 PC 에서 EPS 만 제거 시 ResourceAgent 모든 collector ON 이어도 1.5h 동안 증가 0.
+> - **ResourceAgent 책임 비율 ≈ 0%**: 누수가 아닌 EPS 의 정상 캐시 동작 (한도 미설정 또는 부적합).
+> - **상세 케이스 분석**: `docs/runbooks/windows-memory-leak-diagnosis.md` §9
+> - **EPS 협의 자료**: `docs/runbooks/eps-whitelist-request.md`
+>
+> **plan 재포지셔닝**:
+> - 본 plan 의 "**현장 1GB 누수 해결**" 명분 제거 — 그 원인은 코드가 아닌 운영 환경 (EPS 정책)
+> - **C1/C2/H1/H2/M-1/M-2 코드 수정은 코드 품질 + 장기 운영 안정성 목적으로 plan 그대로 진행**
+>   - 본 PC 누수와 직접 무관하지만 정적 분석 기반 잠재 누수는 fix 가치 있음
+>   - 다른 환경 (Win10/11, EPS 미설치, 장기 운영) 에서의 견고성 확보
+> - 신규 트랙:
+>   - **Track D (운영 거버넌스)**: EPS 정책 등록 협의 + AhnLab 본사 공식 문의 (가장 직접적 해결책)
+>   - **Track C (활동 완화)**: Logger / fsnotify / ServiceDiscovery 활동 빈도 감소 (보조적, 효과 정량화 어려움 → 우선순위 낮음)
+> - Phase A (현장 진단) 의 일부 시나리오는 **이미 본 case study 로 검증됨** — Phase A 재정의 검토 필요
+> - 가설 분포 변화:
+>   - 폐기: AhnLab V3 IRP 후킹 / SSDT / WMI 이론 — 본 PC 에서 자체 풀 태그 안 보임
+>   - 확정: H-EPS-3 (Application Control 정책 캐시) 신뢰도 70%
+>   - 보조 가설: H-EPS-1 (EDR 후킹), H-EPS-2 (NetFilter) — 함께 작동 가능
+>
 > **변경 이력**:
+> - **v2.3.1 → v2.4.0 (2026-04-28)**: 현장 Paged Pool 증가 근본 원인 EPS 확정 + plan 재포지셔닝
+>   - 5개 시나리오 비교 실험으로 EPS 가 필요조건 확정 (시나리오 ④ 결정적)
+>   - 점진 증가 후 정체 패턴 → 누수 아닌 캐시 한도 도달
+>   - top5 풀 태그 (FMfn/Ntff/MmSt/CM31/Ntfx) 가 모두 MS 표준 컴포넌트 → EPS 가 자체 풀 안 잡고 reference 만 잡음
+>   - EPS 협의 자료 신설: `docs/runbooks/eps-whitelist-request.md`
+>   - 진단 가이드 §9 신설: 본 케이스 case study + 다른 환경 적용 가이드
+>
+> **이전 변경 이력**:
 > - v1 → v2 (2026-04-22): 전문가 1차 리뷰 반영 — Appendix A
 > - v2 → v2.1 (2026-04-22): 전문가 2차 교차 검증 반영 — Appendix B
 > - v2.1 → v2.2 (2026-04-22): 전문가 3차 교차 검증 반영 — Appendix C

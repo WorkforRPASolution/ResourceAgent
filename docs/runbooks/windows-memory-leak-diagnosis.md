@@ -563,7 +563,101 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 
 ---
 
-## 9. 참고 자료
+## 9. Case Study — Win7 SP1 + EPS 환경의 Paged Pool 증가 (2026-04-28 확정)
+
+본 진단 가이드의 항목 1~9 를 적용한 결과, 한 가지 케이스의 근본 원인이 확정되었습니다. **본 진단의 첫 실증 사례**.
+
+### 9.1 관찰
+
+| # | 환경 | ResourceAgent 상태 | Paged Pool 증가 |
+|---|------|-----------------|---------------|
+| ① | Win7 SP1, 8GB, **EPS 설치** | 실행 + 모든 collector OFF | ⚠️ 점진 증가 (1h 내 800MB~1GB) |
+| ② | Win7 SP1, 8GB, **EPS 설치** | 실행 + 모든 collector ON | ⚠️ 점진 증가 (동일 패턴) |
+| ③ | Win7 SP1, 8GB, **EPS 미설치** | 실행 + 모든 collector ON | ✅ 증가 없음 |
+| ④ | Win7 SP1, 8GB, **EPS 삭제** (동일 PC) | 실행 + 모든 collector ON | ✅ 증가 없음 (1.5h 검증) |
+| ⑤ | Win7 SP1, 8GB, **EPS 미설치** | 미실행 | ✅ baseline 유지 |
+
+**핵심 패턴**:
+- **점진적 증가 후 정체**: 무한 단조 증가가 아닌 캐시 한도 도달 패턴
+- **EPS 가 필요조건**: 시나리오 ④ 가 결정적 (동일 PC 에서 EPS 만 제거하면 누수 0)
+- **Collector 동작량과 무관**: ① vs ② 비교
+
+### 9.2 진단된 풀 태그 (poolmon top5)
+
+| Tag | 컴포넌트 |
+|-----|--------|
+| FMfn | fltmgr.sys (Filter Manager NAME_CACHE) |
+| Ntff | ntfs.sys (FCB) |
+| Ntfx | ntfs.sys (확장 메타데이터) |
+| MmSt | ntoskrnl.exe (Memory Manager Mapped File Subsections) |
+| CM31 | ntoskrnl.exe (Configuration Manager / Registry) |
+
+→ **모두 Windows 표준 컴포넌트의 풀 태그**. EPS 자체 풀 태그(`V3*`, `Ahn*`, `Asd*`, `Ayag`)는 top5 에 없음.
+
+### 9.3 확정 가설 — H-EPS-3 (Application Control 정책 캐시) 신뢰도 70%
+
+**메커니즘**:
+1. ResourceAgent.exe 가 EPS 의 신뢰 SW 목록에 미등록
+2. EPS 의 Application Control 모듈이 ResourceAgent 의 모든 행위를 정책 검사 대상으로 분류
+3. 매 검사 결과를 NTFS / Filter Manager / Memory Manager / Registry 측 reference 로 캐시 (자체 풀 안 잡고 MS 표준 컴포넌트 풀의 reference 만 잡음)
+4. ResourceAgent 의 행위 다양성에 따라 캐시 누적 → 시간 따라 점진 증가
+5. 정책 캐시 한도 도달 → 증가 정체 (8GB Win7 환경에서 한도가 큼)
+
+**보조 메커니즘 (병합 가능)**:
+- H-EPS-1: EPS 의 EDR 모듈이 ResourceAgent 의 syscall 추적
+- H-EPS-2: EPS 의 NetFilter 가 ResourceAgent 의 네트워크 통신 추적
+
+→ 위 셋이 동시 작동하며 양쪽 캐시 누적이 합산. 점진+정체 패턴은 두 캐시의 합계.
+
+### 9.4 ResourceAgent 책임 비율 — **거의 0%**
+
+데이터로 확정된 사실:
+- ✅ EPS 가 메모리 증가의 필요조건
+- ✅ ResourceAgent 의 동작량과 메모리 증가 정도는 무관
+- ✅ 누수가 아닌 캐시 누적 패턴 (점진+정체)
+- ✅ 증가 영역은 Windows 표준 컴포넌트 풀 (EPS 자체 풀 아님)
+
+→ **본 plan v2.3.1 의 코드 누수 가설(C1/C2/H1/H2/M-1/M-2)은 본 케이스와 무관**. 코드 수정은 코드 품질 차원에서 가치 있으나 본 PC 누수 해결 명분은 제거.
+
+### 9.5 권고 조치 — 화이트리스트 등록
+
+직접 해결책 우선순위:
+
+| # | 조치 | 효과 | 거버넌스 |
+|---|------|------|---------|
+| **1** | **EPS 정책에 ResourceAgent.exe 신뢰 등록** (White list) | 직접 해결 | EPS 운영팀 협의 필요 |
+| 2 | EPS 의 정책 캐시 한도 조정 (가능하다면) | 환경 부적합 설정 수정 | EPS 권한 외 가능성 |
+| 3 | AhnLab 본사에 공식 문의 — 8GB Win7 환경 정책 캐시 기본값 검토 요청 | 근본/장기 해결 | 시간 소요 |
+| 4 | (마지막) 재부팅 주기 운영 | 임시 완화 | 가용성 영향 |
+
+→ **1순위가 직접 해결**. 자세한 협의 자료: `docs/runbooks/eps-whitelist-request.md`.
+
+### 9.6 미확정 사항
+
+- ❓ Win10/11 환경에서 동일 현상 재현 여부 (OS 의존성)
+- ❓ 화이트리스트 등록 후 1시간 검증 결과 (가설 확정의 결정적 데이터)
+- ❓ EPS 의 정확한 어느 모듈이 메인 트리거인지 (Application Control vs EDR vs NetFilter)
+- ❓ AhnLab 본사 측 공식 입장
+
+### 9.7 다른 환경에서 본 케이스를 만났을 때
+
+본 가이드의 진단 절차 항목 1~9 를 그대로 적용 가능. 핵심 분기점:
+
+```
+[환경에 보안 SW (EDR/EPS/AV) 존재?]
+    ├─ Yes → 9.1 의 시나리오 ① ② ④ 비교 측정
+    │    │
+    │    ├─ ④ (보안 SW 제거) 에서 누수 0 → H-EPS-3 동일 가설
+    │    │   → 화이트리스트 등록으로 해결
+    │    │
+    │    └─ ④ 에서도 누수 → 다른 원인 (본 가이드 §3 의사결정 트리 적용)
+    │
+    └─ No → 코드 누수 (C1/C2/H1/H2/M-1/M-2) 검증으로 진행
+```
+
+---
+
+## 10. 참고 자료
 
 - **본 plan 문서**: `docs/plans/memory-leak-mitigation-plan.md` (v2.3.1)
 - **Win7 현장 관찰 기록**: `docs/issues/` (별도)
@@ -573,9 +667,10 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 
 ---
 
-## 10. 변경 이력
+## 11. 변경 이력
 
 | 일자 | 변경 |
 |------|------|
 | 2026-04-27 | 초안 작성. PC-A baseline 1GB 관찰 + Private 변화 없음 + 커널 풀 증가 신호 기반. |
 | 2026-04-27 | §8 추가: Collector × 누수 의심 매핑 (C1/C2/H1/H2/M-1/M-2 코드별 영향 범위), 우선순위 그룹, 시나리오별 Monitor.json 설정. |
+| 2026-04-28 | §9 추가: Win7 SP1 + EPS 환경 케이스 확정. 5개 시나리오 매트릭스 + H-EPS-3 가설 + 화이트리스트 등록 권고. ResourceAgent 책임 비율 ≈ 0% 확인. 기존 §9~§10 → §10~§11 로 이동. |
