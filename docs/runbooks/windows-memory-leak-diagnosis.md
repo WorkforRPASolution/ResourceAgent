@@ -563,9 +563,11 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 
 ---
 
-## 9. Case Study — Win7 SP1 + EPS 환경의 Paged Pool 증가 (2026-04-28 확정)
+## 9. Case Study — Win7 SP1 + EPS 환경의 Paged Pool 증가 (2026-04-29 해결됨)
 
-본 진단 가이드의 항목 1~9 를 적용한 결과, 한 가지 케이스의 근본 원인이 확정되었습니다. **본 진단의 첫 실증 사례**.
+본 진단 가이드의 항목 1~9 를 적용한 결과, 한 가지 케이스의 근본 원인이 확정되었으며 **EPS 화이트리스트 등록으로 해결됨**. **본 진단의 첫 실증 사례 + 첫 해결 사례**.
+
+> **2026-04-29 갱신**: EPS 담당자와 협의하여 ResourceAgent 설치 폴더를 화이트리스트 등록한 결과, Paged Pool 증가 현상이 해소되었습니다. **H-EPS-3 가설 확정 (신뢰도 70% → 95%+)**.
 
 ### 9.1 관찰
 
@@ -594,7 +596,7 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 
 → **모두 Windows 표준 컴포넌트의 풀 태그**. EPS 자체 풀 태그(`V3*`, `Ahn*`, `Asd*`, `Ayag`)는 top5 에 없음.
 
-### 9.3 확정 가설 — H-EPS-3 (Application Control 정책 캐시) 신뢰도 70%
+### 9.3 확정 가설 — H-EPS-3 (Application Control 정책 캐시) 신뢰도 95%+
 
 **메커니즘**:
 1. ResourceAgent.exe 가 EPS 의 신뢰 SW 목록에 미등록
@@ -619,25 +621,36 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 
 → **본 plan v2.3.1 의 코드 누수 가설(C1/C2/H1/H2/M-1/M-2)은 본 케이스와 무관**. 코드 수정은 코드 품질 차원에서 가치 있으나 본 PC 누수 해결 명분은 제거.
 
-### 9.5 권고 조치 — 화이트리스트 등록
+### 9.5 적용된 해결 조치 — 화이트리스트 등록 (2026-04-29 완료)
 
-직접 해결책 우선순위:
+| # | 조치 | 결과 |
+|---|------|------|
+| **1 (적용)** | **EPS 정책에 ResourceAgent 설치 폴더 신뢰 등록** (White list) | ✅ **해결됨** — 메모리 증가 해소 |
+| 2 (보류) | EPS 의 정책 캐시 한도 조정 | 1번 조치로 불요 |
+| 3 (보류) | AhnLab 본사 공식 문의 — 정책 캐시 기본값 검토 | 잔여 미확정 사항으로 분리 |
+| 4 (불요) | 재부팅 주기 운영 | 1번 조치로 불요 |
 
-| # | 조치 | 효과 | 거버넌스 |
-|---|------|------|---------|
-| **1** | **EPS 정책에 ResourceAgent.exe 신뢰 등록** (White list) | 직접 해결 | EPS 운영팀 협의 필요 |
-| 2 | EPS 의 정책 캐시 한도 조정 (가능하다면) | 환경 부적합 설정 수정 | EPS 권한 외 가능성 |
-| 3 | AhnLab 본사에 공식 문의 — 8GB Win7 환경 정책 캐시 기본값 검토 요청 | 근본/장기 해결 | 시간 소요 |
-| 4 | (마지막) 재부팅 주기 운영 | 임시 완화 | 가용성 영향 |
+→ **1번 조치로 해결**. 자세한 협의 자료: `docs/runbooks/eps-whitelist-request.md`.
 
-→ **1순위가 직접 해결**. 자세한 협의 자료: `docs/runbooks/eps-whitelist-request.md`.
+### 9.5.1 모델 보정 — "수명" 단독은 결정 변수가 아님 (2026-04-29 추가)
 
-### 9.6 미확정 사항
+RAMMAP idle 장시간 실행 시 누수 미관찰 → 수명만으로는 트리거 아님.
+
+보정된 식:
+```
+EPS 캐시 누적 ≈ ∫ (단위 시간당 행위 빈도 × 행위 다양성) dt × (1 - 신뢰도)
+```
+
+**1순위 결정 변수**: 신뢰 분류 (서명). MS 서명 SW 는 EPS Application Control 단계에서 검사 우회 → 빈도 무관하게 캐시 entry 미생성. 미서명 SW 는 모든 신규 객체 접근에 대해 캐시 entry 발생.
+
+**보완 / 대안 조치**: 자사 SW 코드 서명 도입 — 인증서 1장으로 자사 모든 SW 가 EPS baseline 자동 신뢰. 자세한 검토: `eps-whitelist-request.md` 부록 E-1.
+
+### 9.6 잔여 미확정 사항
 
 - ❓ Win10/11 환경에서 동일 현상 재현 여부 (OS 의존성)
-- ❓ 화이트리스트 등록 후 1시간 검증 결과 (가설 확정의 결정적 데이터)
-- ❓ EPS 의 정확한 어느 모듈이 메인 트리거인지 (Application Control vs EDR vs NetFilter)
-- ❓ AhnLab 본사 측 공식 입장
+- ❓ EPS 의 정확한 어느 모듈이 메인 트리거인지 (Application Control vs EDR vs NetFilter) — 단독/합산 분리
+- ❓ AhnLab 본사 측 공식 입장 — 정책 캐시 누적이 정상 동작인지
+- ❓ 코드 서명 도입 시 화이트리스트 없이 동일 효과 가능 여부 (테스트 A/B 미실행)
 
 ### 9.7 다른 환경에서 본 케이스를 만났을 때
 
@@ -647,8 +660,9 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 [환경에 보안 SW (EDR/EPS/AV) 존재?]
     ├─ Yes → 9.1 의 시나리오 ① ② ④ 비교 측정
     │    │
-    │    ├─ ④ (보안 SW 제거) 에서 누수 0 → H-EPS-3 동일 가설
-    │    │   → 화이트리스트 등록으로 해결
+    │    ├─ ④ (보안 SW 제거) 에서 누수 0 → H-EPS-3 동일 가설 (✅ 본 케이스로 확정)
+    │    │   → 화이트리스트 등록 (폴더 단위 권장) 으로 해결
+    │    │   → 또는 자사 SW 코드 서명 도입 (장기 대안)
     │    │
     │    └─ ④ 에서도 누수 → 다른 원인 (본 가이드 §3 의사결정 트리 적용)
     │
@@ -659,11 +673,13 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 
 ## 10. 참고 자료
 
-- **본 plan 문서**: `docs/plans/memory-leak-mitigation-plan.md` (v2.3.1)
+- **본 plan 문서**: `docs/plans/memory-leak-mitigation-plan.md` (v2.4.0)
+- **EPS 협의 자료**: `docs/runbooks/eps-whitelist-request.md`
 - **Win7 현장 관찰 기록**: `docs/issues/` (별도)
 - **MS poolmon 가이드**: https://learn.microsoft.com/windows-hardware/drivers/devtest/poolmon
 - **MS RAMMap 사용**: https://learn.microsoft.com/sysinternals/downloads/rammap
 - **Process Explorer 핸들 분석**: https://learn.microsoft.com/sysinternals/downloads/process-explorer
+- **MS Defender 화이트리스트 best practice**: https://learn.microsoft.com/en-us/defender-endpoint/common-exclusion-mistakes-microsoft-defender-antivirus
 
 ---
 
@@ -674,3 +690,4 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 | 2026-04-27 | 초안 작성. PC-A baseline 1GB 관찰 + Private 변화 없음 + 커널 풀 증가 신호 기반. |
 | 2026-04-27 | §8 추가: Collector × 누수 의심 매핑 (C1/C2/H1/H2/M-1/M-2 코드별 영향 범위), 우선순위 그룹, 시나리오별 Monitor.json 설정. |
 | 2026-04-28 | §9 추가: Win7 SP1 + EPS 환경 케이스 확정. 5개 시나리오 매트릭스 + H-EPS-3 가설 + 화이트리스트 등록 권고. ResourceAgent 책임 비율 ≈ 0% 확인. 기존 §9~§10 → §10~§11 로 이동. |
+| 2026-04-29 | §9 갱신: EPS 화이트리스트 등록으로 메모리 증가 해소 확인 — H-EPS-3 신뢰도 70% → 95%+. §9.5.1 모델 보정 추가 (RAMMAP idle 반증으로 "수명 단독은 결정 변수 아님" 확인, 신뢰 분류 + 빈도×다양성 곱 모델, 코드 서명 대안 제시). §9.6 미확정 사항 갱신. §10 참고 자료에 EPS 협의 자료 + Defender 화이트리스트 best practice 추가. |
