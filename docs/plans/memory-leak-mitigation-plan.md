@@ -187,8 +187,8 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - ~~0-1. Disk / StorageHealth 기본값 disabled~~ → **삭제** (증상 감추기, v2.3 원칙 위배)
 
 ### Phase 1 — Critical Goroutine Leak
-- [ ] 1-1-spike. bufio.Reader 해체 + stdin SetWriteDeadline 설계 + PoC
-- [ ] 1-1. LhmProvider doRequestWithTimeout 수정 (C1)
+- [x] ~~1-1-spike. bufio.Reader 해체 + stdin SetWriteDeadline 설계 + PoC~~ → **v2.4.1 간소화** (Win7 PoC 환경 부재 → 옵션 A + 옵션 B fallback 하이브리드로 직행. 사후 로그 모니터링으로 검증)
+- [x] **1-1. LhmProvider doRequestWithTimeout 수정 (C1)** — 완료. `internal/collector/lhm_provider_windows.go` 전면 재작성. 옵션 A (pipe deadline) + 옵션 B (3회 timeout 시 Process.Kill) 하이브리드. 6개 LHM_* 로그 prefix + 모니터링 runbook (`docs/runbooks/lhm-provider-timeout-monitoring.md`).
 - [ ] 1-2. WMI Query goroutine leak **코드 수정** (C2, v2.3: 수집기 유지 + hang 방지)
 
 ### Phase 2 — 견고성 개선
@@ -507,14 +507,21 @@ typeperf "\Memory\Pool Paged Bytes" "\Memory\Pool Nonpaged Bytes" -sc 60 -si 1 -
   - VM 검증은 보조 (`os/exec` pipe 동작이 hardware/driver와 무관해야 함)
   - 검증 산출물: `docs/designs/lhm-provider-deadline-poc-results.md` — 5개 조건 각각 PASS/FAIL 표
 
-### 1-1. LhmProvider.doRequestWithTimeout 수정
+### 1-1. LhmProvider.doRequestWithTimeout 수정 ✅ 완료 (v2.4.1, 2026-05-04)
 
-**옵션 A (권장, spike 성공 시)**:
+**채택**: **하이브리드** — 옵션 A (1차) + 옵션 B (3회 timeout 시 fallback). Win7 PoC 환경 부재로 spike 단계는 생략하고 양쪽 방어선 모두 코드에 포함. 사후 검증은 로그 모니터링(`docs/runbooks/lhm-provider-timeout-monitoring.md`).
+
+**구현 산출물**:
+- `internal/collector/lhm_provider_windows.go`: 필드 분리 (`stdinFile/stdoutFile *os.File` + `stdoutReader *bufio.Reader`), `os.Pipe()` 패턴으로 startProcess 재작성, `doRequestWithTimeout` 별도 goroutine 제거 + deadline 기반, `handleIOError` 신설 (timeout 카운트 + Kill fallback)
+- `internal/collector/lhm_provider_daemon_test.go`: 3개 신규 테스트 (`NoGoroutineLeak`, `FallbackKillsAfterThreshold`, `RecoveryResetsCounter`) + `wireSlowDaemonForTest` helper
+- `docs/runbooks/lhm-provider-timeout-monitoring.md`: 6개 LHM_* 로그 prefix 정의 + Q1~Q6 진단 가이드 + 운영 1주차 체크리스트
+
+**옵션 A (1차 방어)**:
 - `stdinFile.SetWriteDeadline` + `stdoutFile.SetReadDeadline` 설정
-- 타임아웃 감지 + bufio.Reset + deadline 리셋
-- 별도 goroutine 불필요
+- 타임아웃 감지 + deadline 리셋 (defer)
+- 별도 goroutine 불필요 → 누수 자체가 발생할 수 없는 구조
 
-**옵션 B (fallback)**: `p.cmd.Process.Kill()`
+**옵션 B (2차 방어)**: `p.cmd.Process.Kill()`
 - 주의: `cmd.Wait()` 대기는 **수십~수백 ms** (v2.1 정정 유지)
 - Phase 4-4 `BenchmarkDoRequestTimeout_KillPath` 실측
 
@@ -1646,5 +1653,6 @@ Phase 3-0 PoC 결과 기반:
 | **v2.3.1** | **2026-04-26** | (Step 0 실측) | **G.5 — GitHub Actions 미사용 환경 반영. ci.sh + CSV 이력. coverage baseline 58.5%. R-1 race condition 발견.** |
 | v2.4.0 | 2026-04-28 | - | 현장 Paged Pool 증가 근본 원인 EPS 확정 + plan 재포지셔닝 |
 | **v2.4.1** | **2026-05-04** | - | **로컬 CI 정책 일괄 폐기 (ci.sh / ci.ps1 / coverage 스크립트 / ci-history / coverage-baseline 삭제). W0-4, Phase 4-0 일부, Appendix G.5 무효화.** |
+| **v2.4.1** | **2026-05-04** | - | **Phase 1-1 완료 (C1, LhmProvider goroutine leak). 옵션 A + 옵션 B fallback 하이브리드. spike 단계 간소화. 모니터링 runbook 신설.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.

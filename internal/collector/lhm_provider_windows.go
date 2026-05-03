@@ -92,11 +92,15 @@ type LhmProvider struct {
 	helperPath  string
 	helperFound bool
 
-	// Daemon process state
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout *bufio.Reader
-	stderr io.ReadCloser
+	// Daemon process state.
+	// stdinFile / stdoutFile are *os.File (anonymous pipes obtained via
+	// os.Pipe) so we can call SetWriteDeadline / SetReadDeadline on them.
+	// stdoutReader wraps stdoutFile for line-buffered reads.
+	cmd          *exec.Cmd
+	stdinFile    *os.File
+	stdoutFile   *os.File
+	stdoutReader *bufio.Reader
+	stderr       io.ReadCloser
 
 	// Process exit signaling — channel is CLOSED (not drained) on exit,
 	// making it safe for multiple reads.
@@ -106,6 +110,14 @@ type LhmProvider struct {
 	consecutiveFailures int
 	lastStartAttempt    time.Time
 	requestTimeout      time.Duration
+
+	// Timeout tracking for the option-A (deadline) → option-B (kill) hybrid.
+	// consecutiveTimeouts increments on each pipe deadline expiry and resets
+	// on any successful response. Once it reaches timeoutFallbackThreshold
+	// the daemon process is killed so the next GetData spawns a fresh one,
+	// guarding against silent SetReadDeadline / SetWriteDeadline failure.
+	consecutiveTimeouts      int
+	timeoutFallbackThreshold int
 
 	// Lifecycle
 	ctx     context.Context
@@ -122,8 +134,9 @@ var (
 func GetLhmProvider() *LhmProvider {
 	lhmProviderOnce.Do(func() {
 		lhmProviderInstance = &LhmProvider{
-			cacheTTL:       5 * time.Second,
-			requestTimeout: 10 * time.Second,
+			cacheTTL:                 5 * time.Second,
+			requestTimeout:           10 * time.Second,
+			timeoutFallbackThreshold: 3,
 		}
 	})
 	return lhmProviderInstance
@@ -273,38 +286,61 @@ func (p *LhmProvider) Invalidate() {
 }
 
 // startProcess launches LhmHelper.exe in daemon mode and validates with an initial request.
+//
+// We use os.Pipe() (not cmd.StdinPipe / cmd.StdoutPipe) so the parent ends
+// remain typed as *os.File. That lets doRequestWithTimeout call
+// SetWriteDeadline / SetReadDeadline on them, which is the core mechanism
+// keeping the request goroutine from leaking when LhmHelper hangs.
 func (p *LhmProvider) startProcess() error {
 	log := logger.WithComponent("lhm-provider")
 
 	cmd := exec.Command(p.helperPath, "--daemon")
 
-	stdin, err := cmd.StdinPipe()
+	// Anonymous pipes for stdin/stdout. childStdinR / childStdoutW are the
+	// child's ends — we hand them to exec and close our copies after Start so
+	// that EOF/SIGPIPE propagate cleanly when the child exits.
+	childStdinR, parentStdinW, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
-
-	stdout, err := cmd.StdoutPipe()
+	parentStdoutR, childStdoutW, err := os.Pipe()
 	if err != nil {
-		stdin.Close()
+		childStdinR.Close()
+		parentStdinW.Close()
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
+	cmd.Stdin = childStdinR
+	cmd.Stdout = childStdoutW
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		stdin.Close()
-		stdout.Close()
+		childStdinR.Close()
+		parentStdinW.Close()
+		parentStdoutR.Close()
+		childStdoutW.Close()
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		childStdinR.Close()
+		parentStdinW.Close()
+		parentStdoutR.Close()
+		childStdoutW.Close()
 		return fmt.Errorf("failed to start LhmHelper: %w", err)
 	}
 
+	// After Start, the child has duplicated handles; close the parent copies
+	// of the child ends so EOF flows through when the child exits.
+	childStdinR.Close()
+	childStdoutW.Close()
+
 	p.cmd = cmd
-	p.stdin = stdin
-	p.stdout = bufio.NewReaderSize(stdout, 256*1024) // 256KB buffer for large JSON
+	p.stdinFile = parentStdinW
+	p.stdoutFile = parentStdoutR
+	p.stdoutReader = bufio.NewReaderSize(parentStdoutR, 256*1024) // 256KB buffer for large JSON
 	p.stderr = stderr
 	p.processExit = make(chan struct{})
+	p.consecutiveTimeouts = 0
 
 	// Monitor process exit in background.
 	// Capture exitCh by value so a restart creating a new channel won't
@@ -364,10 +400,12 @@ func (p *LhmProvider) stopProcess() {
 
 	pid := p.cmd.Process.Pid
 
-	// Close stdin to signal graceful exit
-	if p.stdin != nil {
-		p.stdin.Close()
-		p.stdin = nil
+	// Close stdin to signal graceful exit. Clear any pending write deadline
+	// first so Close itself isn't unwound through a deadline error path.
+	if p.stdinFile != nil {
+		p.stdinFile.SetWriteDeadline(time.Time{})
+		p.stdinFile.Close()
+		p.stdinFile = nil
 	}
 
 	// Close stderr to unblock drainStderr goroutine before waiting on process exit.
@@ -389,8 +427,16 @@ func (p *LhmProvider) stopProcess() {
 		<-p.processExit
 	}
 
+	// Close the stdout side last; cmd.Wait already drained it but releasing
+	// the parent fd avoids handle leaks across restarts.
+	if p.stdoutFile != nil {
+		p.stdoutFile.SetReadDeadline(time.Time{})
+		p.stdoutFile.Close()
+		p.stdoutFile = nil
+	}
+
 	p.cmd = nil
-	p.stdout = nil
+	p.stdoutReader = nil
 }
 
 // drainStderr reads LhmHelper stderr and forwards to Go logger.
@@ -413,25 +459,85 @@ func (p *LhmProvider) drainStderr(r io.Reader) {
 	}
 }
 
-// doRequest writes a request to stdin and reads a JSON response line from stdout.
-// Must be called while p.mu is held (or during startup before any concurrent access).
+// doRequest issues a single collect with the configured request timeout.
+// Kept as a thin wrapper for callers (notably startProcess) that don't have a
+// caller-supplied context. Must be called while p.mu is held (or during
+// startup before any concurrent access).
 func (p *LhmProvider) doRequest() (*LhmData, error) {
-	if p.stdin == nil {
-		return nil, fmt.Errorf("LhmHelper stdin is closed")
-	}
-	if p.stdout == nil {
-		return nil, fmt.Errorf("LhmHelper stdout is closed")
+	return p.doRequestWithTimeout(p.ctx)
+}
+
+// doRequestWithTimeout sends "collect\n" and reads one JSON response line.
+//
+// Strategy (hybrid option A + option B):
+//   - Option A (1st defense): set a write/read deadline on the parent pipe
+//     ends so a hanging LhmHelper surfaces an i/o timeout instead of blocking
+//     forever. No background goroutine is spawned, so the previous "1 leaked
+//     goroutine per timeout" pattern is impossible by construction.
+//   - Option B (2nd defense): handleIOError counts consecutive timeouts. Once
+//     the count reaches timeoutFallbackThreshold, Process.Kill() is invoked
+//     so the next GetData spawns a fresh daemon. This guards against silent
+//     SetReadDeadline / SetWriteDeadline failure on Windows 7 corner cases.
+//
+// All abnormal paths emit a structured log line with a unique LHM_* prefix
+// (see docs/runbooks/lhm-provider-timeout-monitoring.md) so deployments
+// without Windows 7 PoC environments can be diagnosed from logs alone.
+func (p *LhmProvider) doRequestWithTimeout(ctx context.Context) (*LhmData, error) {
+	log := logger.WithComponent("lhm-provider")
+
+	// Capture pipe references while p.mu is held. Prevents data races if
+	// stopProcess runs after a timeout and clears the fields.
+	stdinFile := p.stdinFile
+	stdoutFile := p.stdoutFile
+	stdoutReader := p.stdoutReader
+	if stdinFile == nil || stdoutFile == nil || stdoutReader == nil {
+		return nil, fmt.Errorf("LhmHelper pipes not available")
 	}
 
-	// Send request
-	if _, err := p.stdin.Write([]byte("collect\n")); err != nil {
-		return nil, fmt.Errorf("failed to write to LhmHelper stdin: %w", err)
+	deadline := time.Now().Add(p.requestTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
 	}
 
-	// Read response line
-	line, err := p.stdout.ReadBytes('\n')
+	// Option A: set deadlines. SetWriteDeadline / SetReadDeadline is permitted
+	// to fail (e.g. on a hypothetical platform that doesn't support it). When
+	// it does we fall through to option B by relying on the kill-fallback.
+	if err := stdinFile.SetWriteDeadline(deadline); err != nil {
+		log.Warn().
+			Err(err).
+			Str("op", "stdin").
+			Msg("LHM_DEADLINE_UNSUPPORTED SetWriteDeadline failed; relying on kill fallback")
+	}
+	if err := stdoutFile.SetReadDeadline(deadline); err != nil {
+		log.Warn().
+			Err(err).
+			Str("op", "stdout").
+			Msg("LHM_DEADLINE_UNSUPPORTED SetReadDeadline failed; relying on kill fallback")
+	}
+	defer func() {
+		// Always clear the deadlines so the next request starts fresh.
+		// Errors here are not actionable — the field may have been closed by
+		// a concurrent stopProcess — so they are deliberately ignored.
+		stdinFile.SetWriteDeadline(time.Time{})
+		stdoutFile.SetReadDeadline(time.Time{})
+	}()
+
+	if _, err := stdinFile.Write([]byte("collect\n")); err != nil {
+		return nil, p.handleIOError(err, "stdin_write")
+	}
+
+	line, err := stdoutReader.ReadBytes('\n')
 	if err != nil {
-		return nil, fmt.Errorf("failed to read from LhmHelper stdout: %w", err)
+		return nil, p.handleIOError(err, "stdout_read")
+	}
+
+	// Successful response: announce recovery if we were in a timeout streak,
+	// then clear the counter.
+	if p.consecutiveTimeouts > 0 {
+		log.Info().
+			Int("prior_timeouts", p.consecutiveTimeouts).
+			Msg("LHM_TIMEOUT_RECOVERED LhmHelper recovered from timeout streak")
+		p.consecutiveTimeouts = 0
 	}
 
 	var data LhmData
@@ -442,53 +548,43 @@ func (p *LhmProvider) doRequest() (*LhmData, error) {
 	return &data, nil
 }
 
-// doRequestWithTimeout wraps pipe I/O with a deadline.
-// Captures pipe references to avoid data races if stopProcess runs after timeout.
-func (p *LhmProvider) doRequestWithTimeout(ctx context.Context) (*LhmData, error) {
-	// Capture pipe references while lock is held (called from GetData).
-	// This prevents data race if timeout fires and stopProcess sets p.stdin/p.stdout = nil.
-	stdin := p.stdin
-	stdout := p.stdout
-	if stdin == nil || stdout == nil {
-		return nil, fmt.Errorf("LhmHelper pipes not available")
+// handleIOError categorises pipe I/O errors and drives the hybrid fallback.
+// Timeouts increment consecutiveTimeouts; once the threshold is reached the
+// daemon is killed so GetData re-spawns it on the next call. Non-timeout
+// errors (broken pipe, EOF, etc.) bypass the counter — they're already a
+// signal that the process has exited and the existing restart logic handles
+// them.
+func (p *LhmProvider) handleIOError(err error, op string) error {
+	log := logger.WithComponent("lhm-provider")
+
+	if os.IsTimeout(err) {
+		p.consecutiveTimeouts++
+		log.Warn().
+			Err(err).
+			Str("op", op).
+			Int("consecutive_timeouts", p.consecutiveTimeouts).
+			Int("threshold", p.timeoutFallbackThreshold).
+			Msg("LHM_TIMEOUT pipe deadline exceeded")
+
+		if p.timeoutFallbackThreshold > 0 && p.consecutiveTimeouts >= p.timeoutFallbackThreshold {
+			log.Error().
+				Int("consecutive_timeouts", p.consecutiveTimeouts).
+				Msg("LHM_KILL_FALLBACK consecutive timeouts exceeded threshold, killing LhmHelper for restart")
+			if p.cmd != nil && p.cmd.Process != nil {
+				if killErr := p.cmd.Process.Kill(); killErr != nil {
+					log.Error().Err(killErr).Msg("LHM_KILL_FAILED Process.Kill failed")
+				}
+			}
+			p.consecutiveTimeouts = 0
+		}
+		return fmt.Errorf("LhmHelper %s timed out: %w", op, err)
 	}
 
-	type result struct {
-		data *LhmData
-		err  error
-	}
-
-	ch := make(chan result, 1)
-	go func() {
-		// Use captured references, not p.stdin/p.stdout
-		if _, err := stdin.Write([]byte("collect\n")); err != nil {
-			ch <- result{nil, fmt.Errorf("failed to write to LhmHelper stdin: %w", err)}
-			return
-		}
-
-		line, err := stdout.ReadBytes('\n')
-		if err != nil {
-			ch <- result{nil, fmt.Errorf("failed to read from LhmHelper stdout: %w", err)}
-			return
-		}
-
-		var data LhmData
-		if err := json.Unmarshal(line, &data); err != nil {
-			ch <- result{nil, fmt.Errorf("failed to parse LhmHelper response (%d bytes): %w", len(line), err)}
-			return
-		}
-
-		ch <- result{&data, nil}
-	}()
-
-	select {
-	case r := <-ch:
-		return r.data, r.err
-	case <-ctx.Done():
-		return nil, fmt.Errorf("LhmHelper request cancelled: %w", ctx.Err())
-	case <-time.After(p.requestTimeout):
-		return nil, fmt.Errorf("LhmHelper request timed out (%v)", p.requestTimeout)
-	}
+	log.Warn().
+		Err(err).
+		Str("op", op).
+		Msg("LHM_IO_ERROR pipe I/O failed (non-timeout)")
+	return fmt.Errorf("LhmHelper %s failed: %w", op, err)
 }
 
 // isProcessAlive checks if the daemon process is still running.
