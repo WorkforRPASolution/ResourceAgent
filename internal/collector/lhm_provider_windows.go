@@ -394,11 +394,22 @@ func (p *LhmProvider) stopProcess() {
 }
 
 // drainStderr reads LhmHelper stderr and forwards to Go logger.
+// defer recover 로 reader/logger panic 을 잡아 LhmProvider 전체 프로세스가 죽지 않도록 한다.
+// scanner.Err() 가 비-nil 인 경우 (e.g. bufio.ErrTooLong) 로깅으로 디버깅 신호를 남긴다.
 func (p *LhmProvider) drainStderr(r io.Reader) {
 	log := logger.WithComponent("lhm-helper")
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Error().Interface("panic", rec).Msg("drainStderr panic recovered")
+		}
+	}()
+
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		log.Info().Str("stderr", scanner.Text()).Msg("LhmHelper")
+	}
+	if err := scanner.Err(); err != nil {
+		log.Warn().Err(err).Msg("drainStderr scanner error")
 	}
 }
 
