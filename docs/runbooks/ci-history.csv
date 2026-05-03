@@ -7,3 +7,4 @@ timestamp,commit,branch,author,mode,result,failed_step,duration_sec,notes
 2026-04-26T22:16:40Z,3d7a8e0,fix/windows-test-failures,Gusrudals,basic,PASS,,14,Windows test failures fix 검증
 2026-05-03T04:08:58Z,2705a00,main,Gusrudals,full,FAIL,race,44,Step 1 drainStderr H1 panic recovery fix
 2026-05-03T04:11:40Z,2705a00,main,Gusrudals,basic,PASS,,13,Step 1 drainStderr H1 fix - basic mode
+2026-05-03T04:30:00Z,3b0f1ff,main,Gusrudals,full,PASS,,0,Step 1 Windows VM ci.ps1 -Full PASS (수동 기록 - macOS 측에서 추가)
