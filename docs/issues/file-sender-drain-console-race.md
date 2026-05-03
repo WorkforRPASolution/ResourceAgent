@@ -17,7 +17,7 @@ Previous read at <addr> by goroutine 9:
 ```
 
 - 같은 `os.Stdout` (전역 변수) 에 대해 테스트 메인 goroutine 의 write 와 `drainConsole` goroutine 의 `fmt.Println` 이 동시 접근.
-- `--race` 플래그 없이는 검출 안 됨. `scripts/ci.sh --full` 모드 도입 (Step 0) 으로 처음 표면화.
+- `--race` 플래그 없이는 검출 안 됨. `go test -race ./internal/sender/...` 직접 실행 시 표면화.
 
 ## 원인
 
@@ -58,7 +58,7 @@ s.Close()                   // 여기서 비로소 consoleCh close → drainCons
 
 ## 발견 컨텍스트
 
-2026-05-03, Step 1 (drainStderr H1 fix) 작업 중 `./scripts/ci.sh --full` 실행에서 검출. Step 1 변경 (`internal/collector` 만 건드림) 과 무관한 사전 결함. 별도 PR 로 처리 예정.
+2026-05-03, drainStderr H1 fix 작업 중 `go test -race ./...` 실행에서 검출. 해당 변경(`internal/collector` 만 건드림)과 무관한 사전 결함. 별도 PR 로 처리 예정.
 
 ## 관련 파일
 

@@ -1,4 +1,18 @@
-# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.4.0)
+# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.4.1)
+
+> **🔔 v2.4.1 (2026-05-04) — 로컬 CI 정책 전체 폐기**:
+>
+> 프로젝트 규모(소수 인원, GitHub Actions 미사용 확정) 대비 과도한 정책으로 판단되어 **로컬 CI 인프라 일괄 폐기**:
+> - 삭제된 파일: `scripts/ci.sh`, `scripts/ci.ps1`, `scripts/coverage.sh`, `scripts/coverage.ps1`, `docs/runbooks/ci-history.csv`, `docs/runbooks/ci-history-policy.md`, `docs/plans/coverage-baseline.{txt,md}`
+> - **W0-4 (사내 CI 인프라 조사)**: 폐기. CI 인프라 도입 계획 자체가 없음.
+> - **Phase 4-0 일부 (CI/CSV 이력/coverage baseline)**: 폐기. 단, **goleak / clock injection / mockable seam 감사**는 유지 (테스트 자체의 가치).
+> - **Appendix G.5 (GitHub Actions 미사용 환경 반영)**: 폐기.
+> - **머지 전 검증**: `go test ./...` (필요 시 `-race`) 수동 실행. 별도 게이트 정책 없음.
+> - **race condition 검증**: `go test -race ./...` 직접 호출 (Step 0 발견된 R-1은 `docs/runbooks/known-race-conditions.md`에서 별도 추적).
+>
+> 본 문서 내 잔존하는 ci.sh / ci-history / coverage-baseline / W0-4 / G.5 언급은 본 v2.4.1 노트에 의해 모두 무효화됨. 기록 보존 목적으로 inline 삭제는 하지 않음.
+>
+> ---
 
 > **🔔 v2.4.0 (2026-04-28) — 근본 원인 확정으로 plan 재포지셔닝**:
 >
@@ -154,7 +168,7 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - [ ] W0-1. Alerting 시스템 실사 (Prometheus Alertmanager / Grafana Alerts / 기타)
 - [ ] W0-2. ManagerAgent 워크플로우 엔진 존재 확인
 - [ ] W0-3. RACI 실명 확정 (SRE on-call / 개발 리드 / 보안팀 / 사이트 관리자)
-- [ ] W0-4. 사내 CI 인프라 조사 (Jenkins/GitLab CI/기타). 부재 시 로컬 스크립트 + CSV 이력 운영 (v2.3.1: GitHub Actions 사용 불가 확정)
+- ~~W0-4. 사내 CI 인프라 조사~~ → **v2.4.1 폐기**
 - [ ] W0-5. FTP 스토리지 용량 산정 (N-1 artifact × 90일 × 사이트 수)
 
 ### Phase A — 현장 진단
@@ -198,7 +212,7 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - [ ] 3-5. (conditional, 기술 제약) StorageHealth 대안
 
 ### Phase 4 — 테스트 & 검증
-- [ ] 4-0. 선결: goleak + CI + clock + coverage baseline (Day 1 실측치 기록) + mockable seam 감사
+- [ ] 4-0. 선결: goleak + clock + mockable seam 감사 (~~CI / coverage baseline~~ → v2.4.1 폐기)
 - [ ] 4-1. 단위 테스트 전면 통과
 - [ ] 4-2. goleak 기반 leak 회귀 방지
 - [ ] 4-3. 플랫폼별 통합 테스트
@@ -246,17 +260,9 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - [ ] **Informed**: 운영팀 전체 (메일링 리스트 확정)
 - [ ] On-call 15분 응답 정책의 현실성 확인 (주말/야간 대응 가능 여부)
 
-### W0-4. 사내 CI 인프라 조사 (v2.3.1 재정의)
+### ~~W0-4. 사내 CI 인프라 조사~~ (v2.4.1 폐기)
 
-**v2.3.1 변경 사유**: GitHub Actions 사용 불가 확정. 대안 인프라 조사 + 부재 시 로컬 스크립트 운영.
-
-- [ ] 사내 Jenkins / GitLab CI / TeamCity / 기타 CI 인프라 존재 여부 확인
-- [ ] 존재 시: ResourceAgent 빌드/테스트 통합 가능 여부 + 신청 절차 + 리드타임
-- [ ] 부재 시: 로컬 검증 스크립트 + CSV 이력 운영 정책으로 대체 (Step 0 PR에서 도입 완료)
-  - `scripts/ci.sh` + `scripts/ci.ps1`
-  - `docs/runbooks/ci-history.csv` (자동 append)
-  - `docs/runbooks/ci-history-policy.md`
-- [ ] CI 인프라 발견 시 ci.sh를 entrypoint로 통합 (CSV 형식 유지)
+**폐기 사유**: 프로젝트 규모 대비 과한 정책. CI 인프라 도입 계획 없음. 머지 전 검증은 `go test ./...` 수동 실행으로 충분.
 
 ### W0-5. FTP 스토리지 용량 산정
 
@@ -989,19 +995,9 @@ Phase A-4 결과 Disk 주원인이면 PDH 기반 구현.
   - `internal/sender/clock.go` 인터페이스 도입
   - 테스트 5초 sleep 2곳 단축 (200ms로) + clock 자기검증 테스트
   - production 코드 교체는 Step 5(Phase 2-1)에서
-- [x] **로컬 CI 스크립트 + CSV 이력 (v2.3.1: GitHub Actions 대체)**: Step 0 PR
-  - `scripts/ci.sh` + `scripts/ci.ps1`: gofmt → vet → test → goleak (basic) → race + cross-build (--full)
-  - `docs/runbooks/ci-history.csv` (자동 append, PASS/FAIL 양쪽 기록)
-  - `docs/runbooks/ci-history-policy.md`
-  - **R-1 race condition 발견** (FileSender stdout swap) → `docs/runbooks/known-race-conditions.md` 별도 fix PR
-- [x] **Coverage baseline 실측 (Day 1)**: 2026-04-26
-  - **Overall: 58.5%** (macOS, Windows-only 코드 제외)
-  - `internal/collector/`: 46.4% (function avg)
-  - `internal/sender/`: 78.9% (function avg)
-  - 파일: `docs/plans/coverage-baseline.txt`, `docs/plans/coverage-baseline.md`
-  - Phase 2 완료 후: 60.5% 이상 (+2%p)
-  - Phase 3 완료 후: 63.5% 이상 (+5%p)
-  - 절대 하한: 70%
+- ~~로컬 CI 스크립트 + CSV 이력~~ → **v2.4.1 폐기** (정책 자체 삭제, 관련 파일 모두 제거)
+  - **R-1 race condition 발견** (FileSender stdout swap) → `docs/runbooks/known-race-conditions.md` 별도 fix PR로 추적
+- ~~Coverage baseline 측정~~ → **v2.4.1 폐기** (정책 게이트 없음. 필요 시 `go test -cover ./...` 수동 실행)
 - [ ] **gopsutil mockable seam 감사 리포트** (Phase 3-3 선행)
 
 ### 4-1. 단위 테스트 전면 통과
@@ -1126,7 +1122,7 @@ SelfMetrics + 외부 ping 활성. Dead-man's switch 동작.
 | 3-1 | `process_nt_windows.go` | 신규 NtQuery (6건 주의사항) | 4 |
 | 3-2 | `process_snapshot.go` | 신규 + singleflight + tuple + FILETIME | 2 |
 | 3-3 | `cpu_process.go`, `memory_process.go`, `process_watch.go`, `process_provider.go` | 리팩토링 | 5 |
-| 4-0 | `go.mod`, `scripts/ci.sh`, `scripts/ci.ps1`, `scripts/coverage.sh`, `scripts/coverage.ps1`, `docs/runbooks/ci-history.csv`, `docs/runbooks/ci-history-policy.md`, `docs/runbooks/goleak-whitelist.md`, `docs/runbooks/known-race-conditions.md`, `coverage-baseline.{txt,md}`, `internal/sender/{sender_test.go,clock.go,clock_self_test.go}`, `internal/collector/{collector_test.go,goleak_self_test.go}` | 선결 인프라 (v2.3.1) | 2 (Step 0 완료 — 실 측정) |
+| 4-0 | `go.mod`, `docs/runbooks/goleak-whitelist.md`, `docs/runbooks/known-race-conditions.md`, `internal/sender/{sender_test.go,clock.go,clock_self_test.go}`, `internal/collector/{collector_test.go,goleak_self_test.go}` | 선결 인프라 (v2.4.1: CI/coverage 항목 제거) | 1 (goleak/clock만 유지) |
 | 4-5 | `testdata/golden/*.json` | 신규 fixture | 2 |
 | 4-6 | `testdata/fake_daemon_harness_test.go` | 신규 | 1 |
 | **F** | **`docs/runbooks/av-mitigation-manual.md`** | **AV 원인 확정 시 대응 매뉴얼 (v2.3 신설)** | **2** |
@@ -1270,7 +1266,7 @@ SelfMetrics + 외부 ping 활성. Dead-man's switch 동작.
 | 3-3 | 세 collector 전환 | 5 | 5 | |
 | 3-4 | (conditional) Disk PDH | 2 | 2 | |
 | 3-5 | (conditional) StorageHealth 3안 | 2 | 2 | |
-| 4-0 | 선결 (goleak/CI/clock/coverage) | 3 | 3 | |
+| 4-0 | 선결 (goleak/clock — v2.4.1 CI/coverage 폐기) | 1 | 1 | |
 | 4-2 | goleak 8개 대상 | 2 | 2 | |
 | 4-3 | 플랫폼별 통합 | 2 | 2 | |
 | 4-4 | 벤치마크 3종 | 2 | 2 | |
@@ -1591,7 +1587,13 @@ Phase 3-0 PoC 결과 기반:
 
 **다음 단계**: Week 0 + Phase A + Phase 4-0 + Phase 0(축소판) 병렬 Kickoff. v2.2의 GO 판정은 v2.3에서도 유효.
 
-### G.5 — GitHub Actions 미사용 환경 반영 (v2.3.1, 2026-04-26)
+### ~~G.5 — GitHub Actions 미사용 환경 반영~~ (v2.3.1, 2026-04-26 / **v2.4.1 폐기**)
+
+> **🔔 v2.4.1 (2026-05-04)**: 본 G.5의 모든 항목(로컬 ci.sh + CSV 이력 + coverage baseline + ci-history-policy)은 **폐기**되었습니다. 관련 파일들도 모두 삭제되었습니다. 아래는 기록 보존용으로만 유지됩니다.
+
+---
+
+#### (폐기됨, 기록 보존용) 원본 G.5
 
 **상황**: 사용자 환경에서 GitHub Actions 사용 불가 확정. 대안 검토 결과 git pre-push hook 도입 부적절(우회 가능 + 마찰 + 정책 중복) → **로컬 스크립트 + CSV 이력**으로 통일.
 
@@ -1642,5 +1644,7 @@ Phase 3-0 PoC 결과 기반:
 | v2.2 | 2026-04-24 | 9.1/10 | Appendix E 추가 — 4차 검증 GO 판정, 12건 TODO |
 | v2.3 | 2026-04-26 | (Codex 5차) | Appendix F (AV 운영 매뉴얼) + Appendix G (Codex 검증) — 증상 감추기 제거 원칙 확립 |
 | **v2.3.1** | **2026-04-26** | (Step 0 실측) | **G.5 — GitHub Actions 미사용 환경 반영. ci.sh + CSV 이력. coverage baseline 58.5%. R-1 race condition 발견.** |
+| v2.4.0 | 2026-04-28 | - | 현장 Paged Pool 증가 근본 원인 EPS 확정 + plan 재포지셔닝 |
+| **v2.4.1** | **2026-05-04** | - | **로컬 CI 정책 일괄 폐기 (ci.sh / ci.ps1 / coverage 스크립트 / ci-history / coverage-baseline 삭제). W0-4, Phase 4-0 일부, Appendix G.5 무효화.** |
 
-리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. Step 0 PR로 인프라 도입 완료.
+리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.
