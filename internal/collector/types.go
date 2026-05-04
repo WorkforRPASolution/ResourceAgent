@@ -234,3 +234,16 @@ type UptimeData struct {
 	BootTimeStr   string  `json:"boot_time"`
 	UptimeMinutes float64 `json:"uptime_minutes"`
 }
+
+// SelfMetricsData contains agent self-introspection metrics (Phase 2.5-1).
+// Emitted periodically (default 60s) via the standard sender pipeline so that
+// goroutine drift, RSS growth, and buffer pressure can be tracked alongside
+// regular metrics.
+type SelfMetricsData struct {
+	GoroutineCount     int    `json:"goroutine_count"`
+	RSSBytes           uint64 `json:"rss_bytes"`
+	HeapAllocBytes     uint64 `json:"heap_alloc_bytes"`
+	HeapSysBytes       uint64 `json:"heap_sys_bytes"`
+	BufferCount        int64  `json:"buffer_count"`
+	BufferDroppedTotal int64  `json:"buffer_dropped_total"`
+}

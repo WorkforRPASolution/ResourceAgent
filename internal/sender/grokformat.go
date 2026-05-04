@@ -142,6 +142,8 @@ func ConvertToEARSRows(data *collector.MetricData) []EARSRow {
 		return convertUptime(data)
 	case "ProcessWatch":
 		return convertProcessWatch(data)
+	case "SelfMetrics":
+		return convertSelfMetrics(data)
 	default:
 		return nil
 	}
@@ -462,4 +464,19 @@ func convertStorageHealth(data *collector.MetricData) []EARSRow {
 		))
 	}
 	return rows
+}
+
+func convertSelfMetrics(data *collector.MetricData) []EARSRow {
+	d, ok := unmarshalData[collector.SelfMetricsData](data.Data)
+	if !ok {
+		return nil
+	}
+	return []EARSRow{
+		systemRow(data.Timestamp, "agent", "goroutine_count", float64(d.GoroutineCount)),
+		systemRow(data.Timestamp, "agent", "rss_bytes", float64(d.RSSBytes)),
+		systemRow(data.Timestamp, "agent", "heap_alloc_bytes", float64(d.HeapAllocBytes)),
+		systemRow(data.Timestamp, "agent", "heap_sys_bytes", float64(d.HeapSysBytes)),
+		systemRow(data.Timestamp, "agent", "buffer_count", float64(d.BufferCount)),
+		systemRow(data.Timestamp, "agent", "buffer_dropped_total", float64(d.BufferDroppedTotal)),
+	}
 }

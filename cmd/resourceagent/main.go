@@ -636,6 +636,32 @@ func run(ctx context.Context, cfg *config.Config, mc *config.MonitorConfig, lc *
 		}
 	}
 
+	// Phase 4.6: SelfMetrics collector (Phase 2.5-1)
+	// Registered after the sender so we can wire BufferStatsProvider when
+	// the sender is a KafkaSender backed by BufferedHTTPTransport.
+	{
+		var bufStats collector.BufferStatsProvider
+		if ks, ok := snd.(*sender.KafkaSender); ok {
+			bufStats = ks
+		}
+		selfMetrics := collector.NewSelfMetricsCollector(collector.NewDefaultRuntimeStats(), bufStats)
+		if err := registry.Register(selfMetrics); err != nil {
+			log.Warn().Err(err).Msg("Failed to register SelfMetrics collector")
+		} else {
+			cfg := selfMetrics.DefaultConfig()
+			if mcCfg, ok := mc.Collectors["SelfMetrics"]; ok {
+				cfg = mcCfg
+			}
+			if err := selfMetrics.Configure(cfg); err != nil {
+				log.Warn().Err(err).Msg("Failed to configure SelfMetrics collector")
+			}
+			log.Info().
+				Bool("buffer_stats_available", bufStats != nil).
+				Dur("interval", selfMetrics.Interval()).
+				Msg("SelfMetricsCollector registered")
+		}
+	}
+
 	// Phase 5: Scheduler
 	sched := scheduler.New(registry, snd, infra.agentID, hostname)
 	if err := sched.Start(ctx); err != nil {

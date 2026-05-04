@@ -806,6 +806,31 @@ func TestConvertToEARSRows_StorageHealth_Empty(t *testing.T) {
 	}
 }
 
+func TestConvertToEARSRows_SelfMetrics(t *testing.T) {
+	data := &collector.MetricData{
+		Type:      "SelfMetrics",
+		Timestamp: testTimestamp,
+		Data: collector.SelfMetricsData{
+			GoroutineCount:     42,
+			RSSBytes:           31457280,
+			HeapAllocBytes:     1024,
+			HeapSysBytes:       2048,
+			BufferCount:        100,
+			BufferDroppedTotal: 5,
+		},
+	}
+	rows := ConvertToEARSRows(data)
+	if len(rows) != 6 {
+		t.Fatalf("expected 6 rows, got %d", len(rows))
+	}
+	assertRow(t, rows[0], "agent", 0, "@system", "goroutine_count", 42)
+	assertRow(t, rows[1], "agent", 0, "@system", "rss_bytes", 31457280)
+	assertRow(t, rows[2], "agent", 0, "@system", "heap_alloc_bytes", 1024)
+	assertRow(t, rows[3], "agent", 0, "@system", "heap_sys_bytes", 2048)
+	assertRow(t, rows[4], "agent", 0, "@system", "buffer_count", 100)
+	assertRow(t, rows[5], "agent", 0, "@system", "buffer_dropped_total", 5)
+}
+
 // --- Benchmarks ---
 
 func BenchmarkToGrokString(b *testing.B) {

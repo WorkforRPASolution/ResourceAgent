@@ -290,6 +290,20 @@ func (s *KafkaSender) SwapTransport(newTransport KafkaTransport) (KafkaTransport
 	return old, nil
 }
 
+// BufferStats returns transport-level buffer observability if the underlying
+// transport supports it (currently only BufferedHTTPTransport, Phase 2-1).
+// Returns zero values if the transport does not provide buffer stats.
+// Implements sender.BufferStatsProvider.
+func (s *KafkaSender) BufferStats() (count, dropped, hwm int64) {
+	s.mu.Lock()
+	t := s.transport
+	s.mu.Unlock()
+	if bsp, ok := t.(BufferStatsProvider); ok {
+		return bsp.BufferStats()
+	}
+	return 0, 0, 0
+}
+
 // Close closes the Kafka sender and its transport.
 func (s *KafkaSender) Close() error {
 	s.mu.Lock()
