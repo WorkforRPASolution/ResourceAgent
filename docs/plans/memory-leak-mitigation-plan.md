@@ -1,4 +1,36 @@
-# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.4.1)
+# ResourceAgent 버그 수정 & 메모리 누수 대응 계획 (v2.4.2)
+
+> **🔔 v2.4.2 (2026-05-04) — Phase 1-1 옵션 A 폐기 + 옵션 B 단독 전환**:
+>
+> Phase 1-1 (LhmProvider C1 goroutine leak)을 v2.4.1에서 옵션 A (pipe deadline) + 옵션 B (Process.Kill) **하이브리드**로 구현 후 Win11 단위 테스트에서 다음 발견:
+>
+> ```
+> SetReadDeadline returned error: file type does not support deadline
+> SetWriteDeadline returned error: file type does not support deadline
+> ```
+>
+> → Go runtime이 Windows anonymous pipe (`os.Pipe()`)에 대해 deadline을 **명시적으로 거부**. Win7 corner case가 아니라 **모든 Windows 버전에 해당하는 known limitation**. 옵션 A는 silent fail이 아니라 동작 자체 불가.
+>
+> **결정**:
+> - 옵션 A 코드 (`SetReadDeadline`/`SetWriteDeadline` 호출, `LHM_DEADLINE_UNSUPPORTED` 로그, `timeoutFallbackThreshold` 필드) **전면 제거**
+> - **옵션 B 단독**으로 재작성: worker goroutine + `select` + timeout 시 `Process.Kill()` + 동기 `<-ch` drain (2초 hard cap → `LHM_DRAIN_TIMEOUT`)
+> - 누수 0 보장 메커니즘: Kill로 pipe 종료 → worker의 blocked I/O가 에러로 회귀 → main이 `<-ch`로 worker 종료 동기 대기
+> - 비용: timeout마다 LhmHelper 재시작 (~1초). 정상 환경(99%+)에서는 발생 안 함
+>
+> **로그 prefix 변경**:
+> - 제거: `LHM_DEADLINE_UNSUPPORTED`, `LHM_KILL_FALLBACK`, `LHM_TIMEOUT`
+> - 추가: `LHM_TIMEOUT_KILL` (timeout으로 인한 강제 종료), `LHM_DRAIN_TIMEOUT` (Kill 후 worker unwind 실패), `LHM_CTX_CANCELLED`
+> - 유지: `LHM_TIMEOUT_RECOVERED`, `LHM_KILL_FAILED`, `LHM_IO_ERROR`
+>
+> **연관 산출물**:
+> - 코드: `internal/collector/lhm_provider_windows.go` 재작성
+> - 테스트: `TestDoRequestTimeout_NoGoroutineLeak`, `_KillsDaemonOnTimeout` (구 `_FallbackKillsAfterThreshold`), `_RecoveryResetsCounter`
+> - 진단 산출물: probe 테스트 `TestPipeDeadlineProbe` (커밋 `e7926e9`)로 Win11에서 옵션 A 미지원 확정 후 제거
+> - 모니터링 runbook: `docs/runbooks/lhm-provider-timeout-monitoring.md` 전면 갱신
+>
+> 본 문서 내 잔존하는 "옵션 A" / "하이브리드" / `LHM_DEADLINE_UNSUPPORTED` / `timeoutFallbackThreshold` 언급은 v2.4.2 노트로 모두 무효화. 인라인 삭제는 기록 보존 목적으로 보류.
+>
+> ---
 
 > **🔔 v2.4.1 (2026-05-04) — 로컬 CI 정책 전체 폐기**:
 >
@@ -1654,5 +1686,6 @@ Phase 3-0 PoC 결과 기반:
 | v2.4.0 | 2026-04-28 | - | 현장 Paged Pool 증가 근본 원인 EPS 확정 + plan 재포지셔닝 |
 | **v2.4.1** | **2026-05-04** | - | **로컬 CI 정책 일괄 폐기 (ci.sh / ci.ps1 / coverage 스크립트 / ci-history / coverage-baseline 삭제). W0-4, Phase 4-0 일부, Appendix G.5 무효화.** |
 | **v2.4.1** | **2026-05-04** | - | **Phase 1-1 완료 (C1, LhmProvider goroutine leak). 옵션 A + 옵션 B fallback 하이브리드. spike 단계 간소화. 모니터링 runbook 신설.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 1-1 옵션 A 폐기 + 옵션 B 단독 전환. Win11 단위 테스트로 `os.Pipe()` deadline 미지원 확정. probe 테스트 (`e7926e9`) → 옵션 A 제거 → worker+Kill+drain 패턴. runbook 전면 갱신.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.

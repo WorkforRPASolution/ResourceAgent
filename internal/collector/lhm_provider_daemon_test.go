@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -35,11 +34,10 @@ func buildFakeDaemon(t *testing.T) string {
 // newTestProvider creates a fresh LhmProvider for testing (not the singleton).
 func newTestProvider(helperPath string) *LhmProvider {
 	return &LhmProvider{
-		cacheTTL:                 5 * time.Second,
-		requestTimeout:           3 * time.Second,
-		timeoutFallbackThreshold: 3,
-		helperPath:               helperPath,
-		helperFound:              true,
+		cacheTTL:       5 * time.Second,
+		requestTimeout: 3 * time.Second,
+		helperPath:     helperPath,
+		helperFound:    true,
 	}
 }
 
@@ -287,8 +285,6 @@ func TestDaemonTimeout(t *testing.T) {
 	fakePath := buildFakeDaemon(t)
 	p := newTestProvider(fakePath)
 	p.requestTimeout = 500 * time.Millisecond // Short timeout for test
-	// Don't trigger the kill-fallback during the single-shot test.
-	p.timeoutFallbackThreshold = 1_000_000
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -354,18 +350,15 @@ func TestDaemonConcurrentGetData(t *testing.T) {
 	}
 }
 
-// TestDoRequestTimeout_NoGoroutineLeak verifies that repeated timeouts do not
-// accumulate background goroutines. With the legacy implementation a fresh
-// goroutine was spawned per request and left blocked on stdin.Write /
-// stdout.ReadBytes when the daemon hung — so 100 timeouts would leak ~100
-// goroutines. The deadline-based rewrite must keep the goroutine count flat.
+// TestDoRequestTimeout_NoGoroutineLeak verifies that a request timeout does
+// not leak the worker goroutine spawned by doRequestWithTimeout. The first
+// request times out, kills the daemon, and drains the worker; subsequent
+// requests find broken pipes and return immediately without spawning new
+// long-running goroutines.
 func TestDoRequestTimeout_NoGoroutineLeak(t *testing.T) {
 	fakePath := buildFakeDaemon(t)
 	p := newTestProvider(fakePath)
-	p.requestTimeout = 100 * time.Millisecond
-	// Disable the kill-fallback path so the leak check measures only the
-	// deadline-driven goroutine accounting (no LhmHelper restarts).
-	p.timeoutFallbackThreshold = 1_000_000
+	p.requestTimeout = 200 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -377,41 +370,40 @@ func TestDoRequestTimeout_NoGoroutineLeak(t *testing.T) {
 	wireSlowDaemonForTest(t, p, fakePath)
 	defer p.stopProcess()
 
-	// Burn the first request so any one-shot bookkeeping settles.
-	if _, err := p.doRequestWithTimeout(ctx); err == nil {
-		t.Fatal("expected first request to time out under slow mode")
-	}
-	time.Sleep(50 * time.Millisecond)
 	before := runtime.NumGoroutine()
 
-	const iterations = 100
-	for i := 0; i < iterations; i++ {
-		_, err := p.doRequestWithTimeout(ctx)
-		if err == nil {
-			t.Fatalf("iteration %d: expected timeout error", i)
-		}
+	// Trigger the timeout path. killAndDrain must reap the worker
+	// synchronously — by the time this call returns there should be no
+	// extra long-running goroutine attributable to LhmProvider.
+	if _, err := p.doRequestWithTimeout(ctx); err == nil {
+		t.Fatal("expected timeout error under slow mode")
 	}
 
-	// Allow goroutines a brief window to be reaped.
+	// A handful of follow-up calls hit a broken pipe (LhmHelper killed) and
+	// must short-circuit without spawning workers that linger.
+	for i := 0; i < 20; i++ {
+		_, _ = p.doRequestWithTimeout(ctx)
+	}
+
+	// Allow OS resources / worker exits a brief window to settle.
 	time.Sleep(200 * time.Millisecond)
 	after := runtime.NumGoroutine()
 
-	// Tolerate ±5 jitter; anything close to `iterations` is a real leak.
+	// Tolerate small scheduler jitter. The previous goroutine-per-request
+	// design would leak ~21 here.
 	if delta := after - before; delta > 5 {
-		t.Errorf("goroutine leak detected after %d timeouts: before=%d after=%d delta=%d",
-			iterations, before, after, delta)
+		t.Errorf("goroutine leak detected: before=%d after=%d delta=%d",
+			before, after, delta)
 	}
 }
 
-// TestDoRequestTimeout_FallbackKillsAfterThreshold verifies that consecutive
-// timeouts trigger the option-B kill fallback once the configured threshold
-// is reached. This guards against silent SetReadDeadline / SetWriteDeadline
-// failure on Windows 7 corner cases where option A is a no-op.
-func TestDoRequestTimeout_FallbackKillsAfterThreshold(t *testing.T) {
+// TestDoRequestTimeout_KillsDaemonOnTimeout verifies that a request timeout
+// triggers Process.Kill so the next GetData is forced to spawn a fresh
+// daemon. This is the entire option-B mechanism: timeout → kill → restart.
+func TestDoRequestTimeout_KillsDaemonOnTimeout(t *testing.T) {
 	fakePath := buildFakeDaemon(t)
 	p := newTestProvider(fakePath)
-	p.requestTimeout = 100 * time.Millisecond
-	p.timeoutFallbackThreshold = 3
+	p.requestTimeout = 200 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -421,35 +413,31 @@ func TestDoRequestTimeout_FallbackKillsAfterThreshold(t *testing.T) {
 	t.Setenv("FAKE_DAEMON_MODE", "slow")
 	wireSlowDaemonForTest(t, p, fakePath)
 
-	// Issue exactly `threshold` timeouts. The Nth call should trigger kill.
-	for i := 0; i < p.timeoutFallbackThreshold; i++ {
-		if _, err := p.doRequestWithTimeout(ctx); err == nil {
-			t.Fatalf("iteration %d: expected timeout error", i)
-		}
+	if _, err := p.doRequestWithTimeout(ctx); err == nil {
+		t.Fatal("expected timeout error under slow mode")
 	}
 
-	// Wait for process exit signal (should be closed once Kill takes effect).
+	// processExit should have been closed by killAndDrain → cmd.Wait observer.
 	select {
 	case <-p.processExit:
 		// expected
 	case <-time.After(3 * time.Second):
-		t.Fatal("expected LhmHelper process to be killed after consecutive timeouts")
+		t.Fatal("expected LhmHelper process to be killed after timeout")
 	}
 
-	// Counter should reset once fallback fires so the next streak starts fresh.
-	if p.consecutiveTimeouts != 0 {
-		t.Errorf("expected consecutiveTimeouts reset to 0 after kill fallback, got %d",
-			p.consecutiveTimeouts)
+	// Each timeout increments the diagnostic counter (used by operators to
+	// detect "kill alone won't help" sustained-hang scenarios).
+	if p.consecutiveTimeouts == 0 {
+		t.Error("expected consecutiveTimeouts to be incremented on timeout")
 	}
 }
 
-// TestDoRequestTimeout_RecoveryResetsCounter verifies the counter is cleared
-// when a normal response arrives after one or more timeouts.
+// TestDoRequestTimeout_RecoveryResetsCounter verifies the diagnostic counter
+// is cleared when a normal response arrives after one or more timeouts.
 func TestDoRequestTimeout_RecoveryResetsCounter(t *testing.T) {
 	fakePath := buildFakeDaemon(t)
 	p := newTestProvider(fakePath)
-	p.requestTimeout = 200 * time.Millisecond
-	p.timeoutFallbackThreshold = 1_000_000
+	p.requestTimeout = 2 * time.Second
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -468,11 +456,6 @@ func TestDoRequestTimeout_RecoveryResetsCounter(t *testing.T) {
 
 	// A successful request should reset the counter back to 0.
 	if _, err := p.doRequestWithTimeout(ctx); err != nil {
-		// Some environments may surface "stdin/stdout not available" if Step 2
-		// field renames are in flight; surface that without masking.
-		if strings.Contains(err.Error(), "pipes not available") {
-			t.Skip("pipes not wired for this build (Step 2 in progress)")
-		}
 		t.Fatalf("doRequestWithTimeout failed under normal mode: %v", err)
 	}
 	if p.consecutiveTimeouts != 0 {

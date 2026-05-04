@@ -1,8 +1,8 @@
 # LhmProvider Timeout 모니터링 가이드
 
 > **대상**: ResourceAgent 운영자 / 현장 담당자 / 개발자
-> **연관 변경**: Phase 1-1 — `doRequestWithTimeout` goroutine leak 수정 (옵션 A + 옵션 B fallback 하이브리드)
-> **연관 plan**: `docs/plans/memory-leak-mitigation-plan.md`
+> **연관 변경**: Phase 1-1 — `doRequestWithTimeout` goroutine leak 수정 (옵션 B 단독 — Kill-on-timeout)
+> **연관 plan**: `docs/plans/memory-leak-mitigation-plan.md` (v2.4.2 노트 참조)
 > **연관 plan 파일**: `~/.claude/plans/phase-1-1-wise-cocoa.md`
 
 ---
@@ -10,184 +10,218 @@
 ## TL;DR — "한 번에 봐야 할 한 줄"
 
 ```bash
-grep -E "LHM_TIMEOUT|LHM_KILL|LHM_DEADLINE|LHM_IO_ERROR" log/ResourceAgent/ResourceAgent.log | tail -100
+grep -E "LHM_TIMEOUT_KILL|LHM_KILL_FAILED|LHM_DRAIN_TIMEOUT|LHM_IO_ERROR|LHM_CTX_CANCELLED" log/ResourceAgent/ResourceAgent.log | tail -100
 ```
 
 이 결과가:
 - **거의 비어있음** → 정상. 작업 끝.
-- `LHM_TIMEOUT` 가끔 + `LHM_TIMEOUT_RECOVERED` 따라옴 → **옵션 A 정상 동작**. 끝.
-- `LHM_KILL_FALLBACK` 자주 발생 → **옵션 B로 회수 중**. Q2~Q3로 원인 파악.
-- `LHM_DEADLINE_UNSUPPORTED` 발생 → **이 OS는 deadline 미지원**. Q2 참조.
+- `LHM_TIMEOUT_KILL` 가끔 발생 + 직후 `LhmHelper daemon started` → **옵션 B 정상 회수 중**. 끝.
+- `LHM_KILL_FAILED` 또는 `LHM_DRAIN_TIMEOUT` 발생 → **위험 신호**. Q3, Q4 참조.
+- `LHM_TIMEOUT_KILL` 빈발 (시간당 5회+) → LhmHelper 자체 문제 의심. Q5 참조.
 
 ---
 
-## 배경 — 왜 이 로그들이 추가되었나
+## 배경 — 왜 옵션 B 단독인가
 
-LhmHelper(LibreHardwareMonitor wrapper, C# 프로세스)와 stdin/stdout 파이프로 통신할 때 LhmHelper가 hang하면 ResourceAgent 측 goroutine이 영구 누수되던 문제를 수정함. 전략:
+당초 plan은 **옵션 A (pipe deadline) + 옵션 B (Process.Kill) 하이브리드** 였으나, Win10/11 환경 검증에서 다음을 확인:
 
-1. **옵션 A (1차 방어)**: pipe에 `SetReadDeadline` / `SetWriteDeadline` 설정 → I/O가 timeout으로 자연스럽게 회수
-2. **옵션 B (2차 방어)**: 옵션 A가 silent fail하는 환경(Win7 corner case 등)을 대비, **연속 N회 timeout 시 LhmHelper 프로세스 강제 종료** → 다음 호출에서 재시작
+```
+SetReadDeadline returned error: file type does not support deadline
+SetWriteDeadline returned error: file type does not support deadline
+```
 
-**왜 본 log 가이드가 중요한가**: Win7 PoC 환경이 없어서 "옵션 A가 진짜 동작하는지"를 코드 단위 테스트로 사전 검증할 수 없음. 따라서 **배포 후 로그로 사후 검증**해야 함.
+→ **Go runtime이 Windows anonymous pipe (`os.Pipe()`)에 deadline 지원을 명시적으로 거부**. Win7만 의심한 게 아니라 **모든 Windows 버전에 해당**. 따라서 옵션 A는 silent fail이 아니라 **명시적 에러로 거부됨**, 우리 코드가 동작 자체를 못 함.
+
+**옵션 B 단독으로 전환** (커밋 X에서):
+1. `doRequestWithTimeout`이 worker goroutine을 spawn해서 `stdin.Write` + `stdout.ReadBytes` 수행
+2. main goroutine은 `select { case result, case time.After(timeout) }`
+3. timeout 시 `cmd.Process.Kill()` → pipe가 죽어서 worker의 I/O가 에러로 회귀 → worker 종료
+4. main goroutine이 worker 종료를 동기 대기 (`<-ch`, 2초 hard cap) → **누수 0 보장**
+
+비용: timeout 발생 시마다 LhmHelper 재시작 (~1초). 정상 환경(99%+)에서는 발생 안 함.
 
 ---
 
-## 추가된 로그 prefix (총 6개)
+## 추가된 로그 prefix (총 5개)
 
 전부 `[lhm-provider]` 컴포넌트에서 발생. 모든 prefix는 `LHM_` 으로 시작하므로 grep 1번에 모두 잡힘.
 
 | Prefix | Level | 발생 조건 | 정상/비정상 | 함께 보이는 필드 |
 |--------|-------|----------|:-----------:|----------------|
-| `LHM_TIMEOUT` | WARN | pipe I/O가 deadline 초과 | 가끔 OK | `op`, `consecutive_timeouts`, `threshold`, `err` |
-| `LHM_TIMEOUT_RECOVERED` | INFO | timeout 누적 후 첫 정상 응답 | ✅ 좋은 신호 | `prior_timeouts` |
-| `LHM_KILL_FALLBACK` | ERROR | `consecutive_timeouts >= threshold` (기본 3) → Process.Kill 트리거 | 드물게 OK | `consecutive_timeouts` |
-| `LHM_KILL_FAILED` | ERROR | `Process.Kill()` 자체가 실패 | ❌ 위험 | `err` |
-| `LHM_DEADLINE_UNSUPPORTED` | WARN | `SetReadDeadline`/`SetWriteDeadline` 호출 자체가 에러 반환 | ⚠️ OS 지원 안 함 | `op`, `err` |
-| `LHM_IO_ERROR` | WARN | timeout 외 pipe 에러 (broken pipe, EOF 등) | 재시작 트리거 | `op`, `err` |
+| `LHM_TIMEOUT_KILL` | ERROR | request가 `requestTimeout` (기본 10초) 초과 → Process.Kill 트리거 | 가끔 OK | `timeout`, `consecutive_timeouts` |
+| `LHM_TIMEOUT_RECOVERED` | INFO | timeout 누적 후 정상 응답 도착 | ✅ 좋은 신호 | `prior_timeouts` |
+| `LHM_KILL_FAILED` | ERROR | `Process.Kill()` 자체가 실패 | ❌ 위험 | `err`, `reason` |
+| `LHM_DRAIN_TIMEOUT` | ERROR | Kill 후에도 worker goroutine이 2초 안에 unwind 안 됨 | ❌ 위험 (1 goroutine 누수) | `reason` |
+| `LHM_IO_ERROR` | WARN | timeout 외 pipe 에러 (broken pipe, EOF, JSON parse 실패 등) | 재시작 트리거 | `err` |
+| `LHM_CTX_CANCELLED` | WARN | caller context 취소 → Kill 트리거 | 정상 종료 시 발생 | `err` |
 
 ### 로그 포맷 예시 (FixedFormatWriter, 패키지 zerolog)
 
 ```
-2026-05-04 14:23:12.456 [WRN] [lhm-provider   ] LHM_TIMEOUT pipe deadline exceeded op="stdout_read" consecutive_timeouts=1 threshold=3 err="read |0: i/o timeout"
-2026-05-04 14:24:42.789 [WRN] [lhm-provider   ] LHM_TIMEOUT pipe deadline exceeded op="stdout_read" consecutive_timeouts=2 threshold=3 err="read |0: i/o timeout"
-2026-05-04 14:26:12.123 [WRN] [lhm-provider   ] LHM_TIMEOUT pipe deadline exceeded op="stdout_read" consecutive_timeouts=3 threshold=3 err="read |0: i/o timeout"
-2026-05-04 14:26:12.124 [ERR] [lhm-provider   ] LHM_KILL_FALLBACK consecutive timeouts exceeded threshold, killing LhmHelper for restart consecutive_timeouts=3
-2026-05-04 14:26:13.567 [INF] [lhm-provider   ] LhmHelper daemon started pid=4521 path="..."
-2026-05-04 14:26:13.890 [INF] [lhm-provider   ] LhmHelper daemon ready sensors=12 fans=2 ...
+2026-05-04 14:23:12.456 [ERR] [lhm-provider   ] LHM_TIMEOUT_KILL request timed out; killing LhmHelper to release blocked goroutine timeout=10s consecutive_timeouts=1
+2026-05-04 14:23:12.567 [INF] [lhm-provider   ] LhmHelper daemon stopped pid=4521
+2026-05-04 14:23:13.789 [INF] [lhm-provider   ] LhmHelper daemon started pid=4567 path="..."
+2026-05-04 14:23:13.890 [INF] [lhm-provider   ] LhmHelper daemon ready sensors=12 fans=2 ...
+2026-05-04 14:28:13.123 [INF] [lhm-provider   ] LHM_TIMEOUT_RECOVERED daemon responded after prior timeout streak prior_timeouts=1
 ```
 
 ---
 
-## Q1. "옵션 A가 동작하는가?" — 정상 환경 확인
+## Q1. "정상 동작 중인가?" — 가장 먼저 보는 것
 
-**핵심 질문**: pipe deadline이 의도대로 발화하는가?
+**핵심 질문**: timeout 자체가 거의 안 발생하는가?
 
 ### 명령
 
 ```bash
 # Windows PowerShell (현장 PC)
-Get-Content "D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log" | Select-String "LHM_TIMEOUT|LHM_KILL" | Select-Object -Last 50
+Get-Content "D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log" | Select-String "LHM_" | Select-Object -Last 50
 
-# Linux/macOS (수집한 로그를 분석할 때)
-grep -E "LHM_TIMEOUT|LHM_KILL" log/ResourceAgent/ResourceAgent.log | tail -50
+# Linux/macOS (수집 분석)
+grep "LHM_" log/ResourceAgent/ResourceAgent.log | tail -50
 ```
 
 ### 판정 기준
 
 | 결과 | 해석 | 조치 |
 |------|------|------|
-| **결과가 비어있음** | LhmHelper가 timeout 안에 모두 응답. 옵션 A가 발화할 일조차 없음. | 정상. 추가 작업 불필요. |
-| `LHM_TIMEOUT` 1~2건 후 `LHM_TIMEOUT_RECOVERED` | 일시적 hang → 옵션 A 발화 → goroutine 회수 → 다음 요청에서 정상 복구. **이상적인 패턴**. | 정상. 옵션 A 동작 확인됨. |
-| `LHM_TIMEOUT` 만 누적 (RECOVERED 없음) | timeout이 발화는 하는데 LhmHelper가 응답 자체를 못 줌. LhmHelper가 진짜 hang. | Q3 참조 (LhmHelper 자체 문제 진단). |
-| `LHM_KILL_FALLBACK` 자주 발생 | 옵션 A가 동작 안 하거나 LhmHelper가 진짜 hang → 옵션 B가 회수 중. **동작은 정상이지만 비용 발생** (LhmHelper 재시작). | Q2 + Q3 참조. |
+| **결과가 비어있음** | LhmHelper가 timeout 안에 모두 응답. 매우 정상. | 작업 끝. |
+| `LHM_TIMEOUT_KILL` 1~2건 + 후속 `LhmHelper daemon started` | 일시적 hang → Kill로 회수 → 정상 재시작. **이상적인 옵션 B 동작**. | 정상. 추가 작업 불필요. |
+| `LHM_TIMEOUT_RECOVERED` 출현 | timeout 후 정상 응답. 매우 좋은 신호. | 정상. |
+| `LHM_TIMEOUT_KILL` 빈발 (시간당 5회+) | LhmHelper가 자주 hang. 옵션 B는 정상 회수 중이지만 비용 누적. | Q5 참조 (LhmHelper 자체 문제 진단). |
+| `LHM_KILL_FAILED` 또는 `LHM_DRAIN_TIMEOUT` | **위험**. Process.Kill 자체가 동작 안 하거나 OS가 pipe I/O를 unblock 안 함. | Q3/Q4 즉시 진단. |
 
 ---
 
-## Q2. "Win7에서 옵션 A가 silent fail하는가?" — Hard Gate 사후 검증
+## Q2. "Kill로 정말 회수가 되었는가?" — 옵션 B 검증
 
-**핵심 질문**: pipe deadline 자체가 OS에서 지원되는가?
+**핵심 질문**: Kill 후 LhmHelper가 정상 종료 + 재시작되었는가?
 
 ### 명령
 
 ```bash
-# DEADLINE이 지원 안 되는 신호 (가장 확실한 증거)
-grep "LHM_DEADLINE_UNSUPPORTED" log/ResourceAgent/ResourceAgent.log
-
-# KILL_FALLBACK 빈도 (시간당)
-grep "LHM_KILL_FALLBACK" log/ResourceAgent/ResourceAgent.log | wc -l
+# 한 번의 timeout cycle을 시간순으로 본다
+grep "$(date +%Y-%m-%d).*\(LHM_TIMEOUT_KILL\|LhmHelper daemon (stopped\|started\|ready)\)" log/ResourceAgent/ResourceAgent.log | tail -20
 ```
 
-### 판정 기준
+### 판정 — 정상 패턴
 
-| 결과 | 해석 | 조치 |
+```
+14:23:12.456 [ERR] LHM_TIMEOUT_KILL ... timeout=10s
+14:23:12.567 [INF] LhmHelper daemon stopped pid=4521        ← Kill 직후
+14:23:13.789 [INF] LhmHelper daemon started pid=4567        ← 재시작 (1~2초)
+14:23:13.890 [INF] LhmHelper daemon ready sensors=12 ...    ← 초기 데이터 OK
+```
+
+### 판정 — 비정상 패턴
+
+```
+14:23:12.456 [ERR] LHM_TIMEOUT_KILL ...
+14:23:14.456 [ERR] LHM_DRAIN_TIMEOUT worker goroutine did not unwind within 2s   ← 위험!
+```
+
+→ Process.Kill이 발화는 했지만 worker의 I/O가 unblock 안 됨. 1 goroutine 영구 누수. Windows 권한 문제 또는 AV 간섭 가능성.
+
+---
+
+## Q3. "Process.Kill 자체가 실패하는 환경?" — 권한/AV 문제
+
+**핵심 질문**: `LHM_KILL_FAILED`가 보이는가?
+
+### 명령
+
+```bash
+grep "LHM_KILL_FAILED" log/ResourceAgent/ResourceAgent.log
+```
+
+### 가능한 원인 + 조치
+
+| 원인 | 신호 | 조치 |
 |------|------|------|
-| `LHM_DEADLINE_UNSUPPORTED` 발생 | 해당 OS는 `SetReadDeadline`/`SetWriteDeadline` 자체를 미지원. 옵션 A 무력화. **그러나 옵션 B가 정상 회수 중**. | OS/환경 정보 수집 (Win 버전, 서비스 계정 등). 장기적으론 옵션 B만 동작하는 것을 인지. |
-| `LHM_DEADLINE_UNSUPPORTED` 없는데 `LHM_KILL_FALLBACK` 자주 (시간당 5회+) | **silent fail 의심**. SetXxxDeadline 자체는 에러 안 나지만 실제 발화 안 함. 또는 LhmHelper 진짜 hang. | Q3로 구분 진단. |
-| `LHM_DEADLINE_UNSUPPORTED` 없고 `LHM_KILL_FALLBACK`도 거의 없음 | **옵션 A 정상 동작**. Win7도 deadline 지원. | 끝. 좋은 결과. |
+| ResourceAgent 서비스 권한 부족 | `Access is denied` 같은 에러 | LocalSystem 계정으로 실행되는지 확인 (`sc qc ResourceAgent`) |
+| AV/EDR가 Process.Kill 차단 | `The system cannot terminate the process` | EPS 화이트리스트 등록 (`docs/runbooks/eps-whitelist-request.md`) |
+| LhmHelper가 보호 모드 (PROTECTED_LIGHT 등) | 매우 드묾 | LhmHelper 빌드 옵션 확인 |
 
-### 추가 컨텍스트
-
-ResourceAgent의 OS 정보는 별도 로그 또는 다음 명령으로:
-```powershell
-# Windows에서 OS 버전 확인
-[System.Environment]::OSVersion
-(Get-CimInstance Win32_OperatingSystem).Caption
-```
+`LHM_KILL_FAILED`가 한 번이라도 발생하면 **롤백 트리거**. 즉시 분석.
 
 ---
 
-## Q3. "LhmHelper가 진짜 hang인가, 아니면 deadline silent fail인가?"
+## Q4. "Drain timeout — Kill해도 worker가 안 죽는다?"
 
-**핵심 질문**: timeout의 원인이 LhmHelper 자체(C# 프로세스 문제)인가, ResourceAgent 측 deadline 문제인가?
+**핵심 질문**: `LHM_DRAIN_TIMEOUT`이 보이는가?
 
-### 명령
+이론적으로 Process.Kill 후 자식 프로세스의 모든 handle이 close되면 부모측 pipe read가 EOF로 회귀해야 함. 그게 2초 안에 안 일어나면:
+- AV/EDR가 pipe handle을 잡고 있음 (드물지만 가능)
+- Windows pipe에 미해결 IRP가 stuck (커널 버그 — 매우 드묾)
 
-```bash
-# LHM_TIMEOUT 직전/직후 LhmHelper stderr 메시지 확인
-# drainStderr가 LhmHelper의 stderr를 [lhm-helper] 컴포넌트로 forward함
-grep -B 3 -A 1 "LHM_TIMEOUT" log/ResourceAgent/ResourceAgent.log | grep -E "lhm-helper|LHM_TIMEOUT"
-```
+### 영향 + 조치
 
-또는 시간순으로 같이 보기:
-```bash
-# 특정 시간대 ±5분
-grep -E "lhm-helper|lhm-provider" log/ResourceAgent/ResourceAgent.log | grep "2026-05-04 14:2"
-```
-
-### 판정 기준
-
-| 직전에 보이는 것 | 해석 | 조치 |
-|-----------------|------|------|
-| `[lhm-helper]` stderr 메시지 (.NET 예외, "Object reference null" 등) | **LhmHelper 자체 문제**. .NET runtime 이슈 / 하드웨어 센서 접근 실패 / PawnIO 드라이버 문제 등. | LhmHelper 단독 실행해서 재현: `LhmHelper.exe --daemon` 직접 실행 후 stdin에 `collect\n` 입력해서 응답 확인. |
-| `[lhm-helper]` 메시지 전혀 없음 | 두 가지 가능성: ① LhmHelper 응답이 10초 timeout보다 느림 (정상이지만 느림) ② 옵션 A silent fail | 옵션 A silent fail 검증 → Q4. |
-| `[lhm-helper] LhmHelper daemon stopped` | LhmHelper가 외부 요인(EPS / AV / OOM)으로 종료됨 | EPS 화이트리스트 등록 확인 (`docs/runbooks/eps-whitelist-request.md`). 시스템 이벤트 로그 확인. |
+- 1회 발생 = 1 goroutine 영구 누수 (다음 LhmHelper 재시작까지)
+- 시간당 5회 이상 = LhmHelper 매번 재시작되니 누적은 제한적이지만 RSS 증가 가능
+- 발생 시 **Sysinternals Handle.exe로 ResourceAgent 핸들 추적** 권장:
+  ```powershell
+  handle.exe -p ResourceAgent.exe -a
+  ```
 
 ---
 
-## Q4. "goroutine 누수가 사라졌는가?" — 핵심 검증
+## Q5. "LhmHelper가 자주 hang한다" — 자체 문제 진단
 
-**현재 ResourceAgent에는 goroutine 카운트 자체 로그가 없음**. 우회 검증:
+**핵심 질문**: `LHM_TIMEOUT_KILL` 시간당 5회 이상 빈발 + `LHM_TIMEOUT_RECOVERED`도 안 보임
 
-### 방법 1: Windows Task Manager (현장)
+### 가능한 원인
 
-1. Task Manager 열기 → Details 탭 → 우클릭 컬럼 추가 → **"Threads"** 체크
-2. `ResourceAgent.exe` 프로세스의 Threads 컬럼을 **시작 직후 vs 24시간 운영 후** 비교
-3. **정상**: 변동 ±5 이내 (Go runtime 스케줄링 변동)
-4. **비정상**: 시간이 갈수록 증가 (예: 시작 30 → 24h 후 200+)
+| 원인 | 진단 신호 | 조치 |
+|------|----------|------|
+| .NET Framework 4.7 미설치/손상 | startProcess 시 `pipe is being closed` 또는 `broken pipe` | `reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release` (≥460798 필요) |
+| PawnIO 드라이버 문제 | LhmHelper stderr에 driver 관련 에러 | LhmHelper.exe 단독 실행해서 재현 |
+| 하드웨어 센서 응답 지연 (특정 메인보드) | 항상 같은 sensor enumeration에서 timeout | Monitor.json에서 해당 collector 비활성화 검토 |
+| EPS / V3 등 AV 간섭 | LhmHelper 프로세스가 의심 SW로 분류됨 | 화이트리스트 등록 |
 
-> Go goroutine과 OS thread는 1:1이 아니지만, 본 leak처럼 **pipe-blocked goroutine**은 OS thread를 점유하므로 Threads 카운트가 증가함.
+### 검증 명령
 
-### 방법 2: pprof endpoint (추가 작업 필요)
+```bash
+# LhmHelper stderr (drainStderr가 forward) 확인
+grep "lhm-helper" log/ResourceAgent/ResourceAgent.log | tail -30
 
-향후 별도 작업으로 `net/http/pprof` debug endpoint 추가 시:
+# LhmHelper 시작 빈도 (시간당)
+grep "LhmHelper daemon started" log/ResourceAgent/ResourceAgent.log | awk '{print $1, substr($2, 1, 2)}' | sort | uniq -c | tail -24
+```
+
+판정:
+- 시간당 0~1회 시작: 정상
+- 시간당 2~5회: 옵션 B가 일정 부담으로 회수 중. 운영 가능하나 LhmHelper 안정화 권장.
+- 시간당 5회+: 비정상 부하. 즉시 진단.
+
+---
+
+## Q6. "goroutine 누수가 사라졌는가?" — 핵심 검증
+
+옵션 B 단독에서는 timeout마다 worker가 Kill로 회수되므로 **이론적으로 누수 0**. 단, `LHM_DRAIN_TIMEOUT`이 발생하지 않는 한 보장됨.
+
+### 우회 검증 (현장 환경)
+
+#### 방법 1: Windows Task Manager
+1. Task Manager → Details 탭 → 우클릭 컬럼 → "Threads" 체크
+2. `ResourceAgent.exe`의 Threads 컬럼을 시작 직후 vs 24h 후 비교
+3. **정상**: ±5 이내 (Go scheduler 변동)
+4. **비정상**: 시간 따라 증가 (시작 30 → 24h 후 200+)
+
+> Go goroutine과 OS thread는 1:1이 아니지만 pipe-blocked goroutine은 OS thread를 점유 → Threads 카운트가 증가.
+
+#### 방법 2: pprof endpoint (선택사항, 별도 작업)
+
+debug 빌드에 `net/http/pprof` 추가 시:
 ```bash
 curl http://localhost:6060/debug/pprof/goroutine?debug=1 | head -100
 ```
-`internal/poll.runtime_pollWait` 스택의 goroutine 수가 비정상으로 많은지 확인.
-
-### 방법 3: 간접 증거 — Memory baseline
-
-```powershell
-# RSS 추이 (5분 주기 샘플링)
-while ($true) {
-    $p = Get-Process ResourceAgent -ErrorAction SilentlyContinue
-    if ($p) { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'),$($p.WorkingSet64)" | Out-File -Append C:\temp\ra-memory.csv }
-    Start-Sleep 300
-}
-```
-
-**판정**: 24h 운영 후 RSS가 시작 직후의 1.5배 이상이면 누수 의심. 단, gopsutil의 캐시 등 다른 요인 가능 → 다른 신호와 종합.
+`internal/poll.runtime_pollWait` 또는 `syscall.SyscallN` 스택의 goroutine 수가 비정상으로 많은지.
 
 ---
 
-## Q5. "이 변경으로 메트릭 수집 실패율이 늘었는가?" — 회귀 검증
-
-**핵심 질문**: 옵션 A/B 도입이 정상 케이스에 부작용을 일으켰는가?
-
-### 명령
+## Q7. "이 변경으로 메트릭 수집 실패율이 늘었는가?" — 회귀 검증
 
 ```bash
-# 메트릭 수집 실패 (initial collection failed, error in data 등)
 grep -E "LhmHelper (initial collection failed|returned error|request failed)" log/ResourceAgent/ResourceAgent.log | wc -l
 
 # 일별 분포
@@ -196,77 +230,36 @@ grep "LhmHelper request failed" log/ResourceAgent/ResourceAgent.log | awk '{prin
 
 ### 비교 기준
 
-- **변경 전 1주일치 baseline 대비 +20% 이내**: 정상 노이즈
-- **+50% 이상**: 회귀 의심 → 롤백 검토
-- **0건 또는 극소수**: 변경 영향 없음
-
-### 회귀 가능 시나리오
-
-| 증상 | 가능 원인 |
-|------|----------|
-| 정상 환경에서 갑자기 `LHM_KILL_FALLBACK` 빈발 | `timeoutFallbackThreshold=3`이 너무 낮음. 원래 LhmHelper가 가끔 5~7초 걸리는 환경이면 이걸 timeout으로 잘못 판정. requestTimeout 늘리거나 threshold 늘리는 검토. |
-| `failed to parse LhmHelper response (N bytes)` | bufio 부분 읽기 후 timeout이 끼어들어 다음 응답이 데이터 오염. 옵션 B fallback이 새 daemon으로 회수해야 하는 케이스. fallback이 발화하지 않으면 threshold 검토. |
-
----
-
-## Q6. "LhmHelper 재시작 빈도는 정상인가?" — 옵션 B 비용 측정
-
-**핵심 질문**: 옵션 B (Process.Kill)가 너무 자주 발화하면 LhmHelper 재시작 비용(시작에 1~2초 + .NET runtime 로딩)이 누적됨.
-
-### 명령
-
-```bash
-# LhmHelper 시작 빈도 (시간당)
-grep "LhmHelper daemon started" log/ResourceAgent/ResourceAgent.log | awk '{print $1, substr($2, 1, 2)}' | sort | uniq -c | tail -24
-```
-
-### 판정 기준
-
-| 시간당 시작 횟수 | 해석 | 조치 |
-|----------------|------|------|
-| 0~1회 | 정상 (정상 종료 또는 일시적 회복) | 작업 끝 |
-| 2~5회 | 옵션 B가 일정 부담으로 회수 중 | LhmHelper 자체 안정화 검토. EPS 화이트리스트 미등록일 가능성. |
-| 5회+ | 비정상 부하. LhmHelper나 옵션 A에 큰 문제. | 즉시 진단 필요 — Q2 + Q3 + 시스템 이벤트 로그. |
-
----
-
-## 알람/대시보드 권장 패턴 (장기)
-
-ResourceAgent 메트릭 자체가 KafkaRest로 수집되므로, 향후 별도 SelfMetrics(Phase 2.5) 도입 시 다음을 alert 대상으로:
-
-| 지표 | 임계 | 의미 |
-|------|------|------|
-| `LHM_KILL_FALLBACK` count (시간당) | > 3 | 옵션 A silent fail 의심 또는 LhmHelper 만성 hang |
-| `LHM_KILL_FAILED` count (일별) | > 0 | Process.Kill 자체 실패 — Windows 권한/AV 간섭 의심 |
-| `LhmHelper request failed` count (일별) | baseline × 5 | 회귀 또는 환경 변화 |
-
-현 단계(Phase 1-1)에서는 이 지표를 자동 수집하는 인프라가 없음. **운영 1주차에 위 명령어로 수동 1일 1회 점검**을 권장.
+- 변경 전 1주일치 baseline 대비 +20% 이내: 정상 노이즈
+- +50% 이상: 회귀 의심 → 롤백 검토
+- 0건 또는 극소수: 변경 영향 없음
 
 ---
 
 ## 운영 1주차 체크리스트 (배포 후 권장)
 
-배포 직후 1주일간 매일 1회 다음 체크:
+배포 직후 1주일간 매일 1회:
 
 ```bash
 DATE=$(date +%Y-%m-%d)
 LOG=log/ResourceAgent/ResourceAgent.log
 
 echo "=== $DATE LhmProvider Daily Check ==="
-echo "--- LHM_DEADLINE_UNSUPPORTED (한 번이라도 보이면 옵션 A 미지원 환경) ---"
-grep "LHM_DEADLINE_UNSUPPORTED" $LOG | wc -l
 
-echo "--- LHM_TIMEOUT (오늘) ---"
-grep "$DATE.*LHM_TIMEOUT" $LOG | wc -l
+echo "--- LHM_TIMEOUT_KILL (오늘 timeout으로 인한 강제 종료) ---"
+grep "$DATE.*LHM_TIMEOUT_KILL" $LOG | wc -l
 
-echo "--- LHM_TIMEOUT_RECOVERED (오늘, 옵션 A 동작 신호) ---"
+echo "--- LHM_TIMEOUT_RECOVERED (오늘 timeout 후 정상 복구 확인) ---"
 grep "$DATE.*LHM_TIMEOUT_RECOVERED" $LOG | wc -l
 
-echo "--- LHM_KILL_FALLBACK (오늘, 옵션 B 회수) ---"
-grep "$DATE.*LHM_KILL_FALLBACK" $LOG | wc -l
-
-echo "--- LHM_KILL_FAILED (오늘, 위험 신호) ---"
+echo "--- LHM_KILL_FAILED (오늘 위험 신호) ---"
 grep "$DATE.*LHM_KILL_FAILED" $LOG | wc -l
+
+echo "--- LHM_DRAIN_TIMEOUT (오늘 위험 신호 — goroutine 누수) ---"
+grep "$DATE.*LHM_DRAIN_TIMEOUT" $LOG | wc -l
+
+echo "--- LHM_IO_ERROR (오늘 pipe I/O 에러) ---"
+grep "$DATE.*LHM_IO_ERROR" $LOG | wc -l
 
 echo "--- LhmHelper daemon started (오늘 재시작 횟수) ---"
 grep "$DATE.*LhmHelper daemon started" $LOG | wc -l
@@ -277,48 +270,60 @@ grep "$DATE.*LhmHelper request failed" $LOG | wc -l
 
 ### Day 7 종합 판정
 
-위 7개 카운트를 보고:
 - 모두 0~소수 → ✅ Phase 1-1 작업 정상 완료
-- `LHM_DEADLINE_UNSUPPORTED` 있음 + 그 외 정상 → ✅ 옵션 B로 동작 (계획대로)
-- `LHM_KILL_FALLBACK` 폭증 → ⚠️ 진단 필요 (Q2 + Q3 + Q6)
-- `LHM_KILL_FAILED` 0 초과 → ❌ 위험. 즉시 분석 + 필요 시 롤백
+- `LHM_TIMEOUT_KILL` 일별 0~3건, `LHM_KILL_FAILED`/`LHM_DRAIN_TIMEOUT` 모두 0 → ✅ 정상 (옵션 B로 회수 중)
+- `LHM_KILL_FAILED` 0 초과 또는 `LHM_DRAIN_TIMEOUT` 0 초과 → ❌ 즉시 분석 + 필요 시 롤백
+- `LhmHelper daemon started` 시간당 5회+ → ⚠️ Q5 (LhmHelper 자체 문제) 진단
+
+---
+
+## 알람/대시보드 권장 패턴 (장기)
+
+| 지표 | 임계 | 의미 |
+|------|------|------|
+| `LHM_TIMEOUT_KILL` count (시간당) | > 5 | LhmHelper 만성 hang 의심 → Q5 진단 |
+| `LHM_KILL_FAILED` count (일별) | > 0 | 즉시 알람 — 권한/AV 간섭 의심 |
+| `LHM_DRAIN_TIMEOUT` count (일별) | > 0 | 즉시 알람 — goroutine 누수 발생 중 |
+
+현 단계(Phase 1-1)에서는 이 지표를 자동 수집하는 인프라 없음. **운영 1주차에 위 명령으로 수동 1일 1회 점검** 권장.
 
 ---
 
 ## 롤백 트리거
 
-다음 중 하나라도 발생하면 이전 버전으로 롤백 (ManagerAgent FTP를 통한 ResourceAgent.exe 재배포):
+다음 중 하나라도 발생하면 이전 버전으로 롤백:
 
-1. `LHM_KILL_FAILED` 발생 (Process.Kill 자체가 실패하는 환경 — Windows 권한 문제 가능)
-2. `LhmHelper request failed` 빈도 평소 baseline × 10 이상
-3. ResourceAgent.exe RSS가 24h 안에 시작 직후의 3배 이상으로 증가
-4. `panic: runtime error` (lhm_provider 관련 stack)
+1. `LHM_KILL_FAILED` 1회라도 발생
+2. `LHM_DRAIN_TIMEOUT` 1회라도 발생
+3. `LhmHelper request failed` 빈도 평소 baseline × 10 이상
+4. ResourceAgent.exe RSS가 24h 안에 시작 직후의 3배 이상 증가
+5. `panic: runtime error` (lhm_provider 관련 stack)
 
-롤백 절차는 `docs/runbooks/` 의 일반 배포 가이드 참조.
+롤백 절차는 `docs/runbooks/`의 일반 배포 가이드 참조.
 
 ---
 
 ## FAQ
 
-### Q. `LHM_TIMEOUT` 1~2건이 매일 보이는데 정상인가?
-A. 정상. LhmHelper의 응답 시간이 가끔 10초를 넘는 케이스는 흔함 (특히 LHM이 SMART 데이터 갱신 중). `LHM_TIMEOUT_RECOVERED`가 짝지어 보이면 옵션 A가 정상 회수한 것.
+### Q. `LHM_TIMEOUT_KILL`이 매일 1~2건 보이는데 정상인가?
+A. 정상. LhmHelper는 가끔 SMART 데이터 갱신이나 센서 enumeration에 10초+ 걸리는 경우가 있음. Kill로 회수되고 다음 cycle에 정상 복구.
 
-### Q. `LHM_KILL_FALLBACK`이 한 번도 안 보이는 게 좋은 건가?
-A. 네. 옵션 A만으로 충분히 회수되고 있다는 신호. 단, `LHM_TIMEOUT`도 함께 안 보여야 진짜 정상 (LhmHelper 자체가 안정적).
+### Q. timeout 시 LhmHelper 재시작 비용이 부담스럽지 않나?
+A. 재시작은 ~1초 (LhmHelper 프로세스 + .NET Framework 로딩 + LibreHardwareMonitor 초기화). 정상 환경에서 timeout은 거의 발생 안 하므로 평소 부담 없음. timeout 빈발 시에는 Q5 진단으로 근본 원인 해결.
 
-### Q. `LHM_DEADLINE_UNSUPPORTED`가 보이면 즉시 롤백해야 하나?
-A. 아니요. 옵션 B fallback이 정상 회수 중이라면 동작 자체는 OK. 단, 옵션 B는 LhmHelper 재시작 비용이 있으므로 장기적으로 다른 방안(예: LhmHelper 자체 timeout 처리 강화) 검토 가치 있음.
+### Q. 옵션 A 미지원이 향후 Go 버전 업데이트로 해결될 가능성?
+A. Go 표준 라이브러리는 Windows anonymous pipe IOCP 통합을 명시적으로 거부 (`file type does not support deadline`). 해결되려면 named pipe로 마이그레이션 또는 Go runtime 패치 필요. 본 작업 시점(2026-05)까지 Go의 known limitation. 변경되면 plan 재검토.
 
 ### Q. 메트릭 수집 자체에 영향 있나?
-A. 정상 케이스(99%)에는 영향 없음. timeout 발생 시 해당 1회 메트릭 수집은 실패하지만, 다음 cycle(5분 후)에는 정상 회복. LhmHelper kill되면 1~2초 지연 후 재시작.
+A. 정상 케이스(99%)에는 영향 없음. timeout 발생 시 해당 1회 메트릭 수집은 실패하지만, 다음 cycle (5분 후)에는 정상 회복. LhmHelper kill되면 1~2초 지연 후 재시작.
 
 ---
 
 ## 참고 문서
 
 - 본 작업 plan: `~/.claude/plans/phase-1-1-wise-cocoa.md`
-- 메모리 누수 대응 전체 plan: `docs/plans/memory-leak-mitigation-plan.md`
+- 메모리 누수 대응 전체 plan: `docs/plans/memory-leak-mitigation-plan.md` (v2.4.2)
 - EPS 화이트리스트 협의: `docs/runbooks/eps-whitelist-request.md`
 - Windows 메모리 진단 가이드: `docs/runbooks/windows-memory-leak-diagnosis.md`
 - 알려진 race conditions: `docs/runbooks/known-race-conditions.md`
-- 코드: `internal/collector/lhm_provider_windows.go` (특히 `doRequestWithTimeout`, `handleIOError`)
+- 코드: `internal/collector/lhm_provider_windows.go` (특히 `doRequestWithTimeout`, `killAndDrain`)
