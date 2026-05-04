@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -24,6 +25,7 @@ type FileSender struct {
 	consoleCh   chan string // Async console output channel
 	consoleDone chan struct{}
 	format      string
+	out         io.Writer // console output target (captured at construction; tests inject directly)
 	mu          sync.Mutex
 	closed      bool
 }
@@ -70,6 +72,7 @@ func NewFileSender(cfg config.FileConfig) (*FileSender, error) {
 		prettyPrint: cfg.Pretty,
 		console:     cfg.Console,
 		format:      format,
+		out:         os.Stdout,
 		consoleCh:   make(chan string, 1000),
 		consoleDone: make(chan struct{}),
 	}
@@ -166,7 +169,7 @@ func (s *FileSender) SetConsole(enabled bool) {
 func (s *FileSender) drainConsole() {
 	defer close(s.consoleDone)
 	for line := range s.consoleCh {
-		fmt.Println(line)
+		fmt.Fprintln(s.out, line)
 	}
 }
 

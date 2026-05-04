@@ -1718,5 +1718,6 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.2** | **2026-05-04** | - | **Phase 1-1 옵션 A 폐기 + 옵션 B 단독 전환. Win11 단위 테스트로 `os.Pipe()` deadline 미지원 확정. probe 테스트 (`e7926e9`) → 옵션 A 제거 → worker+Kill+drain 패턴. runbook 전면 갱신.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 1-2 완료 (C2, WMI Query goroutine leak). 옵션 C — in-flight flag + stale-cache + 테스트 seam. WMI는 Win 시스템 서비스라 Kill 불가 → bounded leak (worst case 1 goroutine) 보장. WMI 모니터링 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-1 완료 (H2, BufferedHTTPTransport 버퍼 상한). MaxBufferedRecords (기본 10,000) + Oldest-drop FIFO + atomic 관측 + BasicSampler{N:10} 로깅. KafkaRest 단절 시 RSS bounded (~3MB) 보장. 모니터링 runbook 신설.** |
+| **v2.4.2** | **2026-05-04** | - | **R-1 해결 (FileSender drainConsole vs `os.Stdout` race). Option B — `out io.Writer` 필드 도입 + 생성자에서 `os.Stdout` 캡처. 테스트 3개가 전역 swap 대신 `s.out = w` 직접 주입. `go test -race -count=3` PASS.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.

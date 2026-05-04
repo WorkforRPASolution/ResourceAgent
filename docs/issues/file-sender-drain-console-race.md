@@ -64,3 +64,11 @@ s.Close()                   // 여기서 비로소 consoleCh close → drainCons
 
 - `internal/sender/file.go:78, 166-171`
 - `internal/sender/file_test.go:710-770`
+
+## 해결 (2026-05-04)
+
+- **전략**: Option B 채택 — `FileSender` 에 `out io.Writer` 필드 도입, 생성자에서 `os.Stdout` 캡처
+- **production 변경**: `drainConsole` 이 `fmt.Fprintln(s.out, line)` 사용 (전역 `os.Stdout` 의존 제거)
+- **테스트 변경**: 3개 테스트 (`SetConsole_DisablesOutput`, `SetConsole_EnablesOutput`, `FileWriteNotBlockedByConsole`) 가 `os.Stdout` swap 대신 `s.out = w` 직접 주입
+- **검증**: `go test -race -count=3 ./internal/sender/...` PASS, cross-build (Win64/32, Linux) 통과
+- **참조**: 본 작업 commit (R-1 PR)

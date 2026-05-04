@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -629,18 +630,16 @@ func TestFileSender_Grok_StorageSmart(t *testing.T) {
 // --- SetConsole tests ---
 
 func TestFileSender_SetConsole_DisablesOutput(t *testing.T) {
-	// Capture stdout
-	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
 	cfg := tempFileConfig(t, "grok")
 	cfg.Console = true
 	s, err := NewFileSender(cfg)
 	if err != nil {
-		os.Stdout = origStdout
 		t.Fatalf("NewFileSender failed: %v", err)
 	}
+
+	// Inject a pipe into s.out before any Send (consoleCh is empty, drainConsole blocked on range).
+	r, w, _ := os.Pipe()
+	s.out = w
 
 	// Disable console via SetConsole
 	s.SetConsole(false)
@@ -653,13 +652,12 @@ func TestFileSender_SetConsole_DisablesOutput(t *testing.T) {
 	s.Send(context.Background(), data)
 	time.Sleep(50 * time.Millisecond)
 
-	// Restore stdout and read captured output
-	os.Stdout = origStdout
+	// Close sender first so drainConsole exits before we read the pipe.
+	s.Close()
 	w.Close()
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	r.Close()
-	s.Close()
 
 	if buf.Len() > 0 {
 		t.Errorf("expected no console output after SetConsole(false), got: %s", buf.String())
@@ -675,13 +673,12 @@ func TestFileSender_SetConsole_EnablesOutput(t *testing.T) {
 		t.Fatalf("NewFileSender failed: %v", err)
 	}
 
+	// Inject pipe into s.out before enabling console / sending.
+	r, w, _ := os.Pipe()
+	s.out = w
+
 	// Enable console dynamically
 	s.SetConsole(true)
-
-	// Capture stdout
-	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
 	data := &collector.MetricData{
 		Type:      "CPU",
@@ -691,12 +688,11 @@ func TestFileSender_SetConsole_EnablesOutput(t *testing.T) {
 	s.Send(context.Background(), data)
 	time.Sleep(50 * time.Millisecond)
 
-	os.Stdout = origStdout
+	s.Close()
 	w.Close()
 	var buf bytes.Buffer
 	buf.ReadFrom(r)
 	r.Close()
-	s.Close()
 
 	if !strings.Contains(buf.String(), "category:cpu") {
 		t.Errorf("expected console output after SetConsole(true), got: %q", buf.String())
@@ -715,19 +711,18 @@ func TestFileSender_FileWriteNotBlockedByConsole(t *testing.T) {
 		Format:     "grok",
 	}
 
-	// Replace stdout with a pipe nobody reads from → will block on write
-	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
 	s, err := NewFileSender(cfg)
 	if err != nil {
-		os.Stdout = origStdout
 		t.Fatalf("NewFileSender failed: %v", err)
 	}
 
+	// Inject a pipe nobody reads from → drainConsole will block on write
+	// after pipe buffer fills. File writes must remain unblocked.
+	r, w, _ := os.Pipe()
+	s.out = w
+
 	// Send enough data to overflow any pipe buffer (~2MB >> 64KB pipe buffer).
-	// If fmt.Println is synchronous, this WILL block.
+	// If drainConsole's write to s.out is synchronous, file writes WILL block.
 	bigName := strings.Repeat("x", 10000)
 	done := make(chan struct{})
 	go func() {
@@ -750,15 +745,22 @@ func TestFileSender_FileWriteNotBlockedByConsole(t *testing.T) {
 	case <-done:
 		// Good: writes completed without blocking
 	case <-time.After(5 * time.Second):
-		os.Stdout = origStdout
+		w.Close()
+		r.Close()
 		t.Fatal("FileSender blocked - console output is blocking file writes")
 	}
 
-	// Restore stdout and close pipe BEFORE s.Close() so drain goroutine can unblock
-	os.Stdout = origStdout
-	w.Close()
+	// Drain pipe in background so drainConsole can complete during s.Close().
+	drained := make(chan struct{})
+	go func() {
+		io.Copy(io.Discard, r)
+		close(drained)
+	}()
+
+	s.Close() // closes consoleCh → drainConsole exits
+	w.Close() // unblock the background reader
+	<-drained
 	r.Close()
-	s.Close()
 
 	content, err := os.ReadFile(cfg.FilePath)
 	if err != nil {
