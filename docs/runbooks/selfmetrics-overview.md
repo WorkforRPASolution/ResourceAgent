@@ -106,7 +106,7 @@ Hot reload — 즉시 emit 중단. 다른 collector 영향 없음.
 ## 알려진 한계
 
 - **자기 교란 방어 없음**: drop 발생 시 SelfMetrics 자체도 같은 buffer로 흐르므로 같이 drop될 수 있음. drop 신호는 별도로 `BUFFER_DROP_OLDEST` 로그(BasicSampler{N:10})에 기록되므로 보완 가능.
-- **paged_pool_bytes 미포함**: 커널 Paged Pool은 별도 phase (2.5-1.5, pdh.dll syscall 필요). 현재는 외부 RAMMap/typeperf로 측정.
+- **paged_pool_bytes 미포함**: 커널 Paged Pool은 외부 도구(RAMMap/typeperf)로 측정. EPS 화이트리스트 등록으로 현장 leak 근본 원인이 해결되어 자동 보조 메트릭은 불필요로 결정 (v2.4.2).
 - **handle_count 미포함**: Windows handle 추적은 별도 phase (2.5-1.6).
 - **goroutine baseline drift 미계산**: 절대값만 emit. 60s baseline 대비 ±10 SLO 판정은 외부(grafana 등)에서 수행.
 

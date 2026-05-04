@@ -163,16 +163,16 @@
 
 | SLO | 지표 | 임계 | 측정 | 평가 기간 |
 |-----|------|------|------|----------|
-| **SLO-1 커널 Pool 증가** | Paged Pool 72h 증가량 | ≤ baseline × **[Phase A 확보 후 0.3~0.7 범위 확정, 잠정 0.5]** | **외부 typeperf/RAMMap snapshot = 판정** + SelfMetrics `paged_pool_bytes` 고빈도 보조 | 72h × 카나리 |
+| **SLO-1 커널 Pool 증가** | Paged Pool 72h 증가량 | ≤ baseline × **[Phase A 확보 후 0.3~0.7 범위 확정, 잠정 0.5]** | **외부 typeperf/RAMMap snapshot = 판정** (※ EPS 화이트리스트 등록으로 근본 원인 해결됨, v2.4.0) | 72h × 카나리 |
 | **SLO-2 프로세스 안정성** | RSS / Goroutine / 외부 ping | RSS < 60MB, goroutine drift < ±10 (상대 drift 기반), ping 성공률 ≥ 99% | SelfMetrics + 외부 heartbeat (Dead-man's switch) | **45일 연속** |
 | **SLO-3 파이프라인 건강성** | 성공률 / 드롭률 / 롤백 건수 | 성공률 ≥ 99.5%, 드롭 < 1/hour/PC, 월 롤백 < 사이트당 0.1% | SelfMetrics + ManagerAgent 명령 로그 | 45일 |
 
 **SLO-2 "상대 drift" 주의 (v2.2 정정)**: `runtime.NumGoroutine()` 절대값은 goroutine 생성/소멸 변동으로 flaky → **자신의 baseline(프로세스 시작 후 60초 평균) 대비 상대값** 으로 변경. QA 전문가 지적 반영.
 
-**SLO-1 source of truth 이중화 (v2.3 신설)**:
-- **판정 (source of truth)**: 외부 도구 측정 — `typeperf "\Memory\Pool Paged Bytes"` (10s 주기 파일 수집) + RAMMap snapshot (대표 시점 3회). 이 값이 SLO 판정 기준.
-- **고빈도 보조**: SelfMetrics `paged_pool_bytes` (1분 주기, agent hang/dead 시 공백 발생). 추세 모니터링 용도.
-- **이중화 이유**: agent rollback/dead 상태에서도 외부 측정으로 carry-over baseline 유지. agent 자체의 self-report만 믿으면 hang 시 관측 공백.
+**SLO-1 source of truth (v2.4.2 정정)**:
+- **판정**: 외부 도구 측정 — `typeperf "\Memory\Pool Paged Bytes"` (10s 주기 파일 수집) + RAMMap snapshot (대표 시점 3회).
+- **(폐기) ~~고빈도 보조 SelfMetrics `paged_pool_bytes`~~**: v2.4.2에서 폐기. EPS 화이트리스트 등록으로 현장 Paged Pool 증가 근본 원인이 해결되어 (v2.4.0) 1분 주기 자동 보조 메트릭 불필요. 회귀 발생 시 외부 typeperf 한 번 돌리면 충분.
+- agent rollback/dead 상태에서도 외부 측정으로 carry-over baseline 유지.
 
 ---
 
@@ -814,7 +814,7 @@ func (t *BufferedHTTPTransport) flush(trigger string) {
 - `handle_count` (Windows)
 - `buffered_records`, `buffer_drop_count`
 - `collector_success_rate`
-- `paged_pool_bytes`, `nonpaged_pool_bytes` — **`lxn/win` 또는 `pdh.dll` syscall** 경유 (v2.2: 라이브러리 의존성 명시)
+- ~~`paged_pool_bytes`, `nonpaged_pool_bytes`~~ — **v2.4.2 폐기**. EPS 화이트리스트 등록으로 현장 Paged Pool leak 근본 원인 해결됨 (v2.4.0). 회귀 점검은 외부 typeperf로 충분.
 
 **`runtimeStats` Seam 추상화 (v2.2 신설)**:
 ```go
@@ -823,7 +823,6 @@ type RuntimeStatsProvider interface {
     NumCgoCall() int64
     MemStats() *runtime.MemStats
     ProcessHandleCount() (uint32, error)  // Windows only
-    PagedPoolBytes() (uint64, error)      // Windows only
 }
 
 type SelfMetricsCollector struct {
@@ -900,7 +899,7 @@ SelfMetrics → Kafka → Alerting(W0-1 확정 인프라)
 - [ ] **2.5-0**: ManagerAgent Kickoff (W0 RACI 기반)
 - [ ] **2.5-1**: SelfMetrics + Dead-man's switch + seam
   - [ ] `RuntimeStatsProvider` interface + mock
-  - [ ] 8개 지표 + `paged_pool_bytes` (pdh.dll 경유)
+  - [ ] 8개 지표 (~~`paged_pool_bytes`~~ v2.4.2 폐기)
   - [ ] heartbeat-miss + 외부 ping
   - [ ] Ping 실패 원인 구분 (사이트 집계)
   - [ ] Kafka topic 분리
@@ -1303,7 +1302,7 @@ SelfMetrics + 외부 ping 활성. Dead-man's switch 동작.
 - Week 0 결과에 따라 Phase 2.5-3 범위 크게 확대 가능
 - Phase 3-0 ETW consumer PoC 실패 시 Phase 3 전략 재조정
 - ManagerAgent 계약 M4 지연 시 Phase 5 진입 지연
-- SelfMetrics `paged_pool_bytes`의 Windows perfmon 라이브러리 선택이 `lxn/win` vs 직접 syscall 중 구현 시 확정
+- ~~SelfMetrics `paged_pool_bytes`의 Windows perfmon 라이브러리 선택~~ → **v2.4.2 폐기**: EPS 등록으로 근본 원인 해결, 자동 보조 메트릭 불필요
 
 ---
 
@@ -1402,9 +1401,7 @@ SelfMetrics + 외부 ping 활성. Dead-man's switch 동작.
 - [ ] **E-Go-3**: `RuntimeStatsProvider` Windows-only 메서드 **build tag 분기** 명시
   - 파일 분할: `runtime_stats_windows.go` + `runtime_stats_other.go` (후자는 stub return `(0, errNotSupported)`)
   - 조치: Phase 2.5-1 구현 PR에서 처리
-- [ ] **E-Go-4**: `pdh.dll` 단일 thread 제약 명시 + collector 내부 mutex 추가
-  - 이유: `PdhOpenQuery` 핸들은 thread-safe하지 않음
-  - 조치: Phase 2.5-1 SelfMetrics의 `paged_pool_bytes` 수집 시 mutex 필수
+- [x] ~~**E-Go-4**: `pdh.dll` 단일 thread 제약 명시 + collector 내부 mutex 추가~~ → **v2.4.2 폐기**: paged_pool_bytes 수집 자체가 폐기됨 (EPS 등록으로 근본 원인 해결)
 
 #### Windows 커널 (4건)
 
@@ -1719,7 +1716,8 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.2** | **2026-05-04** | - | **Phase 1-2 완료 (C2, WMI Query goroutine leak). 옵션 C — in-flight flag + stale-cache + 테스트 seam. WMI는 Win 시스템 서비스라 Kill 불가 → bounded leak (worst case 1 goroutine) 보장. WMI 모니터링 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-1 완료 (H2, BufferedHTTPTransport 버퍼 상한). MaxBufferedRecords (기본 10,000) + Oldest-drop FIFO + atomic 관측 + BasicSampler{N:10} 로깅. KafkaRest 단절 시 RSS bounded (~3MB) 보장. 모니터링 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **R-1 해결 (FileSender drainConsole vs `os.Stdout` race). Option B — `out io.Writer` 필드 도입 + 생성자에서 `os.Stdout` 캡처. 테스트 3개가 전역 swap 대신 `s.out = w` 직접 주입. `go test -race -count=3` PASS.** |
-| **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1 (축소판) 완료 — SelfMetricsCollector + RuntimeStatsProvider seam + BufferStatsProvider duck-typing. 6개 지표 (`goroutine_count`, `rss_bytes`, `heap_alloc_bytes`, `heap_sys_bytes`, `buffer_count`, `buffer_dropped_total`) 1분 주기 emit, category=`agent`. paged_pool / handle_count / Dead-man's switch / Kafka topic 분리는 별도 phase로 분리. 운영 runbook 신설.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1 (축소판) 완료 — SelfMetricsCollector + RuntimeStatsProvider seam + BufferStatsProvider duck-typing. 6개 지표 (`goroutine_count`, `rss_bytes`, `heap_alloc_bytes`, `heap_sys_bytes`, `buffer_count`, `buffer_dropped_total`) 1분 주기 emit, category=`agent`. handle_count / Dead-man's switch / Kafka topic 분리는 별도 phase로 분리. 운영 runbook 신설.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.5 (`paged_pool_bytes`) 폐기 — EPS 화이트리스트 등록으로 현장 Paged Pool leak 근본 원인 해결됨 (v2.4.0). 자동 보조 메트릭 불필요. 회귀 점검은 외부 typeperf 한 번 돌리면 충분. 관련 항목 (E-Go-4 mutex, lxn/win 라이브러리 선택, SLO-1 source of truth 이중화) 일괄 폐기.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-2 완료 — Scheduler 두 timeout(30s collect, 10s send) 위에 P1-1/P1-2/P2-1 보호장치와 짝을 이루는 contract 주석 추가. 동작 변경 없음.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.
