@@ -140,7 +140,17 @@ func (s *Scheduler) collect(ctx context.Context, c collector.Collector) {
 	log := logger.WithComponent("scheduler")
 	name := c.Name()
 
-	// Create a timeout context for collection
+	// 30s collect timeout — 가장 느린 collector(LhmHelper daemon 응답, WMI Win32_DiskDrive 쿼리)
+	// 기준. 일반 collector는 1초 미만에 끝남.
+	//
+	// 발동 시 동작: context.Done()으로 신호. collector가 ctx를 존중하지 않을 가능성 있어
+	// 두 가지 안전망 적용됨:
+	//   - LhmProvider (Phase 1-1): timeout 3회 연속 → Process.Kill + 응답 drain → leak 0
+	//   - StorageHealth WMI (Phase 1-2): in-flight flag로 쿼리 중복 방지, stale-cache fallback
+	//     → worst-case in-flight goroutine 1개로 bounded
+	// 그 외 collector는 ctx 존중 가정. 새 collector 추가 시 동일 보호장치 검토 필요.
+	//
+	// 이 값을 줄일 때 주의: 위 두 보호장치의 trigger 조건도 함께 검토할 것.
 	collectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -168,7 +178,16 @@ func (s *Scheduler) collect(ctx context.Context, c collector.Collector) {
 	data.AgentID = s.agentID
 	data.Hostname = s.hostname
 
-	// Send to Kafka
+	// 10s send timeout — sender 한 번의 전송 호출 상한.
+	//
+	// sender별 단절 시 동작:
+	//   - kafkarest: BufferedHTTPTransport가 in-memory buffer로 enqueue (background flush).
+	//     장기 단절 시 Batch.MaxBufferedRecords(기본 10,000) FIFO oldest-drop (Phase 2-1 / H2).
+	//     drop 신호: BUFFER_DROP_OLDEST 로그 + agent.buffer_dropped_total 메트릭.
+	//   - kafka (sarama): 자체 retry. Batch.MaxRetries 후 drop.
+	//   - file: 로컬 파일 쓰기. lumberjack rotation, 디스크 full 외 실패 거의 없음.
+	//
+	// 이 값을 늘릴 때 주의: collect cycle(interval)보다 길면 다음 cycle 누락 가능.
 	sendCtx, sendCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer sendCancel()
 

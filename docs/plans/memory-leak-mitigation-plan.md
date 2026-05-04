@@ -225,7 +225,7 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 
 ### Phase 2 — 견고성 개선
 - [x] **2-1. BufferedHTTPTransport 버퍼 상한 + atomic 카운터 (H2)** — 완료. `BatchConfig.MaxBufferedRecords` (기본 10,000) + Oldest-drop FIFO (mu critical section 내 enforcement) + `bufferCountObs/droppedTotal/bufferHighWaterMark` atomic 관측 + BasicSampler{N:10} 로깅. 4개 신규 테스트 (enforcement, FIFO, concurrent race, zero-cap 호환). 모니터링 runbook (`docs/runbooks/buffered-http-transport-monitoring.md`).
-- [ ] 2-2. Scheduler 30s timeout 주석 보강
+- [x] **2-2. Scheduler timeout 주석 보강** — 완료. `internal/scheduler/scheduler.go:144, 172` 두 timeout 상수 (30s collect, 10s send) 위에 근거/발동 시 동작/짝을 이루는 보호장치(P1-1, P1-2, P2-1) 명시. 동작 변경 없음.
 
 ### Phase 2.5 — 관측성 & 배포 인프라
 - [ ] 2.5-0. ManagerAgent 계약 Kickoff (Week 0 RACI 기반)
@@ -1720,5 +1720,6 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-1 완료 (H2, BufferedHTTPTransport 버퍼 상한). MaxBufferedRecords (기본 10,000) + Oldest-drop FIFO + atomic 관측 + BasicSampler{N:10} 로깅. KafkaRest 단절 시 RSS bounded (~3MB) 보장. 모니터링 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **R-1 해결 (FileSender drainConsole vs `os.Stdout` race). Option B — `out io.Writer` 필드 도입 + 생성자에서 `os.Stdout` 캡처. 테스트 3개가 전역 swap 대신 `s.out = w` 직접 주입. `go test -race -count=3` PASS.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1 (축소판) 완료 — SelfMetricsCollector + RuntimeStatsProvider seam + BufferStatsProvider duck-typing. 6개 지표 (`goroutine_count`, `rss_bytes`, `heap_alloc_bytes`, `heap_sys_bytes`, `buffer_count`, `buffer_dropped_total`) 1분 주기 emit, category=`agent`. paged_pool / handle_count / Dead-man's switch / Kafka topic 분리는 별도 phase로 분리. 운영 runbook 신설.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 2-2 완료 — Scheduler 두 timeout(30s collect, 10s send) 위에 P1-1/P1-2/P2-1 보호장치와 짝을 이루는 contract 주석 추가. 동작 변경 없음.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.
