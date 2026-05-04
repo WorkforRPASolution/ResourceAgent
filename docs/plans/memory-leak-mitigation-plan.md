@@ -1721,6 +1721,7 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.6 (`handle_count`) 완료 — Win `GetProcessHandleCount` syscall + Linux `/proc/self/fd` 카운트 + macOS stub. SelfMetrics 7번째 지표 추가. C1/C2/H2 회귀 자동 감지 신호 확보. selfmetrics.go OS-specific 파일 분할 (`_windows.go` / `_linux.go` / `_other.go`).** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.7 (goroutine baseline drift) 보류 — 운영 검증(1주차 Win VM) 결과 보고 baseline 60s window 적절성 확인 후 진행. 현장 PC의 실제 goroutine burst 패턴(collector cycle 시작 직후 +5~10) 데이터 없이 60s 고정하면 baseline에 burst가 섞일 위험. 운영 데이터 확보 → 60s vs 다른 값(120s, 300s 등) 결정 → 구현 순서로 변경.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 4-2 (goleak 8개 대상) 폐기 — collector / sender TestMain만으로 leak 위험 패키지 커버 완료. 나머지 6개 internal 패키지는 goroutine 사용 단순 또는 단일 lifecycle, 추가 goleak ROI 낮음. Phase 1-1/1-2 fix 후 새 leak 위험 패키지 없음.** |
+| **v2.4.2** | **2026-05-04** | - | **메모리/소켓/핸들 관리 코드베이스 audit 수행 — 7개 카테고리 (HTTP body Close, context cancel, ticker Stop, Redis lifecycle, file 핸들, channel/map 무한 성장, Sarama shutdown) 점검. leak 0건, 효율성 개선 후보 1건 (eqpinfo redis client 재생성, 미진행). 결과: `docs/runbooks/resource-management-audit.md`.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-2 완료 — Scheduler 두 timeout(30s collect, 10s send) 위에 P1-1/P1-2/P2-1 보호장치와 짝을 이루는 contract 주석 추가. 동작 변경 없음.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.
