@@ -137,6 +137,13 @@ func ValidateConfig(cfg *Config) error {
 			Message: "must be >= 0",
 		})
 	}
+	if cfg.Batch.MaxBufferedRecords < 0 {
+		errs = append(errs, ValidationError{
+			Field:   "Batch.MaxBufferedRecords",
+			Value:   fmt.Sprintf("%d", cfg.Batch.MaxBufferedRecords),
+			Message: "must be >= 0 (0 disables the cap; positive enforces FIFO drop)",
+		})
+	}
 
 	// PrivateIPAddressPattern regex
 	if cfg.PrivateIPAddressPattern != "" {

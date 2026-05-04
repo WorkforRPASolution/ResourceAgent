@@ -57,6 +57,12 @@ type BatchConfig struct {
 	MaxBatchSize   int           `json:"MaxBatchSize"`
 	MaxRetries     int           `json:"MaxRetries"`
 	RetryBackoff   time.Duration `json:"RetryBackoff"`
+	// MaxBufferedRecords caps the in-memory record count held by
+	// BufferedHTTPTransport. Once exceeded the oldest entry is dropped (FIFO)
+	// to prevent unbounded memory growth when KafkaRest is unreachable.
+	// 0 disables the cap (test/back-compat); production callers should use
+	// the validated default supplied by validate.go.
+	MaxBufferedRecords int `json:"MaxBufferedRecords"`
 }
 
 // CollectorConfig contains settings for individual collectors.
@@ -123,11 +129,12 @@ func DefaultConfig() *Config {
 			Timeout:      10 * time.Second,
 		},
 		Batch: BatchConfig{
-			FlushFrequency: 30 * time.Second,
-			FlushMessages:  100,
-			MaxBatchSize:   500,
-			MaxRetries:     2,
-			RetryBackoff:   500 * time.Millisecond,
+			FlushFrequency:     30 * time.Second,
+			FlushMessages:      100,
+			MaxBatchSize:       500,
+			MaxRetries:         2,
+			RetryBackoff:       500 * time.Millisecond,
+			MaxBufferedRecords: 10000,
 		},
 		Redis: RedisConfig{
 			Port: 6379,
@@ -215,6 +222,9 @@ func (c *Config) Merge(other *Config) {
 	}
 	if other.Batch.RetryBackoff != 0 {
 		c.Batch.RetryBackoff = other.Batch.RetryBackoff
+	}
+	if other.Batch.MaxBufferedRecords != 0 {
+		c.Batch.MaxBufferedRecords = other.Batch.MaxBufferedRecords
 	}
 
 	// Merge VirtualAddressList

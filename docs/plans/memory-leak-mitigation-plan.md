@@ -224,7 +224,7 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 - [x] **1-2. WMI Query goroutine leak 코드 수정 (C2)** — 완료. `internal/collector/storage_health_windows.go` 옵션 C 적용 (in-flight flag + stale-cache + 테스트 seam). Phase 1-1과 달리 WMI는 Windows 시스템 서비스라 Kill 불가 → bounded leak (worst case 1 goroutine) 보장. 4개 신규 로그 prefix (`WMI_QUERY_INFLIGHT/TIMEOUT/RECOVERED/ERROR`) + 모니터링 runbook (`docs/runbooks/wmi-query-monitoring.md`). 7개 신규 테스트 (mock wmi.Query 기반).
 
 ### Phase 2 — 견고성 개선
-- [ ] 2-1. BufferedHTTPTransport 버퍼 상한 + atomic 카운터 구현 계약
+- [x] **2-1. BufferedHTTPTransport 버퍼 상한 + atomic 카운터 (H2)** — 완료. `BatchConfig.MaxBufferedRecords` (기본 10,000) + Oldest-drop FIFO (mu critical section 내 enforcement) + `bufferCountObs/droppedTotal/bufferHighWaterMark` atomic 관측 + BasicSampler{N:10} 로깅. 4개 신규 테스트 (enforcement, FIFO, concurrent race, zero-cap 호환). 모니터링 runbook (`docs/runbooks/buffered-http-transport-monitoring.md`).
 - [ ] 2-2. Scheduler 30s timeout 주석 보강
 
 ### Phase 2.5 — 관측성 & 배포 인프라
@@ -649,7 +649,23 @@ type wmiWorker struct {
 
 ## Phase 2 — 견고성 개선
 
-### 2-1. BufferedHTTPTransport 버퍼 상한 (v2.3 재설계)
+### 2-1. BufferedHTTPTransport 버퍼 상한 ✅ 완료 (v2.4.2, 2026-05-04)
+
+**구현**: v2.3 재설계 그대로 적용 — enforcement는 mu critical section 내부, atomic은 관측용만. Oldest-drop FIFO. 기본값 10,000 records (~3MB).
+
+**산출물**:
+- `internal/sender/kafkarest.go`: `BufferedHTTPTransport` 필드 확장 (`bufferCount` mu 보호 + `bufferCountObs/droppedTotal/bufferHighWaterMark` atomic + `dropLogger` BasicSampler{N:10}), `Deliver` 재작성 (oldest-drop FIFO), `BufferStats()` 메서드
+- `internal/sender/kafkarest_test.go`: 4개 신규 테스트 (`_EnforcesMaxBufferedRecords`, `_OldestDropPreservesNewest`, `_ConcurrentDeliverCounterAccounting`, `_ZeroCapDisablesEnforcement`)
+- `internal/config/config.go`/`loader.go`/`validate.go`: `BatchConfig.MaxBufferedRecords` 필드 + 음수 거부 + Merge 처리
+- `docs/runbooks/buffered-http-transport-monitoring.md`: Q1~Q5 진단 가이드 + 운영 1주차 체크리스트
+
+**보장**: KafkaRest 영구 단절 시에도 RSS bounded (~3MB buffer + 기타). 매 cycle 무한 누적되던 게 → cap 도달 시 oldest-drop으로 회수.
+
+**향후 (Phase 2.5)**: `BufferStats()` 를 SelfMetrics로 노출하여 자동 알람화.
+
+---
+
+### 2-1 (참고: 원래 v2.3 plan)
 
 **v2.3 변경 사유 (Codex M-1 + E-Go-1 통합)**: v2.2의 atomic 카운터로 enforcement하는 설계는 race-prone:
 - `Store(0)` vs 동시 `Add(+n)` 순서 race로 underflow/overflow
@@ -1701,5 +1717,6 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.1** | **2026-05-04** | - | **Phase 1-1 완료 (C1, LhmProvider goroutine leak). 옵션 A + 옵션 B fallback 하이브리드. spike 단계 간소화. 모니터링 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 1-1 옵션 A 폐기 + 옵션 B 단독 전환. Win11 단위 테스트로 `os.Pipe()` deadline 미지원 확정. probe 테스트 (`e7926e9`) → 옵션 A 제거 → worker+Kill+drain 패턴. runbook 전면 갱신.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 1-2 완료 (C2, WMI Query goroutine leak). 옵션 C — in-flight flag + stale-cache + 테스트 seam. WMI는 Win 시스템 서비스라 Kill 불가 → bounded leak (worst case 1 goroutine) 보장. WMI 모니터링 runbook 신설.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 2-1 완료 (H2, BufferedHTTPTransport 버퍼 상한). MaxBufferedRecords (기본 10,000) + Oldest-drop FIFO + atomic 관측 + BasicSampler{N:10} 로깅. KafkaRest 단절 시 RSS bounded (~3MB) 보장. 모니터링 runbook 신설.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.

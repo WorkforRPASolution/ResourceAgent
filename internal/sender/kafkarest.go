@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"resourceagent/internal/config"
 	"resourceagent/internal/logger"
@@ -130,15 +134,31 @@ type bufferedEntry struct {
 }
 
 // BufferedHTTPTransport implements KafkaTransport with buffered batch delivery via HTTP.
+//
+// Memory safety: Deliver enforces an upper bound (BatchConfig.MaxBufferedRecords)
+// on the in-memory record count. When exceeded, oldest entries are dropped
+// (FIFO) to keep RSS bounded if KafkaRest becomes unreachable. See
+// docs/runbooks/buffered-http-transport-monitoring.md for diagnosis.
 type BufferedHTTPTransport struct {
 	client    *http.Client
 	transport *http.Transport
 	baseURL   string
 	batchCfg  config.BatchConfig
 
-	mu     sync.Mutex
-	buffer []bufferedEntry
-	topic  string // current topic (assumes single topic per sender)
+	mu          sync.Mutex
+	buffer      []bufferedEntry
+	bufferCount int    // mu-protected source of truth for record count enforcement
+	topic       string // current topic (assumes single topic per sender)
+	closed      bool
+
+	// Lock-free observability fields. Writes happen inside mu (so they are
+	// consistent with bufferCount); reads from external SelfMetrics may
+	// occur without the lock — eventual-consistency is acceptable.
+	bufferCountObs      atomic.Int64
+	droppedTotal        atomic.Int64
+	bufferHighWaterMark atomic.Int64
+
+	dropLogger zerolog.Logger // BasicSampler{N:10} sampled logger for drop bursts
 
 	flushCh   chan struct{} // signal to flush immediately
 	stopCh    chan struct{}
@@ -158,14 +178,18 @@ func NewBufferedHTTPTransport(kafkaRestAddr string, socksCfg config.SOCKSConfig,
 		Timeout:   10 * time.Second,
 	}
 
+	base := logger.WithComponent("kafkarest-buffer")
+	sampled := base.Sample(&zerolog.BasicSampler{N: 10})
+
 	t := &BufferedHTTPTransport{
-		client:    client,
-		transport: transport,
-		baseURL:   ensureHTTPScheme(kafkaRestAddr),
-		batchCfg:  batchCfg,
-		flushCh:   make(chan struct{}, 1),
-		stopCh:    make(chan struct{}),
-		doneCh:    make(chan struct{}),
+		client:     client,
+		transport:  transport,
+		baseURL:    ensureHTTPScheme(kafkaRestAddr),
+		batchCfg:   batchCfg,
+		dropLogger: sampled,
+		flushCh:    make(chan struct{}, 1),
+		stopCh:     make(chan struct{}),
+		doneCh:     make(chan struct{}),
 	}
 
 	go t.flushLoop()
@@ -173,14 +197,57 @@ func NewBufferedHTTPTransport(kafkaRestAddr string, socksCfg config.SOCKSConfig,
 }
 
 // Deliver buffers records for later batch delivery. Returns nil immediately.
+//
+// If MaxBufferedRecords is set (>0) and the buffer would exceed it after
+// appending, oldest entries are dropped (FIFO) inside the same critical
+// section that performs the append. Drops are accounted for via atomic
+// counters and a sampled ERROR log so log volume stays bounded even if
+// the drop streak is long.
 func (t *BufferedHTTPTransport) Deliver(_ context.Context, topic string, records []KafkaRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+
 	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return errors.New("transport closed")
+	}
+
 	t.buffer = append(t.buffer, bufferedEntry{topic: topic, records: records})
+	t.bufferCount += len(records)
 	t.topic = topic
-	count := t.bufferRecordCount()
+
+	var droppedCount int
+	cap := t.batchCfg.MaxBufferedRecords
+	if cap > 0 {
+		for t.bufferCount > cap && len(t.buffer) > 0 {
+			droppedCount += len(t.buffer[0].records)
+			t.bufferCount -= len(t.buffer[0].records)
+			t.buffer = t.buffer[1:]
+		}
+	}
+
+	cur := int64(t.bufferCount)
+	t.bufferCountObs.Store(cur)
+	if cur > t.bufferHighWaterMark.Load() {
+		t.bufferHighWaterMark.Store(cur)
+	}
+
+	flushNeeded := t.bufferCount >= t.batchCfg.FlushMessages
 	t.mu.Unlock()
 
-	if count >= t.batchCfg.FlushMessages {
+	if droppedCount > 0 {
+		newTotal := t.droppedTotal.Add(int64(droppedCount))
+		t.dropLogger.Error().
+			Int("dropped_records", droppedCount).
+			Int64("buffer_count", cur).
+			Int("max_buffered_records", cap).
+			Int64("dropped_total", newTotal).
+			Msg("BUFFER_DROP_OLDEST oldest records dropped due to buffer cap (sampled 1/10)")
+	}
+
+	if flushNeeded {
 		select {
 		case t.flushCh <- struct{}{}:
 		default:
@@ -190,23 +257,28 @@ func (t *BufferedHTTPTransport) Deliver(_ context.Context, topic string, records
 	return nil
 }
 
+// BufferStats returns lock-free observability snapshots for the buffer.
+// Intended for SelfMetrics / debugging.
+//
+//   count   — current buffered record count
+//   dropped — cumulative dropped records since process start
+//   hwm     — high-water-mark observed buffer count
+func (t *BufferedHTTPTransport) BufferStats() (count, dropped, hwm int64) {
+	return t.bufferCountObs.Load(), t.droppedTotal.Load(), t.bufferHighWaterMark.Load()
+}
+
 // Close stops the flush loop, flushes remaining records, and releases idle TCP connections.
 // Safe to call multiple times.
 func (t *BufferedHTTPTransport) Close() error {
 	t.closeOnce.Do(func() {
+		t.mu.Lock()
+		t.closed = true
+		t.mu.Unlock()
 		close(t.stopCh)
 		<-t.doneCh
 		t.transport.CloseIdleConnections()
 	})
 	return nil
-}
-
-func (t *BufferedHTTPTransport) bufferRecordCount() int {
-	count := 0
-	for _, entry := range t.buffer {
-		count += len(entry.records)
-	}
-	return count
 }
 
 func (t *BufferedHTTPTransport) flushLoop() {
@@ -236,6 +308,8 @@ func (t *BufferedHTTPTransport) flush(trigger string) {
 	}
 	entries := t.buffer
 	t.buffer = nil
+	t.bufferCount = 0
+	t.bufferCountObs.Store(0)
 	t.mu.Unlock()
 
 	// Aggregate all records by topic

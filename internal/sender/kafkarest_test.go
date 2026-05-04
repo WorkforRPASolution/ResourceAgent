@@ -981,3 +981,214 @@ func TestHTTPTransport_Close_ClosesIdleConnections(t *testing.T) {
 		t.Errorf("expected connection to transition to StateClosed after transport.Close(), states=%v", connStates)
 	}
 }
+
+// makeTestRecordsTagged returns n records whose Raw field is set to tag-i so
+// FIFO drop ordering can be verified by inspecting which raw values survive.
+func makeTestRecordsTagged(tag string, n int) []KafkaRecord {
+	records := make([]KafkaRecord, n)
+	for i := range records {
+		records[i] = KafkaRecord{
+			Key: fmt.Sprintf("%s-%d", tag, i),
+			Value: KafkaValue{
+				Process: "PROC", Line: "LINE", EqpID: "EQP",
+				Model: "MODEL", Diff: 0, ESID: fmt.Sprintf("%s-esid-%d", tag, i),
+				Raw: fmt.Sprintf("%s-raw-%d", tag, i),
+			},
+			Timestamp: time.Now(),
+		}
+	}
+	return records
+}
+
+// TestBufferedHTTPTransport_EnforcesMaxBufferedRecords verifies that the
+// in-memory buffer cap (MaxBufferedRecords) is honoured: even after the
+// total enqueued record count exceeds the cap, the live buffer never holds
+// more than `cap` records.
+func TestBufferedHTTPTransport_EnforcesMaxBufferedRecords(t *testing.T) {
+	// Block the server so flush never drains the buffer during the test.
+	// LIFO defer order: close(block) executes FIRST so blocked handlers
+	// release before transport.Close() triggers a final flush. Handler
+	// also exits on r.Context().Done() as a safety net.
+	block := make(chan struct{})
+
+	batchCfg := newTestBatchConfig()
+	batchCfg.FlushFrequency = 10 * time.Second // suppress timer flush
+	batchCfg.FlushMessages = 100000            // suppress count flush
+	batchCfg.MaxBufferedRecords = 500
+
+	transport, server := newTestBufferedTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-block:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+	}, batchCfg)
+	defer transport.Close()
+	defer server.Close()
+	defer close(block)
+
+	for i := 0; i < 12; i++ {
+		if err := transport.Deliver(context.Background(), "test-topic", makeTestRecords(50)); err != nil {
+			t.Fatalf("Deliver %d failed: %v", i, err)
+		}
+	}
+
+	count, dropped, hwm := transport.BufferStats()
+	if count > 500 {
+		t.Errorf("buffer cap violated: count=%d (cap=500)", count)
+	}
+	if dropped < 100 {
+		t.Errorf("expected dropped >= 100, got %d", dropped)
+	}
+	if int64(count)+dropped != 600 {
+		t.Errorf("accounting mismatch: count(%d) + dropped(%d) != 600", count, dropped)
+	}
+	if hwm < count {
+		t.Errorf("hwm(%d) should be >= current count(%d)", hwm, count)
+	}
+}
+
+// TestBufferedHTTPTransport_OldestDropPreservesNewest verifies FIFO drop
+// ordering — old entries are dropped first, the most recent enqueue
+// always survives.
+func TestBufferedHTTPTransport_OldestDropPreservesNewest(t *testing.T) {
+	var (
+		mu       sync.Mutex
+		received []string
+	)
+
+	batchCfg := newTestBatchConfig()
+	batchCfg.FlushFrequency = 10 * time.Second
+	batchCfg.FlushMessages = 100000
+	batchCfg.MaxBufferedRecords = 100
+
+	transport, server := newTestBufferedTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var wrapper KafkaMessageWrapper2
+		_ = json.Unmarshal(body, &wrapper)
+		mu.Lock()
+		for _, msg := range wrapper.Records {
+			received = append(received, msg.Value.Raw)
+		}
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}, batchCfg)
+	defer server.Close()
+
+	transport.Deliver(context.Background(), "test-topic", makeTestRecordsTagged("old", 50))
+	transport.Deliver(context.Background(), "test-topic", makeTestRecordsTagged("mid", 50))
+	transport.Deliver(context.Background(), "test-topic", makeTestRecordsTagged("new", 50))
+
+	if err := transport.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	hasOld, hasMid, hasNew := false, false, false
+	for _, raw := range received {
+		switch {
+		case strings.HasPrefix(raw, "old-"):
+			hasOld = true
+		case strings.HasPrefix(raw, "mid-"):
+			hasMid = true
+		case strings.HasPrefix(raw, "new-"):
+			hasNew = true
+		}
+	}
+	if hasOld {
+		t.Errorf("expected 'old' batch to be dropped, but server received it")
+	}
+	if !hasMid {
+		t.Errorf("expected 'mid' batch to survive")
+	}
+	if !hasNew {
+		t.Errorf("expected 'new' batch to survive")
+	}
+}
+
+// TestBufferedHTTPTransport_ConcurrentDeliverCounterAccounting drives many
+// concurrent Deliver calls and verifies that send + drop accounting equals
+// the total enqueued count. Run with -race to also catch any unsynchronised
+// access to bufferCount.
+func TestBufferedHTTPTransport_ConcurrentDeliverCounterAccounting(t *testing.T) {
+	block := make(chan struct{})
+
+	batchCfg := newTestBatchConfig()
+	batchCfg.FlushFrequency = 10 * time.Second
+	batchCfg.FlushMessages = 100000
+	batchCfg.MaxBufferedRecords = 1000
+
+	transport, server := newTestBufferedTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-block:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+	}, batchCfg)
+	defer transport.Close()
+	defer server.Close()
+	defer close(block)
+
+	const (
+		goroutines     = 100
+		recordsPerCall = 50
+	)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = transport.Deliver(context.Background(), "test-topic", makeTestRecords(recordsPerCall))
+		}()
+	}
+	wg.Wait()
+
+	count, dropped, _ := transport.BufferStats()
+	totalEnqueued := int64(goroutines * recordsPerCall)
+	if count > 1000 {
+		t.Errorf("buffer cap violated under concurrency: count=%d (cap=1000)", count)
+	}
+	if int64(count)+dropped != totalEnqueued {
+		t.Errorf("accounting mismatch: count(%d) + dropped(%d) != total enqueued(%d)",
+			count, dropped, totalEnqueued)
+	}
+}
+
+// TestBufferedHTTPTransport_ZeroCapDisablesEnforcement guards backwards
+// compatibility: existing config with MaxBufferedRecords=0 must keep the
+// pre-Phase-2-1 unbounded behaviour. No drops should occur.
+func TestBufferedHTTPTransport_ZeroCapDisablesEnforcement(t *testing.T) {
+	block := make(chan struct{})
+
+	batchCfg := newTestBatchConfig()
+	batchCfg.FlushFrequency = 10 * time.Second
+	batchCfg.FlushMessages = 100000
+	batchCfg.MaxBufferedRecords = 0
+
+	transport, server := newTestBufferedTransport(t, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-block:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+	}, batchCfg)
+	defer transport.Close()
+	defer server.Close()
+	defer close(block)
+
+	const total = 5000
+	for i := 0; i < total/100; i++ {
+		if err := transport.Deliver(context.Background(), "test-topic", makeTestRecords(100)); err != nil {
+			t.Fatalf("Deliver %d failed: %v", i, err)
+		}
+	}
+
+	count, dropped, _ := transport.BufferStats()
+	if dropped != 0 {
+		t.Errorf("MaxBufferedRecords=0 should disable cap, but dropped=%d", dropped)
+	}
+	if count != int64(total) {
+		t.Errorf("expected count=%d, got %d", total, count)
+	}
+}

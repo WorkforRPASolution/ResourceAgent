@@ -46,11 +46,12 @@ type rawKafkaConfig struct {
 }
 
 type rawBatchConfig struct {
-	FlushFrequency string `json:"FlushFrequency"`
-	FlushMessages  int    `json:"FlushMessages"`
-	MaxBatchSize   int    `json:"MaxBatchSize"`
-	MaxRetries     int    `json:"MaxRetries"`
-	RetryBackoff   string `json:"RetryBackoff"`
+	FlushFrequency     string `json:"FlushFrequency"`
+	FlushMessages      int    `json:"FlushMessages"`
+	MaxBatchSize       int    `json:"MaxBatchSize"`
+	MaxRetries         int    `json:"MaxRetries"`
+	RetryBackoff       string `json:"RetryBackoff"`
+	MaxBufferedRecords int    `json:"MaxBufferedRecords"`
 }
 
 type rawCollectorConfig struct {
@@ -188,6 +189,10 @@ func convertRawBatch(batch *rawBatchConfig, kafkaFallback *rawKafkaConfig) (*Bat
 		result.MaxRetries = batch.MaxRetries
 	} else if kafkaFallback != nil && kafkaFallback.MaxRetries != 0 {
 		result.MaxRetries = kafkaFallback.MaxRetries
+	}
+
+	if batch.MaxBufferedRecords != 0 {
+		result.MaxBufferedRecords = batch.MaxBufferedRecords
 	}
 
 	return result, nil
