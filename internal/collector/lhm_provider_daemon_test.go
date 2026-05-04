@@ -15,20 +15,53 @@ import (
 	"time"
 )
 
-// buildFakeDaemon compiles the fake_daemon.go helper and returns its path.
+// fake_daemon binary is built once per test process and shared across
+// all tests. Per-test rebuilds caused intermittent hangs on Windows when
+// AV/EDR scanned each freshly written .exe, holding the file handle open
+// long enough that `go build` itself never returned.
+var (
+	fakeDaemonOnce sync.Once
+	fakeDaemonPath string
+	fakeDaemonErr  error
+	fakeDaemonDir  string
+)
+
+// buildFakeDaemon compiles the fake_daemon.go helper once per process and
+// returns the cached path on subsequent calls.
 func buildFakeDaemon(t *testing.T) string {
 	t.Helper()
-	ext := ""
-	if runtime.GOOS == "windows" {
-		ext = ".exe"
+	fakeDaemonOnce.Do(func() {
+		ext := ""
+		if runtime.GOOS == "windows" {
+			ext = ".exe"
+		}
+		// Use a process-lifetime directory so the binary stays alive across
+		// tests. We deliberately don't t.TempDir() — that's per-test and
+		// disappears as soon as the first test ends.
+		dir, err := os.MkdirTemp("", "ra-fake-daemon-*")
+		if err != nil {
+			fakeDaemonErr = fmt.Errorf("mkdtemp: %w", err)
+			return
+		}
+		fakeDaemonDir = dir
+		out := filepath.Join(dir, "fake_daemon"+ext)
+		src := filepath.Join("testdata", "fake_daemon.go")
+
+		// Cap the build to 60s so a wedged AV scan surfaces as a clear test
+		// failure rather than the global testing timeout panic.
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "go", "build", "-o", out, src)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fakeDaemonErr = fmt.Errorf("go build: %w\n%s", err, output)
+			return
+		}
+		fakeDaemonPath = out
+	})
+	if fakeDaemonErr != nil {
+		t.Fatalf("failed to build fake daemon: %v", fakeDaemonErr)
 	}
-	out := filepath.Join(t.TempDir(), "fake_daemon"+ext)
-	src := filepath.Join("testdata", "fake_daemon.go")
-	cmd := exec.Command("go", "build", "-o", out, src)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build fake daemon: %v\n%s", err, output)
-	}
-	return out
+	return fakeDaemonPath
 }
 
 // newTestProvider creates a fresh LhmProvider for testing (not the singleton).
