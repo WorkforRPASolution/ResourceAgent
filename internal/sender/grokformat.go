@@ -476,6 +476,7 @@ func convertSelfMetrics(data *collector.MetricData) []EARSRow {
 		systemRow(data.Timestamp, "agent", "rss_bytes", float64(d.RSSBytes)),
 		systemRow(data.Timestamp, "agent", "heap_alloc_bytes", float64(d.HeapAllocBytes)),
 		systemRow(data.Timestamp, "agent", "heap_sys_bytes", float64(d.HeapSysBytes)),
+		systemRow(data.Timestamp, "agent", "handle_count", float64(d.HandleCount)),
 		systemRow(data.Timestamp, "agent", "buffer_count", float64(d.BufferCount)),
 		systemRow(data.Timestamp, "agent", "buffer_dropped_total", float64(d.BufferDroppedTotal)),
 	}

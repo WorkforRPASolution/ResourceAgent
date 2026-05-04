@@ -3,11 +3,16 @@ package collector
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
 	"resourceagent/internal/config"
 )
+
+func runtimeIsHandleSupported() bool {
+	return runtime.GOOS == "windows" || runtime.GOOS == "linux"
+}
 
 type mockRuntimeStats struct {
 	goroutines int
@@ -15,12 +20,15 @@ type mockRuntimeStats struct {
 	sys        uint64
 	rss        uint64
 	rssErr     error
+	handles    uint32
+	handlesErr error
 }
 
-func (m *mockRuntimeStats) NumGoroutine() int                 { return m.goroutines }
-func (m *mockRuntimeStats) AllocBytes() uint64                { return m.alloc }
-func (m *mockRuntimeStats) SysBytes() uint64                  { return m.sys }
-func (m *mockRuntimeStats) ProcessRSSBytes() (uint64, error)  { return m.rss, m.rssErr }
+func (m *mockRuntimeStats) NumGoroutine() int                    { return m.goroutines }
+func (m *mockRuntimeStats) AllocBytes() uint64                   { return m.alloc }
+func (m *mockRuntimeStats) SysBytes() uint64                     { return m.sys }
+func (m *mockRuntimeStats) ProcessRSSBytes() (uint64, error)     { return m.rss, m.rssErr }
+func (m *mockRuntimeStats) ProcessHandleCount() (uint32, error)  { return m.handles, m.handlesErr }
 
 type mockBufferStats struct {
 	count   int64
@@ -38,6 +46,7 @@ func TestSelfMetricsCollector_BasicCollect(t *testing.T) {
 		alloc:      1024,
 		sys:        2048,
 		rss:        31457280,
+		handles:    184,
 	}
 	bs := &mockBufferStats{count: 100, dropped: 5, hwm: 200}
 
@@ -65,11 +74,34 @@ func TestSelfMetricsCollector_BasicCollect(t *testing.T) {
 	if d.HeapSysBytes != 2048 {
 		t.Errorf("HeapSysBytes = %d, want 2048", d.HeapSysBytes)
 	}
+	if d.HandleCount != 184 {
+		t.Errorf("HandleCount = %d, want 184", d.HandleCount)
+	}
 	if d.BufferCount != 100 {
 		t.Errorf("BufferCount = %d, want 100", d.BufferCount)
 	}
 	if d.BufferDroppedTotal != 5 {
 		t.Errorf("BufferDroppedTotal = %d, want 5", d.BufferDroppedTotal)
+	}
+}
+
+func TestSelfMetricsCollector_HandleProbeFailureSwallowed(t *testing.T) {
+	stats := &mockRuntimeStats{
+		goroutines: 5,
+		handles:    0,
+		handlesErr: errors.New("handle probe failed"),
+	}
+	c := NewSelfMetricsCollector(stats, nil)
+	md, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatalf("Collect surfaced handle probe error: %v", err)
+	}
+	d := md.Data.(SelfMetricsData)
+	if d.HandleCount != 0 {
+		t.Errorf("HandleCount = %d, want 0 on probe failure", d.HandleCount)
+	}
+	if d.GoroutineCount != 5 {
+		t.Errorf("other probes still emitted; GoroutineCount = %d, want 5", d.GoroutineCount)
 	}
 }
 
@@ -146,5 +178,13 @@ func TestDefaultRuntimeStats_Smoke(t *testing.T) {
 	}
 	if rss == 0 {
 		t.Errorf("ProcessRSSBytes = 0, want > 0")
+	}
+	// HandleCount: Windows/Linux must report > 0; macOS/BSD stub returns 0.
+	handles, err := s.ProcessHandleCount()
+	if err != nil {
+		t.Fatalf("ProcessHandleCount returned error: %v", err)
+	}
+	if runtimeIsHandleSupported() && handles == 0 {
+		t.Errorf("ProcessHandleCount = 0 on supported platform, want > 0")
 	}
 }

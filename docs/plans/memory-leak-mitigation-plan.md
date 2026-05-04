@@ -1718,6 +1718,7 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.2** | **2026-05-04** | - | **R-1 해결 (FileSender drainConsole vs `os.Stdout` race). Option B — `out io.Writer` 필드 도입 + 생성자에서 `os.Stdout` 캡처. 테스트 3개가 전역 swap 대신 `s.out = w` 직접 주입. `go test -race -count=3` PASS.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1 (축소판) 완료 — SelfMetricsCollector + RuntimeStatsProvider seam + BufferStatsProvider duck-typing. 6개 지표 (`goroutine_count`, `rss_bytes`, `heap_alloc_bytes`, `heap_sys_bytes`, `buffer_count`, `buffer_dropped_total`) 1분 주기 emit, category=`agent`. handle_count / Dead-man's switch / Kafka topic 분리는 별도 phase로 분리. 운영 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.5 (`paged_pool_bytes`) 폐기 — EPS 화이트리스트 등록으로 현장 Paged Pool leak 근본 원인 해결됨 (v2.4.0). 자동 보조 메트릭 불필요. 회귀 점검은 외부 typeperf 한 번 돌리면 충분. 관련 항목 (E-Go-4 mutex, lxn/win 라이브러리 선택, SLO-1 source of truth 이중화) 일괄 폐기.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.6 (`handle_count`) 완료 — Win `GetProcessHandleCount` syscall + Linux `/proc/self/fd` 카운트 + macOS stub. SelfMetrics 7번째 지표 추가. C1/C2/H2 회귀 자동 감지 신호 확보. selfmetrics.go OS-specific 파일 분할 (`_windows.go` / `_linux.go` / `_other.go`).** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-2 완료 — Scheduler 두 timeout(30s collect, 10s send) 위에 P1-1/P1-2/P2-1 보호장치와 짝을 이루는 contract 주석 추가. 동작 변경 없음.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.

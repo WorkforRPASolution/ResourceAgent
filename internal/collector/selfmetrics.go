@@ -12,12 +12,18 @@ import (
 )
 
 // RuntimeStatsProvider abstracts runtime/process introspection so tests can
-// inject deterministic values for goroutine count, heap stats, and RSS.
+// inject deterministic values for goroutine count, heap stats, RSS, and
+// OS handle/fd count.
 type RuntimeStatsProvider interface {
 	NumGoroutine() int
 	AllocBytes() uint64
 	SysBytes() uint64
 	ProcessRSSBytes() (uint64, error)
+	// ProcessHandleCount returns the OS-level resource handle count for the
+	// current process. On Windows this is the kernel HANDLE count
+	// (GetProcessHandleCount). On Linux it is the fd count from /proc/self/fd.
+	// macOS returns 0 (dev environment only). Returns 0 + error on probe failure.
+	ProcessHandleCount() (uint32, error)
 }
 
 // BufferStatsProvider mirrors sender.BufferStatsProvider so that
@@ -71,6 +77,7 @@ func (c *SelfMetricsCollector) DefaultConfig() config.CollectorConfig {
 // suppress the others — operators can still see the rest of the picture.
 func (c *SelfMetricsCollector) Collect(_ context.Context) (*MetricData, error) {
 	rss, _ := c.stats.ProcessRSSBytes()
+	handles, _ := c.stats.ProcessHandleCount()
 
 	var bufCount, bufDropped int64
 	if c.bufferStats != nil {
@@ -85,6 +92,7 @@ func (c *SelfMetricsCollector) Collect(_ context.Context) (*MetricData, error) {
 			RSSBytes:           rss,
 			HeapAllocBytes:     c.stats.AllocBytes(),
 			HeapSysBytes:       c.stats.SysBytes(),
+			HandleCount:        handles,
 			BufferCount:        bufCount,
 			BufferDroppedTotal: bufDropped,
 		},
@@ -92,6 +100,12 @@ func (c *SelfMetricsCollector) Collect(_ context.Context) (*MetricData, error) {
 }
 
 // --- Production RuntimeStatsProvider ---
+//
+// OS-independent fields (NumGoroutine / AllocBytes / SysBytes / ProcessRSSBytes)
+// live here. ProcessHandleCount is OS-specific and split into:
+//   - selfmetrics_windows.go : GetProcessHandleCount syscall (kernel32.dll)
+//   - selfmetrics_linux.go   : /proc/self/fd entry count
+//   - selfmetrics_other.go   : stub returning 0 (macOS, BSD, dev only)
 
 type defaultRuntimeStats struct {
 	proc *process.Process

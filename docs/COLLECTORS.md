@@ -1186,7 +1186,7 @@ ResourceAgent 자기 자신의 runtime 상태(goroutine 수, RSS, Go heap, Kafka
 }
 ```
 
-#### 수집 항목 (6개)
+#### 수집 항목 (7개)
 
 | Metric | 출처 | 단위 | 의미 |
 |--------|------|------|------|
@@ -1194,6 +1194,7 @@ ResourceAgent 자기 자신의 runtime 상태(goroutine 수, RSS, Go heap, Kafka
 | `rss_bytes` | `gopsutil/process Self().MemoryInfo().RSS` | bytes | OS-level Resident Set Size |
 | `heap_alloc_bytes` | `runtime.MemStats.Alloc` | bytes | Go heap 활성 객체 |
 | `heap_sys_bytes` | `runtime.MemStats.Sys` | bytes | Go runtime이 OS로부터 받은 총 heap |
+| `handle_count` | Win `GetProcessHandleCount` / Linux `/proc/self/fd` count | count | OS handle/fd leak 감지 (Phase 2.5-1.6, macOS=0) |
 | `buffer_count` | `BufferedHTTPTransport.BufferStats()` | records | KafkaRest 현재 buffer (Phase 2-1) |
 | `buffer_dropped_total` | `BufferedHTTPTransport.BufferStats()` | records | 프로세스 lifetime 누적 drop |
 
@@ -1206,6 +1207,7 @@ category=`agent`, proc=`@system`, pid=0:
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:rss_bytes,value:31457280
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_alloc_bytes,value:1048576
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_sys_bytes,value:8388608
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:handle_count,value:184
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_count,value:0
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_dropped_total,value:0
 ```

@@ -776,6 +776,7 @@ PawnIO_setup.exe /S
 | agent | @system | `rss_bytes` | Agent RSS (OS-level) | bytes |
 | agent | @system | `heap_alloc_bytes` | Go heap 활성 객체 | bytes |
 | agent | @system | `heap_sys_bytes` | Go runtime이 OS로부터 받은 총 heap | bytes |
+| agent | @system | `handle_count` | Win HANDLE / Linux fd count (macOS=0) | count |
 | agent | @system | `buffer_count` | KafkaRest BufferedHTTPTransport 현재 버퍼 | records |
 | agent | @system | `buffer_dropped_total` | 프로세스 lifetime 누적 buffer drop | records |
 

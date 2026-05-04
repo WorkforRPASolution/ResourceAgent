@@ -237,13 +237,14 @@ type UptimeData struct {
 
 // SelfMetricsData contains agent self-introspection metrics (Phase 2.5-1).
 // Emitted periodically (default 60s) via the standard sender pipeline so that
-// goroutine drift, RSS growth, and buffer pressure can be tracked alongside
-// regular metrics.
+// goroutine drift, RSS growth, OS handle leak, and buffer pressure can be
+// tracked alongside regular metrics.
 type SelfMetricsData struct {
 	GoroutineCount     int    `json:"goroutine_count"`
 	RSSBytes           uint64 `json:"rss_bytes"`
 	HeapAllocBytes     uint64 `json:"heap_alloc_bytes"`
 	HeapSysBytes       uint64 `json:"heap_sys_bytes"`
+	HandleCount        uint32 `json:"handle_count"` // Windows HANDLE / Linux fd count (Phase 2.5-1.6)
 	BufferCount        int64  `json:"buffer_count"`
 	BufferDroppedTotal int64  `json:"buffer_dropped_total"`
 }

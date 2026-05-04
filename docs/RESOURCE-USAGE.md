@@ -215,8 +215,8 @@ t=300s : storage_smart 요청 → 60s 그룹 캐시 히트 (동일 시점)
 | storage_smart | 300s | 0.2 | 6 | ~1,500 B |
 | storage_health | 300s | 0.2 | 1~2 | ~300 B |
 | uptime | 300s | 0.2 | 2 | ~500 B |
-| selfmetrics | 60s | 1 | 6 | ~1,500 B |
-| **합계** | | **~17** | **~66 rows** | |
+| selfmetrics | 60s | 1 | 7 | ~1,750 B |
+| **합계** | | **~17** | **~67 rows** | |
 
 | 항목 | KafkaRest (미압축) | Kafka (Snappy) |
 |------|-------------------|----------------|

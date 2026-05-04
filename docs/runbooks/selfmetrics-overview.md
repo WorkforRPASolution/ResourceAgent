@@ -2,7 +2,7 @@
 
 ResourceAgent가 자기 자신의 runtime 상태를 1분마다 emit하는 메트릭 모음입니다. 일반 collector(CPU/Memory/Disk 등)와 같은 sender pipeline(Kafka/KafkaRest/File)을 통해 흘러갑니다.
 
-## 6개 지표
+## 7개 지표
 
 EARS row category는 **`agent`** 입니다. proc는 `@system`, pid=0.
 
@@ -12,8 +12,11 @@ EARS row category는 **`agent`** 입니다. proc는 `@system`, pid=0.
 | `rss_bytes` | bytes | OS-level Resident Set Size | 25~50MB | 단조 증가 → 메모리 누수 |
 | `heap_alloc_bytes` | bytes | Go heap 활성 객체 (`runtime.MemStats.Alloc`) | 변동 | 평소 대비 ×3 이상 + GC 후도 안 줄어듬 |
 | `heap_sys_bytes` | bytes | Go runtime이 OS로부터 받은 총 heap (`MemStats.Sys`) | RSS와 비슷한 추세 | RSS와 격차 크면 OS-level 누수 가능 |
+| `handle_count` | count | Win HANDLE / Linux fd count (Phase 2.5-1.6) | 100~500 | 시간 따라 단조 증가 → handle/fd leak |
 | `buffer_count` | records | BufferedHTTPTransport 현재 buffer (Phase 2-1) | 평소 0~수십 | `MaxBufferedRecords` (기본 10,000) 근처 → KafkaRest unreachable |
 | `buffer_dropped_total` | records | 프로세스 lifetime 누적 drop | 0 | 시간 따라 빠르게 증가 → KafkaRest 단절 + drop 진행 중 |
+
+> macOS/BSD에서 `handle_count` 는 `0` (개발 환경, stub).
 
 ## 출력 예시
 
@@ -24,6 +27,7 @@ EARS row category는 **`agent`** 입니다. proc는 `@system`, pid=0.
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:rss_bytes,value:31457280
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_alloc_bytes,value:1048576
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_sys_bytes,value:8388608
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:handle_count,value:184
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_count,value:0
 2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_dropped_total,value:0
 ```
@@ -72,6 +76,17 @@ grep "metric:rss_bytes" log/ResourceAgent/metrics.log | awk -F'value:' '{print $
 
 - 안정 → 정상
 - 단조 증가 → Phase A SLO-1 Paged Pool 증가와 연관 가능 (커널 leak). EPS 화이트리스트 등록 여부 확인 (`project_win7_eps_paged_pool_root_cause` 메모)
+
+### Q2-2. "handle/fd가 계속 증가하는가?" (Phase 2.5-1.6)
+
+```bash
+grep "metric:handle_count" log/ResourceAgent/metrics.log | awk -F'value:' '{print $2}' | tail -60
+```
+
+- 안정 (±20 진동) → 정상
+- 1시간에 +50 이상 단조 증가 → Windows HANDLE / Linux fd leak. C1 (LhmHelper pipe), C2 (WMI 쿼리), H2 (HTTP socket) 회귀 또는 새 fd-누락 코드 의심. `lhm-provider-timeout-monitoring.md` / `wmi-query-monitoring.md` 참조
+- per-process limit: Windows ~16M (실제 수만 도달 시 syscall 실패), Linux 1024(soft)~수만(hard)
+- macOS는 항상 0 (stub)
 
 ### Q3. "buffer가 차고 있는가?"
 
