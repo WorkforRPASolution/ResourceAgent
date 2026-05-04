@@ -221,7 +221,7 @@ Phase 5   (배포)             : SLO 기반 카나리 → 점진 확대
 ### Phase 1 — Critical Goroutine Leak
 - [x] ~~1-1-spike. bufio.Reader 해체 + stdin SetWriteDeadline 설계 + PoC~~ → **v2.4.1 간소화** (Win7 PoC 환경 부재 → 옵션 A + 옵션 B fallback 하이브리드로 직행. 사후 로그 모니터링으로 검증)
 - [x] **1-1. LhmProvider doRequestWithTimeout 수정 (C1)** — 완료. `internal/collector/lhm_provider_windows.go` 전면 재작성. 옵션 A (pipe deadline) + 옵션 B (3회 timeout 시 Process.Kill) 하이브리드. 6개 LHM_* 로그 prefix + 모니터링 runbook (`docs/runbooks/lhm-provider-timeout-monitoring.md`).
-- [ ] 1-2. WMI Query goroutine leak **코드 수정** (C2, v2.3: 수집기 유지 + hang 방지)
+- [x] **1-2. WMI Query goroutine leak 코드 수정 (C2)** — 완료. `internal/collector/storage_health_windows.go` 옵션 C 적용 (in-flight flag + stale-cache + 테스트 seam). Phase 1-1과 달리 WMI는 Windows 시스템 서비스라 Kill 불가 → bounded leak (worst case 1 goroutine) 보장. 4개 신규 로그 prefix (`WMI_QUERY_INFLIGHT/TIMEOUT/RECOVERED/ERROR`) + 모니터링 runbook (`docs/runbooks/wmi-query-monitoring.md`). 7개 신규 테스트 (mock wmi.Query 기반).
 
 ### Phase 2 — 견고성 개선
 - [ ] 2-1. BufferedHTTPTransport 버퍼 상한 + atomic 카운터 구현 계약
@@ -566,7 +566,20 @@ typeperf "\Memory\Pool Paged Bytes" "\Memory\Pool Nonpaged Bytes" -sc 60 -si 1 -
 | 300ms~1s | 위험 — cascading block 가능성 | 옵션 A 강제 재시도 (추가 spike 3일) |
 | > 1s | 차단 — 프로덕션 불가 | 옵션 A 필수, 또는 scheduler timeout 60s 연장 검토 |
 
-### 1-2. WMI Query goroutine leak **코드 수정** (C2, v2.3 재정의)
+### 1-2. WMI Query goroutine leak **코드 수정** (C2) ✅ 완료 (v2.4.2, 2026-05-04)
+
+**채택**: 옵션 C — in-flight flag + stale-cache. WMI는 Windows 시스템 서비스라 Process.Kill 불가 → Phase 1-1의 옵션 B 패턴 사용 불가.
+
+**구현 산출물**:
+- `internal/collector/storage_health_windows.go`: `wmiQueryStateData` 패키지 변수 (atomic.Bool inFlight + RWMutex 보호 cache), `queryWMIDiskDrive` 재작성, `wmiQueryFunc` 테스트 seam
+- `internal/collector/storage_health_windows_test.go` (신규): 7개 테스트 — `_NormalReturn`, `_TimeoutDoesNotLeakAcrossCalls`, `_InFlightReturnsCachedData`, `_InFlightWithoutCacheReturnsError`, `_RecoveryAfterHang`, `_ErrorSurfacedAndCached`, `_ConcurrentCallersCoalesce`
+- `docs/runbooks/wmi-query-monitoring.md`: 4개 LHM_*과 다른 `WMI_QUERY_*` prefix + Q1~Q6 진단 가이드
+
+**보장**: 매 5분마다 1개씩 누적되던 leak → **최대 1 goroutine 한정 (bounded)**. WMI 영구 hang 시에도 추가 worker spawn 없음.
+
+---
+
+### 1-2 (참고: 원래 v2.3 plan)
 
 **v2.3 변경 사유**: v2.2는 "Phase A 결과 대기"였음 — 즉 StorageHealth가 원인이면 그때 worker 전환, 아니면 현행 유지. 그러나 **goroutine leak은 코드 버그 그 자체**. 원인 가설 결과와 무관하게 다음 조건이면 누적됨:
 - WMI 쿼리가 30s timeout 안에 응답 안 하면 goroutine 회수 불가 (영구 누적)
@@ -1687,5 +1700,6 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.1** | **2026-05-04** | - | **로컬 CI 정책 일괄 폐기 (ci.sh / ci.ps1 / coverage 스크립트 / ci-history / coverage-baseline 삭제). W0-4, Phase 4-0 일부, Appendix G.5 무효화.** |
 | **v2.4.1** | **2026-05-04** | - | **Phase 1-1 완료 (C1, LhmProvider goroutine leak). 옵션 A + 옵션 B fallback 하이브리드. spike 단계 간소화. 모니터링 runbook 신설.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 1-1 옵션 A 폐기 + 옵션 B 단독 전환. Win11 단위 테스트로 `os.Pipe()` deadline 미지원 확정. probe 테스트 (`e7926e9`) → 옵션 A 제거 → worker+Kill+drain 패턴. runbook 전면 갱신.** |
+| **v2.4.2** | **2026-05-04** | - | **Phase 1-2 완료 (C2, WMI Query goroutine leak). 옵션 C — in-flight flag + stale-cache + 테스트 seam. WMI는 Win 시스템 서비스라 Kill 불가 → bounded leak (worst case 1 goroutine) 보장. WMI 모니터링 runbook 신설.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.
