@@ -185,6 +185,33 @@ category:process_watch,pid:5678,proc:teamviewer.exe,metric:forbidden,value:1
 category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 ```
 
+### agent (Phase 2.5-1)
+
+ResourceAgent 자기 자신의 runtime 상태. SelfMetricsCollector가 1분 주기로 6개 row를 한 번에 emit합니다 (기본값, `Monitor.json` 으로 조정 가능). category=`agent` 는 Phase 2.5-1에서 신설되었습니다.
+
+| metric | 설명 | 단위 | 값 범위 | 예시 |
+|--------|------|------|---------|------|
+| `goroutine_count` | 현재 goroutine 수 (`runtime.NumGoroutine()`) | count | 20~50 (정상) | `42` |
+| `rss_bytes` | OS-level Resident Set Size | bytes | 25~50MB (정상) | `31457280` |
+| `heap_alloc_bytes` | Go heap 활성 객체 (`runtime.MemStats.Alloc`) | bytes | 변동 | `1048576` |
+| `heap_sys_bytes` | Go runtime이 OS로부터 받은 총 heap (`MemStats.Sys`) | bytes | RSS와 비슷 | `8388608` |
+| `buffer_count` | KafkaRest BufferedHTTPTransport 현재 buffer (Phase 2-1) | records | 0~MaxBufferedRecords | `0` |
+| `buffer_dropped_total` | 프로세스 lifetime 누적 buffer drop | records | 0~ | `0` |
+
+> `buffer_count`, `buffer_dropped_total`: `SenderType=file` 등 KafkaRest 미사용 환경에서는 항상 `0`.
+
+**출력 예시:**
+```
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:goroutine_count,value:42
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:rss_bytes,value:31457280
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_alloc_bytes,value:1048576
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_sys_bytes,value:8388608
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_count,value:0
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_dropped_total,value:0
+```
+
+운영 가이드: `docs/runbooks/selfmetrics-overview.md`
+
 ---
 
 ## 프로세스 메트릭 (proc={프로세스명}, pid={PID})

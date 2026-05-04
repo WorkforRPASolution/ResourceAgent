@@ -162,8 +162,14 @@ t=300s : storage_smart 요청 → 60s 그룹 캐시 히트 (동일 시점)
 | sender_type | 추가 메모리 | 비고 |
 |-------------|-----------|------|
 | kafka | +5~10MB | Sarama 버퍼 (FlushMessages=100, BatchSize=16KB) |
-| kafkarest | +2~5MB | HTTP client pool, 요청당 버퍼 |
+| kafkarest | +2~5MB (정상) / 최대 ~3MB (KafkaRest 단절 시) | HTTP client pool + BufferedHTTPTransport in-memory 버퍼 |
 | file | +1~2MB | 파일 쓰기 버퍼 |
+
+**kafkarest BufferedHTTPTransport 버퍼 상한 (Phase 2-1 / H2)**:
+- `Batch.MaxBufferedRecords` (기본 10,000) 이상은 oldest-drop (FIFO)
+- record당 평균 ~300 B 가정 시 최대 메모리 점유 ~3 MB
+- KafkaRest endpoint가 장시간 unreachable이어도 RSS bounded
+- drop 발생 시 `BUFFER_DROP_OLDEST` 로그(BasicSampler{N:10}) + `agent.buffer_dropped_total` 메트릭으로 관측
 
 ---
 
@@ -209,7 +215,8 @@ t=300s : storage_smart 요청 → 60s 그룹 캐시 히트 (동일 시점)
 | storage_smart | 300s | 0.2 | 6 | ~1,500 B |
 | storage_health | 300s | 0.2 | 1~2 | ~300 B |
 | uptime | 300s | 0.2 | 2 | ~500 B |
-| **합계** | | **~16** | **~60 rows** | |
+| selfmetrics | 60s | 1 | 6 | ~1,500 B |
+| **합계** | | **~17** | **~66 rows** | |
 
 | 항목 | KafkaRest (미압축) | Kafka (Snappy) |
 |------|-------------------|----------------|

@@ -26,7 +26,8 @@
     "FlushMessages": 100,
     "MaxBatchSize": 500,
     "MaxRetries": 2,
-    "RetryBackoff": "500ms"
+    "RetryBackoff": "500ms",
+    "MaxBufferedRecords": 10000
   },
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,

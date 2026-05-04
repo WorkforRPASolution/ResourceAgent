@@ -25,6 +25,7 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
 - [시스템 Collectors](#시스템-collectors)
   - [Uptime Collector](#uptime-collector)
   - [ProcessWatch Collector](#processwatch-collector)
+  - [SelfMetrics Collector](#selfmetrics-collector)
 - [플랫폼별 지원 현황](#플랫폼별-지원-현황)
 - [전체 설정 예시](#전체-설정-예시)
 
@@ -32,7 +33,7 @@ ResourceAgent의 모든 수집기(Collector)에 대한 상세 설명, 설정 방
 
 ## 개요
 
-ResourceAgent는 15개의 수집기를 제공합니다:
+ResourceAgent는 16개의 수집기를 제공합니다 (SelfMetrics 포함, Phase 2.5-1):
 
 | Collector | 설명 | 플랫폼 |
 |-----------|------|--------|
@@ -51,6 +52,7 @@ ResourceAgent는 15개의 수집기를 제공합니다:
 | motherboard_temp | 메인보드 온도 | Windows (LHM) |
 | uptime | 시스템 부팅 시각 및 가동 시간 | Windows, Linux |
 | process_watch | 필수/금지 프로세스 감시 | Windows, Linux |
+| SelfMetrics | Agent 자체 runtime (goroutine/RSS/heap/buffer), category=`agent` | Windows, Linux, macOS |
 
 > **LHM**: LibreHardwareMonitor 기반 (Windows 전용, 관리자 권한 필요)
 > **storage_health**: LHM 불필요. Windows는 WMI `Win32_DiskDrive.Status`, Linux는 `smartctl -H` 사용 (root 권한 필요)
@@ -602,6 +604,16 @@ CPU/GPU/Storage/Motherboard Sensors
 2. **PawnIO 드라이버**: 설치 필요 (재부팅 불필요)
 3. **관리자 권한**: 하드웨어 센서 접근에 필요
 
+### Daemon 모드 안정성 (Phase 1-1)
+
+LhmHelper는 daemon 모드(`--daemon`)로 1회 spawn 후 stdin/stdout 으로 collect 명령을 주고받습니다. PawnIO 드라이버 핸들 누적을 막기 위함입니다. 다음 보호 장치가 있습니다:
+
+- **요청 timeout**: 한 번의 collect 응답이 지연되면 timeout 처리. 3회 연속 timeout 시 LhmHelper.exe를 `Process.Kill()` 후 재spawn (지수 백오프 1s~60s)
+- **goroutine leak 방지**: timeout으로 버려진 응답은 worker가 끝까지 drain하여 누적되지 않음 (worst-case leak = 0)
+- **로그 신호**: `LHM_REQUEST_TIMEOUT`, `LHM_DAEMON_KILL`, `LHM_DAEMON_RESPAWN` 등으로 운영 진단
+
+상세: `docs/runbooks/lhm-provider-timeout-monitoring.md`
+
 ---
 
 ### Temperature Collector
@@ -1152,6 +1164,67 @@ category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 
 ---
 
+### SelfMetrics Collector
+
+ResourceAgent 자기 자신의 runtime 상태(goroutine 수, RSS, Go heap, KafkaRest 버퍼 점유)를 주기적으로 emit합니다. Phase 2.5-1에서 도입.
+
+#### 설정
+
+| 필드 | 타입 | 설명 | 기본값 |
+|------|------|------|--------|
+| `enabled` | boolean | 활성화 여부 | `true` |
+| `interval` | string | 수집 주기 | `"60s"` |
+
+```json
+{
+  "Collectors": {
+    "SelfMetrics": {
+      "Enabled": true,
+      "Interval": "60s"
+    }
+  }
+}
+```
+
+#### 수집 항목 (6개)
+
+| Metric | 출처 | 단위 | 의미 |
+|--------|------|------|------|
+| `goroutine_count` | `runtime.NumGoroutine()` | count | goroutine drift 모니터링 |
+| `rss_bytes` | `gopsutil/process Self().MemoryInfo().RSS` | bytes | OS-level Resident Set Size |
+| `heap_alloc_bytes` | `runtime.MemStats.Alloc` | bytes | Go heap 활성 객체 |
+| `heap_sys_bytes` | `runtime.MemStats.Sys` | bytes | Go runtime이 OS로부터 받은 총 heap |
+| `buffer_count` | `BufferedHTTPTransport.BufferStats()` | records | KafkaRest 현재 buffer (Phase 2-1) |
+| `buffer_dropped_total` | `BufferedHTTPTransport.BufferStats()` | records | 프로세스 lifetime 누적 drop |
+
+#### 출력 (EARS Grok)
+
+category=`agent`, proc=`@system`, pid=0:
+
+```
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:goroutine_count,value:42
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:rss_bytes,value:31457280
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_alloc_bytes,value:1048576
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:heap_sys_bytes,value:8388608
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_count,value:0
+2026-05-04 14:00:00,123 category:agent,pid:0,proc:@system,metric:buffer_dropped_total,value:0
+```
+
+#### 의존성
+
+- `BufferedHTTPTransport` (Phase 2-1) — `buffer_count`, `buffer_dropped_total` 의 데이터 소스. `SenderType=file` 등 KafkaRest 미사용 환경에서는 두 값이 항상 0
+- 다른 collector와 sender 의존성 없음
+
+#### 비활성화
+
+`Monitor.json` 의 `SelfMetrics.Enabled = false` (Hot reload 가능).
+
+#### 관련 문서
+
+- `docs/runbooks/selfmetrics-overview.md` — 운영자 grep/대시보드 예시 + 비정상 신호 진단
+
+---
+
 ## 플랫폼별 지원 현황
 
 | Collector | Windows | Linux | macOS |
@@ -1171,6 +1244,7 @@ category:process_watch,pid:0,proc:anydesk.exe,metric:forbidden,value:0
 | motherboard_temp | ✓ (LHM) | - | - |
 | uptime | ✓ | ✓ | ✓ |
 | process_watch | ✓ | ✓ | ✓ |
+| SelfMetrics | ✓ | ✓ | ✓ |
 
 > Linux/macOS에서 LHM 기반 수집기는 빈 데이터를 반환합니다 (에러 아님).
 
@@ -1457,6 +1531,18 @@ cd C:\Path\To\ResourceAgent
 - Linux에서 smartmontools가 설치되지 않은 경우 빈 배열을 반환하며, 로그에 1회 경고가 기록됩니다.
 - `Disks` 필터는 Windows에서는 모델명, Linux에서는 디바이스명(sda, nvme0n1 등)으로 매칭됩니다.
 - StorageSmart Collector와 독립적으로 동작합니다. 둘 다 활성화해도 무방합니다.
+
+### Windows WMI Query 안정성 (Phase 1-2)
+
+Windows의 `Win32_DiskDrive` WMI 쿼리는 드물게 hang 될 수 있습니다 (서비스 지연). 다음 보호 장치가 있습니다:
+
+- **In-flight flag**: 진행 중인 쿼리가 있으면 새 cycle은 즉시 건너뛰고 직전 캐시값(stale-cache)을 그대로 반환 → collector가 차단되지 않음
+- **WMI는 시스템 서비스라 Kill 불가**: 진행 중 쿼리는 자체 완료 대기. worst-case 동시 in-flight goroutine = 1로 bounded
+- **로그 신호**: `WMI_QUERY_INFLIGHT`, `WMI_QUERY_TIMEOUT`, `WMI_QUERY_RECOVERED` 등으로 운영 진단
+
+stale-cache 운영 영향: 쿼리 hang 동안에는 동일 status 값이 반복 emit됨 → 변경 감지가 한 cycle 지연될 수 있음. 일반적으로 분 단위 collector 주기에서 무시 가능.
+
+상세: `docs/runbooks/wmi-query-monitoring.md`
 
 ---
 

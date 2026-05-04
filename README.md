@@ -198,6 +198,14 @@ go test ./internal/sender/...
     "EnableTLS": false,
     "SASLEnabled": false
   },
+  "Batch": {
+    "FlushFrequency": "30s",
+    "FlushMessages": 100,
+    "MaxBatchSize": 500,
+    "MaxRetries": 2,
+    "RetryBackoff": "500ms",
+    "MaxBufferedRecords": 10000
+  },
   "VirtualAddressList": "",
   "ServiceDiscoveryPort": 50009,
   "ResourceMonitorTopic": "process",
@@ -232,7 +240,8 @@ go test ./internal/sender/...
     "voltage":          { "Enabled": true, "Interval": "30s", "IncludeZones": [] },
     "motherboard_temp": { "Enabled": true, "Interval": "30s", "IncludeZones": [] },
     "storage_smart":    { "Enabled": true, "Interval": "60s", "Disks": [] },
-    "process_watch":    { "Enabled": true, "Interval": "60s", "RequiredProcesses": [], "ForbiddenProcesses": [] }
+    "process_watch":    { "Enabled": true, "Interval": "60s", "RequiredProcesses": [], "ForbiddenProcesses": [] },
+    "SelfMetrics":      { "Enabled": true, "Interval": "60s" }
   }
 }
 ```
@@ -266,6 +275,8 @@ go test ./internal/sender/...
 | `Collectors.*.WatchProcesses` | 항상 추적할 프로세스 이름 목록 | `[]` |
 | `Collectors.*.Interfaces` | 모니터링 대상 NIC 지정 (빈 배열=전체) | `[]` |
 | `Collectors.*.Disks` | 모니터링 대상 디스크/파티션 지정 | `[]` |
+| `Batch.MaxBufferedRecords` | KafkaRest 단절 시 in-memory 버퍼 상한 (FIFO oldest-drop). 0=비활성 | `10000` |
+| `Collectors.SelfMetrics` | Agent 자기 자원 (goroutine/RSS/heap/buffer) emit. category=`agent` | enabled, 60s |
 
 ### Sender 타입별 동작
 
@@ -761,6 +772,12 @@ PawnIO_setup.exe /S
 | process_watch | {process} | `forbidden` / `forbidden_alert` | 금지 프로세스 상태 | 1/0 |
 | uptime | @system | `boot_time_unix` | 부팅 시각 | unix ts |
 | uptime | @system | `uptime_minutes` | 가동 시간 | min |
+| agent | @system | `goroutine_count` | Agent 자체 goroutine 수 | count |
+| agent | @system | `rss_bytes` | Agent RSS (OS-level) | bytes |
+| agent | @system | `heap_alloc_bytes` | Go heap 활성 객체 | bytes |
+| agent | @system | `heap_sys_bytes` | Go runtime이 OS로부터 받은 총 heap | bytes |
+| agent | @system | `buffer_count` | KafkaRest BufferedHTTPTransport 현재 버퍼 | records |
+| agent | @system | `buffer_dropped_total` | 프로세스 lifetime 누적 buffer drop | records |
 
 ## 문제 해결
 

@@ -74,6 +74,10 @@
       "Enabled": true,
       "Interval": "300s",
       "Disks": []
+    },
+    "SelfMetrics": {
+      "Enabled": true,
+      "Interval": "60s"
     }
   }
 }
