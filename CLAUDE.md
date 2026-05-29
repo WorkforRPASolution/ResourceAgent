@@ -86,7 +86,7 @@ resourceagent/
 │   └── Logging.json                # 로깅 설정 (Hot Reload)
 ├── configs/                        # 설정 파일 (레거시 참조용)
 └── scripts/                        # 설치/패키징 스크립트
-    ├── install_ResourceAgent.bat / install_ResourceAgent.ps1   # Windows 설치 (패키지에 포함)
+    ├── install_ResourceAgent.bat              # Windows 설치 (패키지에 포함)
     ├── install_ResourceAgent.sh    # Linux 설치
     ├── package.sh / package.ps1    # 설치 패키지 빌드
     ├── INSTALL_GUIDE.txt           # 현장 담당자용 가이드 (패키지에 포함)

@@ -337,7 +337,7 @@ if "%INCLUDE_LHM%"=="1" (
         sc.exe query PawnIO >nul 2>&1
         if errorlevel 1 (
             echo   PawnIO driver not installed. Installing...
-            "%TOOLS_DIR%\PawnIO_setup.exe" -install -silent
+            "%TOOLS_DIR%\PawnIO_setup.exe" /S
             if errorlevel 1 (
                 echo ERROR: PawnIO driver installation failed.
                 exit /b 1
@@ -372,7 +372,7 @@ if "%INCLUDE_LHM%"=="1" (
                 sc.exe query PawnIO >nul 2>&1
                 if errorlevel 1 (
                     echo   PawnIO driver not installed. Installing...
-                    "%TOOLS_DIR%\PawnIO_setup.exe" -install -silent
+                    "%TOOLS_DIR%\PawnIO_setup.exe" /S
                     if errorlevel 1 (
                         echo ERROR: PawnIO driver installation failed.
                         exit /b 1
@@ -484,12 +484,20 @@ if not errorlevel 1 (
 REM Uninstall PawnIO driver if installed
 sc.exe query PawnIO >nul 2>&1
 if not errorlevel 1 (
-    if exist "%TOOLS_DIR%\PawnIO_setup.exe" (
+    REM PawnIO_setup.exe is an NSIS installer that generates a dedicated
+    REM uninstaller at "<ProgramFiles>\PawnIO\uninstall.exe". Run that uninstaller
+    REM silently (/S); the setup exe itself does not reliably honor an /uninstall
+    REM switch, so invoking the generated uninstaller is the robust path.
+    set "PAWNIO_UNINST="
+    if exist "%ProgramFiles%\PawnIO\uninstall.exe" set "PAWNIO_UNINST=%ProgramFiles%\PawnIO\uninstall.exe"
+    if not defined PAWNIO_UNINST if exist "%SystemDrive%\Program Files\PawnIO\uninstall.exe" set "PAWNIO_UNINST=%SystemDrive%\Program Files\PawnIO\uninstall.exe"
+    if defined PAWNIO_UNINST (
         echo   Uninstalling PawnIO driver...
-        "%TOOLS_DIR%\PawnIO_setup.exe" -uninstall -silent
+        "!PAWNIO_UNINST!" /S
         echo   PawnIO driver uninstalled
     ) else (
-        echo   WARNING: PawnIO driver is installed but PawnIO_setup.exe not found.
+        echo   WARNING: PawnIO driver is installed but its uninstaller was not found
+        echo            at "%ProgramFiles%\PawnIO\uninstall.exe".
         echo            Uninstall PawnIO manually from Control Panel.
     )
 )

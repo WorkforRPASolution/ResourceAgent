@@ -373,7 +373,7 @@ resourceagent/
 ├── configs/
 │   └── config.json              # 설정 파일 샘플
 ├── scripts/
-│   ├── install_ResourceAgent.ps1 # Windows 설치 스크립트
+│   ├── install_ResourceAgent.bat # Windows 설치 스크립트
 │   └── install_ResourceAgent.sh  # Linux 설치 스크립트
 ├── go.mod
 ├── go.sum
