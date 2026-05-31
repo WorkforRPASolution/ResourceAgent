@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResourceAgent 시작 시 CPU 순간 상승 안내</title>
+<style>
+  :root{
+    --blue:#2563eb; --blue-soft:#eff4ff;
+    --green:#16a34a; --green-soft:#ecfdf3;
+    --ink:#1f2933; --muted:#65707b; --line:#eaeef4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px 16px;
+    background:#f4f6f9;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;
+    color:#1f2933; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{
+    max-width:720px; margin:0 auto; background:#fff;
+    border-radius:16px; padding:40px 38px;
+    box-shadow:0 4px 24px rgba(31,41,51,.08);
+  }
+  .eyebrow{
+    display:inline-block; font-size:13px; font-weight:700; letter-spacing:.04em;
+    color:#2563eb; background:#eff4ff; padding:5px 12px; border-radius:999px;
+  }
+  h1{font-size:25px; margin:16px 0 6px; line-height:1.35;}
+  .sub{color:#65707b; font-size:15px; margin:0 0 28px;}
+  h2{font-size:18px; margin:34px 0 10px; display:flex; align-items:center; gap:9px;}
+  p{margin:10px 0;}
+  .lead{
+    background:#ecfdf3; border:1px solid #c8f0d6; border-radius:12px;
+    padding:18px 20px; margin:24px 0; font-size:15.5px;
+  }
+  .lead b{color:#15803d;}
+  .note{
+    background:#eff4ff; border-left:4px solid #2563eb; border-radius:8px;
+    padding:14px 18px; margin:16px 0; font-size:14.5px; color:#33415c;
+  }
+  .note .label{font-weight:700; color:#2563eb;}
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:14.5px;}
+  th,td{padding:11px 14px; text-align:left; border-bottom:1px solid #eaeef4;}
+  th{background:#f7f9fc; font-weight:700; color:#33415c;}
+  td.big{font-weight:700; color:#2563eb;}
+  ul.check{list-style:none; padding:0; margin:12px 0;}
+  ul.check li{padding:7px 0 7px 30px; position:relative; font-size:15px;}
+  ul.check li::before{content:"✓"; position:absolute; left:0; top:6px;
+    color:#16a34a; font-weight:800; font-size:16px;}
+  .faq{margin-top:8px;}
+  .faq .q{font-weight:700; margin:18px 0 2px; color:#1f2933;}
+  .faq .q::before{content:"Q. "; color:#2563eb;}
+  .faq .a{margin:0; color:#3a4756;}
+  .faq .a::before{content:"A. "; color:#65707b; font-weight:700;}
+  .verdict{
+    margin-top:34px; background:#1f2933; color:#fff;
+    border-radius:12px; padding:22px 24px; font-size:15.5px;
+  }
+  .verdict b{color:#7dd3a8;}
+  footer{
+    margin-top:30px; padding-top:18px; border-top:1px solid #eaeef4;
+    color:#9aa4b0; font-size:12.5px; line-height:1.6;
+  }
+  .big-num{font-size:15px;}
+</style>
+</head>
+<body>
+<div class="card">
+
+  <span class="eyebrow">현장 관리자용 안내</span>
+  <h1>모니터링 프로그램이 켜질 때<br>CPU 사용률이 잠깐 오르는 이유</h1>
+  <p class="sub">자원 수집 프로그램(ResourceAgent)을 시작할 때 일어나는 현상에 대한 설명입니다.</p>
+
+  <div class="lead">
+    <b>한 줄 요약 —</b> 프로그램이 켜지는 <b>바로 그 순간 딱 한 번</b>,
+    CPU 사용률이 잠깐(약 0.1초) 최대 30%까지 오를 수 있습니다.
+    이는 <b>고장이 아니라 정상 동작</b>이며, 곧바로 평소 상태(1% 미만)로 돌아옵니다.
+  </div>
+
+  <h2>🔎 어떤 현상인가요?</h2>
+  <p>
+    PC 온도와 자원 상태를 수집하는 프로그램이 처음 켜질 때,
+    작업 관리자에서 CPU 사용률이 순간적으로 <b>20~30%까지 튀었다가</b> 바로 내려가는 것을
+    보실 수 있습니다. 눈 깜짝할 사이라 보이지 않을 때도 많습니다.
+  </p>
+
+  <h2>💡 왜 이런 일이 생기나요?</h2>
+  <p>
+    프로그램은 PC 부품(CPU 등)의 <b>온도를 정확히 읽기 위해</b>,
+    시작할 때 부품의 <b>기준 속도를 한 번 정밀하게 측정</b>합니다.
+    이 측정이 정확하려면 아주 짧은 순간 CPU의 일부분을 집중해서 사용해야 합니다.
+  </p>
+  <div class="note">
+    <span class="label">쉽게 말하면</span> &nbsp;자동차에 시동을 걸 때 RPM이 잠깐 올라갔다가
+    금방 안정되는 것과 같습니다. 정확하게 동작하기 위한 짧은 준비 과정입니다.
+  </div>
+
+  <h2>📊 왜 PC마다 숫자가 다른가요?</h2>
+  <p>
+    CPU는 여러 명의 작은 일꾼(코어)으로 나뉘어 있습니다. 이 준비 작업은 그중
+    <b>딱 한 명만 잠깐 바쁘게</b> 만듭니다. 그래서 일꾼 수가 적은 PC일수록 숫자가 커 보입니다.
+  </p>
+  <table>
+    <tr><th>PC의 일꾼(코어) 수</th><th>잠깐 보이는 CPU 사용률</th></tr>
+    <tr><td class="big">적은 편 (구형 PC)</td><td>약 25~30%</td></tr>
+    <tr><td class="big">보통</td><td>약 12~15%</td></tr>
+  </table>
+  <p style="color:#65707b; font-size:14px;">
+    같은 동작이라도 PC 성능에 따라 화면에 표시되는 숫자만 달라질 뿐, 실제 부담은 동일합니다.
+  </p>
+
+  <h2>✅ 안전한가요?</h2>
+  <ul class="check">
+    <li>프로그램이 켜질 때 <b>딱 한 번</b>만 발생합니다.</li>
+    <li>지속 시간은 약 <b>0.1초</b>로, 끝나면 곧바로 1% 미만으로 내려갑니다.</li>
+    <li>설비 작동이나 다른 프로그램에 실질적인 영향을 주지 않습니다.</li>
+    <li>프로그램이 켜져 있는 동안에는 <b>다시 발생하지 않습니다</b>.</li>
+  </ul>
+
+  <h2>❓ 자주 묻는 질문</h2>
+  <div class="faq">
+    <p class="q">계속 30%를 쓰나요?</p>
+    <p class="a">아닙니다. 시작하는 순간 잠깐뿐이며, 이후에는 거의 0%에 가깝게 동작합니다.</p>
+
+    <p class="q">매번 보이나요?</p>
+    <p class="a">시작할 때마다 생기지만, 너무 짧아서 눈에 띄지 않을 때가 더 많습니다. "가끔 보인다"가 정상입니다.</p>
+
+    <p class="q">PC가 느려지나요?</p>
+    <p class="a">0.1초 수준이라 사용자가 체감할 정도의 느려짐은 없습니다.</p>
+
+    <p class="q">고쳐야 하나요?</p>
+    <p class="a">온도를 정확히 읽기 위한 정상 과정이라 별도 조치가 필요 없습니다. 그래도 신경 쓰인다면
+       프로그램 우선순위를 낮추는 설정으로 체감 영향을 더 줄일 수 있습니다(담당 엔지니어 문의).</p>
+  </div>
+
+  <div class="verdict">
+    <b>결론.</b> 시작 시 CPU가 잠깐 오르는 것은 <b>의도된 정상 동작</b>입니다.
+    한 번, 아주 짧게 발생하고 사라지므로 <b>그대로 두셔도 됩니다.</b>
+  </div>
+
+  <footer>
+    문서 대상: 공장 장비/PC 관리 담당자 &nbsp;·&nbsp; 작성일: 2026-05-29<br>
+    대상 프로그램: ResourceAgent (자원 모니터링 에이전트) — 온도 수집 도우미 시작 시 현상 안내
+  </footer>
+
+</div>
+</body>
+</html>
