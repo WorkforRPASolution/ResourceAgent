@@ -228,7 +228,7 @@ Group=$SERVICE_USER
 WorkingDirectory=$BASE_PATH
 ExecStart=$BIN_DIR/resourceagent -config $CONF_DIR/ResourceAgent.json -monitor $CONF_DIR/Monitor.json -logging $CONF_DIR/Logging.json
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 StandardOutput=journal
 StandardError=journal
 

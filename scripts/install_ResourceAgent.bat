@@ -405,9 +405,9 @@ if not errorlevel 1 (
 )
 
 echo   Creating Windows service...
-sc.exe create %SERVICE_NAME% binPath= "%SERVICE_PATH%" start= auto DisplayName= "%DISPLAY_NAME%" >nul
+sc.exe create %SERVICE_NAME% binPath= "%SERVICE_PATH%" start= delayed-auto DisplayName= "%DISPLAY_NAME%" >nul
 sc.exe description %SERVICE_NAME% "%DESCRIPTION%" >nul
-sc.exe failure %SERVICE_NAME% reset= 86400 actions= restart/5000/restart/10000/restart/30000 >nul
+sc.exe failure %SERVICE_NAME% reset= 86400 actions= restart/5000/restart/10000/restart/30000/restart/60000/restart/300000 >nul
 REM FailureActionsFlag=1: apply the recovery actions above even when the service
 REM exits gracefully with a non-zero code (e.g. boot-time startup failure when the
 REM network/Redis is not reachable yet). The default (0) only recovers on a hard

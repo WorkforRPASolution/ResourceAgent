@@ -9,7 +9,7 @@ Group=resourceagent
 WorkingDirectory=/opt/EEGAgent
 ExecStart=/opt/EEGAgent/bin/x86/resourceagent -config /opt/EEGAgent/conf/ResourceAgent/ResourceAgent.json -monitor /opt/EEGAgent/conf/ResourceAgent/Monitor.json -logging /opt/EEGAgent/conf/ResourceAgent/Logging.json
 Restart=on-failure
-RestartSec=5
+RestartSec=10
 StandardOutput=journal
 StandardError=journal
 

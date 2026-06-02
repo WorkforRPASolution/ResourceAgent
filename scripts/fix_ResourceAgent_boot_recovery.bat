@@ -13,7 +13,7 @@ REM            restart recovery for a graceful STOPPED, so the
 REM            service stays down until the next reboot.
 REM
 REM  This hotfix (config only - no file copy / reinstall needed):
-REM    1) (re)register failure actions: restart 5s / 10s / 30s
+REM    1) (re)register failure actions: restart 5s/10s/30s/1m/5m (then 5m repeats)
 REM    2) FailureActionsFlag = 1  -> recovery fires even on a
 REM       graceful STOPPED with a non-zero exit code  (KEY FIX)
 REM    3) start type -> Automatic (Delayed Start), to reduce the
@@ -84,8 +84,8 @@ if errorlevel 1 (
 )
 
 REM --- 1) failure actions: restart 5s / 10s / 30s (then repeats 30s) ---
-echo [1/4] Registering failure actions (restart 5s/10s/30s)...
-sc.exe failure "%SERVICE_NAME%" reset= 86400 actions= restart/5000/restart/10000/restart/30000 >nul
+echo [1/4] Registering failure actions (restart 5s/10s/30s/1m/5m)...
+sc.exe failure "%SERVICE_NAME%" reset= 86400 actions= restart/5000/restart/10000/restart/30000/restart/60000/restart/300000 >nul
 if errorlevel 1 (
     echo   WARNING: failed to set failure actions ^(continuing^).
 ) else (
