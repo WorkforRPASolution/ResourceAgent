@@ -153,8 +153,13 @@
     → 로그에 "HINT: ..." 섹션이 나오면 해당 안내 따라 조치.
 
   서비스가 시작되지 않을 때:
-    → 로그 확인: D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log
-    → 설정 파일 확인: conf\ResourceAgent\ResourceAgent.json
+    → 시작 실패 시 자동으로 재시작됩니다 (5초 -> 10초 -> 30초 -> 1분 -> 5분, 이후 5분 반복).
+      부팅 직후 네트워크 미준비로 인한 일시적 실패는 잠시 후 자동 복구되므로,
+      수 분 기다린 뒤 다음으로 다시 확인하세요:
+        sc query ResourceAgent
+    → 계속 실패하면 로그/설정을 확인하세요:
+      로그: D:\EARS\EEGAgent\log\ResourceAgent\ResourceAgent.log
+      설정: conf\ResourceAgent\ResourceAgent.json
 
 
 [참고]

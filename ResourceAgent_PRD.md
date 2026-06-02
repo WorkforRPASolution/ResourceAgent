@@ -650,8 +650,9 @@ GOTOOLCHAIN=go1.20.14 GOOS=linux GOARCH=amd64 go build -o resourceagent ./cmd/re
 #### Windows
 
 ```powershell
-# 서비스 등록
-sc create ResourceAgent binPath= "C:\Program Files\ResourceAgent\ResourceAgent.exe" start= auto
+# 서비스 등록 (실제 install_ResourceAgent.bat은 복구 정책도 등록:
+#   sc failure 점증 재시작(5s/10s/30s/1m/5m) + sc failureflag 1)
+sc create ResourceAgent binPath= "C:\Program Files\ResourceAgent\ResourceAgent.exe" start= delayed-auto
 
 # 서비스 시작
 sc start ResourceAgent
@@ -668,7 +669,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/opt/resourceagent/resourceagent
-Restart=always
+Restart=on-failure
 RestartSec=10
 
 [Install]

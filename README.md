@@ -430,6 +430,8 @@ REM   /uninstall        제거
 
 > 설정 파일(`conf/ResourceAgent/*.json`)은 대상 경로에 이미 존재하면 덮어쓰지 않습니다. 바이너리만 업데이트됩니다.
 
+> **부팅·자동 복구 동작**: 서비스는 자동 시작으로 등록됩니다(Windows: 지연 자동 시작 `delayed-auto`, Linux: `multi-user.target`). 시작/실행 실패 시 자동 재시작됩니다 — Windows `5s→10s→30s→1m→5m`(이후 5m 반복) + `FailureActionsFlag=1`, Linux `Restart=on-failure`(`RestartSec=10`). 부팅 직후 네트워크 미준비로 인한 일시적 시작 실패는 자동 복구됩니다. 이미 배포된 PC 즉시 구제·상세 동작·문제 해결은 [`docs/runbooks/boot-recovery-hotfix.md`](docs/runbooks/boot-recovery-hotfix.md) 참고.
+
 ### Linux (systemd)
 
 ```bash
