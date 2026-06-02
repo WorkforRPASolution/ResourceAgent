@@ -408,6 +408,12 @@ echo   Creating Windows service...
 sc.exe create %SERVICE_NAME% binPath= "%SERVICE_PATH%" start= auto DisplayName= "%DISPLAY_NAME%" >nul
 sc.exe description %SERVICE_NAME% "%DESCRIPTION%" >nul
 sc.exe failure %SERVICE_NAME% reset= 86400 actions= restart/5000/restart/10000/restart/30000 >nul
+REM FailureActionsFlag=1: apply the recovery actions above even when the service
+REM exits gracefully with a non-zero code (e.g. boot-time startup failure when the
+REM network/Redis is not reachable yet). The default (0) only recovers on a hard
+REM crash, so without this the service would stay stopped after such a boot failure.
+REM Supported on Windows 7+.
+sc.exe failureflag %SERVICE_NAME% 1 >nul
 
 REM Record install result for ResourceAgent to report to Kafka on first run.
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
@@ -420,8 +426,10 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 echo   Starting service...
 sc.exe start %SERVICE_NAME% >nul 2>&1
 
-REM Verify
-timeout /t 2 /nobreak >nul
+REM Verify. Wait past the Go service startup grace (~5s, see internal/service/
+REM windows.go) before checking RUNNING. A shorter wait can falsely report
+REM "not running" while the service is still in StartPending.
+timeout /t 8 /nobreak >nul
 sc.exe query %SERVICE_NAME% | find "RUNNING" >nul 2>&1
 if not errorlevel 1 (
     echo.
