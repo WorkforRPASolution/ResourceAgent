@@ -294,6 +294,6 @@ A. ~8KB stack 비용 + 1개 thread (locked to syscall). ResourceAgent 자체 운
 
 - 메모리 누수 대응 전체 plan: `docs/plans/memory-leak-mitigation-plan.md`
 - Phase 1-1 LhmProvider 가이드: `docs/runbooks/lhm-provider-timeout-monitoring.md`
-- EPS 화이트리스트 협의: `docs/runbooks/eps-whitelist-request.md`
+- EPS 화이트리스트 협의: `docs/archive/2026-04-28-eps-whitelist-request.md`
 - Windows 메모리 진단 가이드: `docs/runbooks/windows-memory-leak-diagnosis.md`
 - 코드: `internal/collector/storage_health_windows.go` (특히 `queryWMIDiskDrive`, `wmiQueryStateData`)

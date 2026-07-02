@@ -615,8 +615,8 @@ tail -f log/ResourceAgent/metrics.jsonl
 2026-02-25 10:30:45,123 category:network,pid:0,proc:Ethernet,metric:recv_rate,value:12345.6
 ```
 
-> EARS Grok 포맷 상세 명세는 [`docs/EARS-METRICS-REFERENCE.md`](docs/EARS-METRICS-REFERENCE.md) 참조.
-> 15종 Collector 상세 설명은 [`docs/COLLECTORS.md`](docs/COLLECTORS.md) 참조.
+> EARS Grok 포맷 상세 명세는 [`docs/reference/EARS-METRICS-REFERENCE.md`](docs/reference/EARS-METRICS-REFERENCE.md) 참조.
+> 15종 Collector 상세 설명은 [`docs/reference/COLLECTORS.md`](docs/reference/COLLECTORS.md) 참조.
 
 ## 운영
 

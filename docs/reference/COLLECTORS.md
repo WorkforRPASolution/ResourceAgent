@@ -192,7 +192,7 @@ CPU/메모리 부하를 줄이려면 주기를 늘립니다:
 
 ### 프로덕션 설정 파일
 
-권장 주기가 적용된 프로덕션 설정: [`configs/config.production.json`](../configs/config.production.json)
+권장 주기가 적용된 프로덕션 설정: [`configs/config.production.json`](../../configs/config.production.json)
 
 ---
 
@@ -1551,5 +1551,5 @@ stale-cache 운영 영향: 쿼리 hang 동안에는 동일 status 값이 반복 
 ## 관련 문서
 
 - [Windows 온도 수집 테스트 가이드](./TESTING-LHM-TEMPERATURE.md)
-- [OhmGraphite vs ResourceAgent 분석](./OhmGraphite-vs-ResourceAgent-분석.md)
-- [PDCA Report: lhm-hardware-extension](./04-report/features/lhm-hardware-extension.report.md)
+- [OhmGraphite vs ResourceAgent 분석](../research/ohmgraphite-comparison.md)
+- [PDCA Report: lhm-hardware-extension](../archive/2026-02-05-lhm-hardware-extension.report.md)

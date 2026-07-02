@@ -53,7 +53,7 @@
 > - **결정적 검증**: 동일 PC 에서 EPS 만 제거 시 ResourceAgent 모든 collector ON 이어도 1.5h 동안 증가 0.
 > - **ResourceAgent 책임 비율 ≈ 0%**: 누수가 아닌 EPS 의 정상 캐시 동작 (한도 미설정 또는 부적합).
 > - **상세 케이스 분석**: `docs/runbooks/windows-memory-leak-diagnosis.md` §9
-> - **EPS 협의 자료**: `docs/runbooks/eps-whitelist-request.md`
+> - **EPS 협의 자료**: `docs/archive/2026-04-28-eps-whitelist-request.md`
 >
 > **plan 재포지셔닝**:
 > - 본 plan 의 "**현장 1GB 누수 해결**" 명분 제거 — 그 원인은 코드가 아닌 운영 환경 (EPS 정책)
@@ -74,7 +74,7 @@
 >   - 5개 시나리오 비교 실험으로 EPS 가 필요조건 확정 (시나리오 ④ 결정적)
 >   - 점진 증가 후 정체 패턴 → 누수 아닌 캐시 한도 도달
 >   - top5 풀 태그 (FMfn/Ntff/MmSt/CM31/Ntfx) 가 모두 MS 표준 컴포넌트 → EPS 가 자체 풀 안 잡고 reference 만 잡음
->   - EPS 협의 자료 신설: `docs/runbooks/eps-whitelist-request.md`
+>   - EPS 협의 자료 신설: `docs/archive/2026-04-28-eps-whitelist-request.md`
 >   - 진단 가이드 §9 신설: 본 케이스 case study + 다른 환경 적용 가이드
 >
 > **이전 변경 이력**:
@@ -1721,7 +1721,7 @@ Phase 3-0 PoC 결과 기반:
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.6 (`handle_count`) 완료 — Win `GetProcessHandleCount` syscall + Linux `/proc/self/fd` 카운트 + macOS stub. SelfMetrics 7번째 지표 추가. C1/C2/H2 회귀 자동 감지 신호 확보. selfmetrics.go OS-specific 파일 분할 (`_windows.go` / `_linux.go` / `_other.go`).** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2.5-1.7 (goroutine baseline drift) 보류 — 운영 검증(1주차 Win VM) 결과 보고 baseline 60s window 적절성 확인 후 진행. 현장 PC의 실제 goroutine burst 패턴(collector cycle 시작 직후 +5~10) 데이터 없이 60s 고정하면 baseline에 burst가 섞일 위험. 운영 데이터 확보 → 60s vs 다른 값(120s, 300s 등) 결정 → 구현 순서로 변경.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 4-2 (goleak 8개 대상) 폐기 — collector / sender TestMain만으로 leak 위험 패키지 커버 완료. 나머지 6개 internal 패키지는 goroutine 사용 단순 또는 단일 lifecycle, 추가 goleak ROI 낮음. Phase 1-1/1-2 fix 후 새 leak 위험 패키지 없음.** |
-| **v2.4.2** | **2026-05-04** | - | **메모리/소켓/핸들 관리 코드베이스 audit 수행 — 7개 카테고리 (HTTP body Close, context cancel, ticker Stop, Redis lifecycle, file 핸들, channel/map 무한 성장, Sarama shutdown) 점검. leak 0건, 효율성 개선 후보 1건 (eqpinfo redis client 재생성, 미진행). 결과: `docs/runbooks/resource-management-audit.md`.** |
+| **v2.4.2** | **2026-05-04** | - | **메모리/소켓/핸들 관리 코드베이스 audit 수행 — 7개 카테고리 (HTTP body Close, context cancel, ticker Stop, Redis lifecycle, file 핸들, channel/map 무한 성장, Sarama shutdown) 점검. leak 0건, 효율성 개선 후보 1건 (eqpinfo redis client 재생성, 미진행). 결과: `docs/archive/2026-05-04-resource-management-audit.md`.** |
 | **v2.4.2** | **2026-05-04** | - | **Phase 2-2 완료 — Scheduler 두 timeout(30s collect, 10s send) 위에 P1-1/P1-2/P2-1 보호장치와 짝을 이루는 contract 주석 추가. 동작 변경 없음.** |
 
 리뷰 라운드 총 5회 × 전문가 5명(Go/Windows/SRE/QA/Codex) = 21건의 교차 검증 의견 반영. v2.4.1에서 로컬 CI 정책은 폐기.

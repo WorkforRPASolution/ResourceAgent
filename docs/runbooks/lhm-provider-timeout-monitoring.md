@@ -139,7 +139,7 @@ grep "LHM_KILL_FAILED" log/ResourceAgent/ResourceAgent.log
 | 원인 | 신호 | 조치 |
 |------|------|------|
 | ResourceAgent 서비스 권한 부족 | `Access is denied` 같은 에러 | LocalSystem 계정으로 실행되는지 확인 (`sc qc ResourceAgent`) |
-| AV/EDR가 Process.Kill 차단 | `The system cannot terminate the process` | EPS 화이트리스트 등록 (`docs/runbooks/eps-whitelist-request.md`) |
+| AV/EDR가 Process.Kill 차단 | `The system cannot terminate the process` | EPS 화이트리스트 등록 (`docs/archive/2026-04-28-eps-whitelist-request.md`) |
 | LhmHelper가 보호 모드 (PROTECTED_LIGHT 등) | 매우 드묾 | LhmHelper 빌드 옵션 확인 |
 
 `LHM_KILL_FAILED`가 한 번이라도 발생하면 **롤백 트리거**. 즉시 분석.
@@ -323,7 +323,7 @@ A. 정상 케이스(99%)에는 영향 없음. timeout 발생 시 해당 1회 메
 
 - 본 작업 plan: `~/.claude/plans/phase-1-1-wise-cocoa.md`
 - 메모리 누수 대응 전체 plan: `docs/plans/memory-leak-mitigation-plan.md` (v2.4.2)
-- EPS 화이트리스트 협의: `docs/runbooks/eps-whitelist-request.md`
+- EPS 화이트리스트 협의: `docs/archive/2026-04-28-eps-whitelist-request.md`
 - Windows 메모리 진단 가이드: `docs/runbooks/windows-memory-leak-diagnosis.md`
 - 알려진 race conditions: `docs/runbooks/known-race-conditions.md`
 - 코드: `internal/collector/lhm_provider_windows.go` (특히 `doRequestWithTimeout`, `killAndDrain`)

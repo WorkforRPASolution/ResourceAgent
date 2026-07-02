@@ -85,6 +85,7 @@ resourceagent/
 │   ├── Monitor.json                # 수집기 설정 (Hot Reload)
 │   └── Logging.json                # 로깅 설정 (Hot Reload)
 ├── configs/                        # 설정 파일 (레거시 참조용)
+├── docs/                           # 문서 (분류 규칙·전체 인덱스: docs/README.md)
 └── scripts/                        # 설치/패키징 스크립트
     ├── install_ResourceAgent.bat              # Windows 설치 (패키지에 포함)
     ├── install_ResourceAgent.sh    # Linux 설치

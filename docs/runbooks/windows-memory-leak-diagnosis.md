@@ -630,7 +630,7 @@ LhmHelper 경로 전체 무효화 → P1 (C1/H1) 자동 제거. 남은 의심:
 | 3 (보류) | AhnLab 본사 공식 문의 — 정책 캐시 기본값 검토 | 잔여 미확정 사항으로 분리 |
 | 4 (불요) | 재부팅 주기 운영 | 1번 조치로 불요 |
 
-→ **1번 조치로 해결**. 자세한 협의 자료: `docs/runbooks/eps-whitelist-request.md`.
+→ **1번 조치로 해결**. 자세한 협의 자료: `docs/archive/2026-04-28-eps-whitelist-request.md`.
 
 ### 9.5.1 모델 보정 — "수명" 단독은 결정 변수가 아님 (2026-04-29 추가)
 
@@ -643,7 +643,7 @@ EPS 캐시 누적 ≈ ∫ (단위 시간당 행위 빈도 × 행위 다양성) d
 
 **1순위 결정 변수**: 신뢰 분류 (서명). MS 서명 SW 는 EPS Application Control 단계에서 검사 우회 → 빈도 무관하게 캐시 entry 미생성. 미서명 SW 는 모든 신규 객체 접근에 대해 캐시 entry 발생.
 
-**보완 / 대안 조치**: 자사 SW 코드 서명 도입 — 인증서 1장으로 자사 모든 SW 가 EPS baseline 자동 신뢰. 자세한 검토: `eps-whitelist-request.md` 부록 E-1.
+**보완 / 대안 조치**: 자사 SW 코드 서명 도입 — 인증서 1장으로 자사 모든 SW 가 EPS baseline 자동 신뢰. 자세한 검토: `docs/archive/2026-04-28-eps-whitelist-request.md` 부록 E-1.
 
 ### 9.6 잔여 미확정 사항
 
@@ -674,7 +674,7 @@ EPS 캐시 누적 ≈ ∫ (단위 시간당 행위 빈도 × 행위 다양성) d
 ## 10. 참고 자료
 
 - **본 plan 문서**: `docs/plans/memory-leak-mitigation-plan.md` (v2.4.0)
-- **EPS 협의 자료**: `docs/runbooks/eps-whitelist-request.md`
+- **EPS 협의 자료**: `docs/archive/2026-04-28-eps-whitelist-request.md`
 - **Win7 현장 관찰 기록**: `docs/issues/` (별도)
 - **MS poolmon 가이드**: https://learn.microsoft.com/windows-hardware/drivers/devtest/poolmon
 - **MS RAMMap 사용**: https://learn.microsoft.com/sysinternals/downloads/rammap
