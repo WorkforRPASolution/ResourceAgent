@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResourceAgent CPU 사용률이 작업 관리자와 다른 이유</title>
+<style>
+  :root{
+    --blue:#2563eb; --blue-soft:#eff4ff;
+    --green:#16a34a; --green-soft:#ecfdf3;
+    --ink:#1f2933; --muted:#65707b; --line:#eaeef4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px 16px;
+    background:#f4f6f9;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",sans-serif;
+    color:#1f2933; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{
+    max-width:720px; margin:0 auto; background:#fff;
+    border-radius:16px; padding:40px 38px;
+    box-shadow:0 4px 24px rgba(31,41,51,.08);
+  }
+  .eyebrow{
+    display:inline-block; font-size:13px; font-weight:700; letter-spacing:.04em;
+    color:#2563eb; background:#eff4ff; padding:5px 12px; border-radius:999px;
+  }
+  h1{font-size:25px; margin:16px 0 6px; line-height:1.35;}
+  .sub{color:#65707b; font-size:15px; margin:0 0 28px;}
+  h2{font-size:18px; margin:34px 0 10px; display:flex; align-items:center; gap:9px;}
+  p{margin:10px 0;}
+  .lead{
+    background:#ecfdf3; border:1px solid #c8f0d6; border-radius:12px;
+    padding:18px 20px; margin:24px 0; font-size:15.5px;
+  }
+  .lead b{color:#15803d;}
+  .note{
+    background:#eff4ff; border-left:4px solid #2563eb; border-radius:8px;
+    padding:14px 18px; margin:16px 0; font-size:14.5px; color:#33415c;
+  }
+  .note .label{font-weight:700; color:#2563eb;}
+  .warn{
+    background:#fff7ed; border-left:4px solid #f59e0b; border-radius:8px;
+    padding:14px 18px; margin:16px 0; font-size:14.5px; color:#7c4a03;
+  }
+  .warn .label{font-weight:700; color:#b45309;}
+  .compare{
+    display:flex; gap:14px; margin:18px 0; flex-wrap:wrap;
+  }
+  .compare .box{
+    flex:1; min-width:240px; border:1px solid #eaeef4; border-radius:12px;
+    padding:18px 20px; background:#fafbfd;
+  }
+  .compare .box h3{margin:0 0 4px; font-size:15.5px;}
+  .compare .box .tag{font-size:12.5px; font-weight:700; padding:3px 10px;
+    border-radius:999px; display:inline-block; margin-bottom:10px;}
+  .compare .box.ra .tag{color:#2563eb; background:#eff4ff;}
+  .compare .box.tm .tag{color:#b45309; background:#fef3e2;}
+  .compare .box p{font-size:14px; color:#4a5662; margin:6px 0 0;}
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:14.5px;}
+  th,td{padding:11px 14px; text-align:left; border-bottom:1px solid #eaeef4;}
+  th{background:#f7f9fc; font-weight:700; color:#33415c;}
+  td.big{font-weight:700; color:#2563eb;}
+  ul.check{list-style:none; padding:0; margin:12px 0;}
+  ul.check li{padding:7px 0 7px 30px; position:relative; font-size:15px;}
+  ul.check li::before{content:"✓"; position:absolute; left:0; top:6px;
+    color:#16a34a; font-weight:800; font-size:16px;}
+  .faq{margin-top:8px;}
+  .faq .q{font-weight:700; margin:18px 0 2px; color:#1f2933;}
+  .faq .q::before{content:"Q. "; color:#2563eb;}
+  .faq .a{margin:0; color:#3a4756;}
+  .faq .a::before{content:"A. "; color:#65707b; font-weight:700;}
+  .verdict{
+    margin-top:34px; background:#1f2933; color:#fff;
+    border-radius:12px; padding:22px 24px; font-size:15.5px;
+  }
+  .verdict b{color:#7dd3a8;}
+  details.tech{
+    margin-top:24px; border:1px solid #eaeef4; border-radius:10px;
+    padding:4px 18px; background:#fafbfd;
+  }
+  details.tech summary{
+    cursor:pointer; font-weight:700; font-size:14.5px; color:#33415c;
+    padding:12px 0;
+  }
+  details.tech code{
+    display:block; background:#1f2933; color:#e6edf3; border-radius:8px;
+    padding:12px 14px; margin:10px 0; font-size:13px; overflow-x:auto;
+    font-family:"SFMono-Regular","Consolas",monospace; line-height:1.5;
+  }
+  details.tech p{font-size:14px; color:#4a5662;}
+  .formula{
+    background:#f7f9fc; border:1px solid #e3e8ef; border-radius:10px;
+    padding:14px 18px; margin:14px 0; text-align:center;
+    font-size:15px; color:#33415c; font-weight:600;
+  }
+  footer{
+    margin-top:30px; padding-top:18px; border-top:1px solid #eaeef4;
+    color:#9aa4b0; font-size:12.5px; line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <span class="eyebrow">현장 관리자용 안내</span>
+  <h1>모니터링 프로그램의 CPU 사용률이<br>작업 관리자와 다르게 보이는 이유</h1>
+  <p class="sub">자원 수집 프로그램(ResourceAgent)이 보고하는 CPU 값과 Windows 작업 관리자 그래프가 차이 나는 현상에 대한 설명입니다.</p>
+
+  <div class="lead">
+    <b>한 줄 요약 —</b> 모니터링 프로그램과 작업 관리자의 CPU 값이 조금 다른 것은
+    <b>오류가 아니라 정상</b>입니다. 두 도구가 CPU를 <b>서로 다른 방식(다른 자)으로 측정</b>하기 때문이며,
+    상황에 따라 <b>어느 쪽이 더 높을지 방향도 바뀔 수 있습니다.</b>
+  </div>
+
+  <h2>🔎 어떤 현상인가요?</h2>
+  <p>
+    같은 PC, 같은 시점인데도 <b>모니터링 프로그램이 보고하는 CPU 사용률</b>과
+    <b>작업 관리자 성능 탭의 그래프</b>가 서로 다르게 나옵니다.
+    예를 들어 한쪽이 <b>40%</b>일 때 다른 쪽은 <b>30% 안팎</b>으로 나올 수 있습니다.
+  </p>
+
+  <h2>💡 왜 차이가 생기나요?</h2>
+  <p>
+    같은 길이를 <b>줄자로 재는 사람</b>과 <b>30cm 자로 재는 사람</b>의 숫자가 조금 다를 수 있듯이,
+    두 도구는 Windows가 제공하는 <b>서로 다른 "측정 자"</b>를 사용합니다.
+  </p>
+
+  <div class="compare">
+    <div class="box ra">
+      <span class="tag">모니터링 프로그램</span>
+      <h3>"CPU가 실제로 일한 시간"</h3>
+      <p>CPU가 순수하게 작업에 매달린 시간의 비율을 잽니다.
+         업계 표준 방식으로, 다른 전문 모니터링 도구들도 동일하게 사용합니다.</p>
+    </div>
+    <div class="box tm">
+      <span class="tag">작업 관리자 (Win 8 이상)</span>
+      <h3>"CPU 속도까지 반영한 활용률"</h3>
+      <p>CPU가 그 순간 얼마나 빠른 속도로 돌았는지까지 함께 계산합니다.
+         그래서 CPU 속도 상태에 따라 값이 달라집니다.</p>
+    </div>
+  </div>
+
+  <h2>↕️ 어느 쪽이 더 높은지는 "그때 CPU 속도"에 달렸습니다</h2>
+  <p>
+    CPU는 항상 같은 속도로 돌지 않습니다. 한가하면 전기를 아끼려 <b>속도를 낮추고</b>,
+    바쁘면 <b>속도를 높입니다.</b> 작업 관리자는 이 속도까지 반영하기 때문에,
+    <b>CPU가 기본 속도보다 빠른지 느린지</b>에 따라 방향이 바뀝니다.
+  </p>
+  <table>
+    <tr><th>그때 CPU 상태</th><th>CPU 속도</th><th>어느 값이 더 높나</th></tr>
+    <tr><td class="big">한가함</td><td>기본보다 느림 (절전)</td><td><b>모니터링 값</b>이 조금 높음</td></tr>
+    <tr><td class="big">보통</td><td>기본 속도 근처</td><td>거의 같음</td></tr>
+    <tr><td class="big">많이 바쁨</td><td>기본보다 빠름 (터보)</td><td><b>작업 관리자</b>가 조금 높음</td></tr>
+  </table>
+  <div class="note">
+    <span class="label">그래서</span> &nbsp;모니터링 값이 작업 관리자보다 <b>조금 더 높게</b> 나오는 것도
+    (CPU가 한가해서 속도를 낮춘 상태라면) <b>정상입니다.</b> 둘 다 맞는 값입니다.
+  </div>
+
+  <h2>🪟 Windows 7에서는 두 값이 거의 같습니다</h2>
+  <p>
+    위의 "속도까지 반영" 방식은 <b>Windows 8 이상</b>의 작업 관리자에만 있습니다.
+    <b>Windows 7</b>의 작업 관리자는 모니터링 프로그램과 <b>똑같이 "일한 시간"만</b> 재기 때문에,
+    두 값이 원래 <b>거의 일치</b>합니다. (차이는 측정 시점이 미세하게 다른 정도뿐)
+  </p>
+
+  <h2>✅ 괜찮은가요?</h2>
+  <ul class="check">
+    <li>두 값이 다른 것은 <b>설계상 정상</b>입니다. 어느 쪽도 틀린 값이 아닙니다.</li>
+    <li>CPU 상태에 따라 <b>모니터링 값이 더 낮을 수도, 더 높을 수도</b> 있습니다.</li>
+    <li>모니터링 값은 Prometheus 등 <b>전문 모니터링 도구와 같은 방식</b>으로 측정됩니다.</li>
+    <li>추세(올라가는지/내려가는지)를 보는 데는 두 값 모두 문제없이 쓸 수 있습니다.</li>
+  </ul>
+
+  <div class="warn">
+    <span class="label">이럴 때는 점검 대상</span> &nbsp;아래의 경우는 정상 범위를 벗어난 신호일 수 있으니
+    담당 엔지니어에게 알려 주세요.<br>
+    &nbsp;• <b>Windows 7</b>인데 두 값이 <b>크게</b> 벌어질 때<br>
+    &nbsp;• CPU가 <b>바쁜 상태인데도</b> 모니터링 값이 작업 관리자보다 <b>계속 크게 높게</b> 나올 때
+  </div>
+
+  <h2>❓ 자주 묻는 질문</h2>
+  <div class="faq">
+    <p class="q">어느 숫자를 믿어야 하나요?</p>
+    <p class="a">둘 다 맞습니다. 모니터링 시스템에서 비교·추세를 볼 때는 모니터링 값을,
+       그 PC 앞에서 순간 상태를 볼 때는 작업 관리자 값을 참고하시면 됩니다.</p>
+
+    <p class="q">모니터링 값이 작업 관리자보다 더 높게 나오는데 문제인가요?</p>
+    <p class="a">대개는 정상입니다. CPU가 한가해서 속도를 낮춘 상태라면 모니터링 값이 오히려 조금 높게
+       나올 수 있습니다. 다만 <b>바쁜 상태인데도 계속 크게 높다면</b> 담당 엔지니어에게 문의하세요.</p>
+
+    <p class="q">차이가 어느 정도까지 정상인가요?</p>
+    <p class="a">보통 10% 안팎이면 정상 범위이고, CPU가 한가할 때는 차이가 거의 없습니다.
+       비정상적으로 큰 차이가 지속되면 알려 주세요.</p>
+
+    <p class="q">설정을 바꿔야 하나요?</p>
+    <p class="a">아니요. 측정 방식의 차이이므로 별도 조치가 필요 없습니다.</p>
+  </div>
+
+  <details class="tech">
+    <summary>🔧 (엔지니어용) 왜 방향이 바뀌는지 + 확인 방법</summary>
+    <p>두 도구가 쓰는 Windows 성능 카운터가 다릅니다.</p>
+    <p>
+      • 모니터링 프로그램: <code style="display:inline;background:none;color:#2563eb;padding:0;">% Processor Time</code>
+        (<code style="display:inline;background:none;color:#2563eb;padding:0;">GetSystemTimes()</code>) — CPU가 바빴던 시간 비율<br>
+      • 작업 관리자(Win 8+): <code style="display:inline;background:none;color:#b45309;padding:0;">% Processor Utility</code> — 기본 주파수 기준 실효 일량
+    </p>
+    <p>두 값의 관계는 대략 <b>주파수 비율(= 현재 주파수 ÷ 기본 주파수)</b>로 결정됩니다.</p>
+    <div class="formula">% Processor Utility ≈ % Processor Time × (현재 주파수 ÷ 기본 주파수)</div>
+    <p>
+      • 절전으로 기본보다 느리면 비율&lt;1 → Utility &lt; Time → <b>모니터링 값이 더 높음</b><br>
+      • 터보로 기본보다 빠르면 비율&gt;1 → Utility &gt; Time → <b>작업 관리자가 더 높음</b><br>
+      • 예) Time 50%일 때, 절반 속도면 TM 25% / 터보 1.3배면 TM 65%
+    </p>
+    <p>Windows 7 작업 관리자는 <code style="display:inline;background:none;color:#2563eb;padding:0;">% Processor Time</code>을
+       그대로 쓰므로 모니터링 값과 거의 일치합니다.</p>
+    <p>PowerShell로 두 카운터를 동시에 비교:</p>
+    <code>Get-Counter '\Processor(_Total)\% Processor Time', '\Processor Information(_Total)\% Processor Utility'</code>
+    <p>상세 기술 설명은 <code style="display:inline;background:none;color:#2563eb;padding:0;">docs/COLLECTORS.md</code>의
+       "Windows 작업관리자와의 값 차이" 절을 참고하세요.</p>
+  </details>
+
+  <div class="verdict">
+    <b>결론.</b> 모니터링 프로그램과 작업 관리자의 CPU 값이 다른 것은
+    <b>측정 방식의 차이일 뿐 정상</b>이며, CPU 속도 상태에 따라 어느 쪽이 높을지도 바뀝니다.
+    두 값 모두 정확하니, <b>그대로 사용하셔도 됩니다.</b>
+  </div>
+
+  <footer>
+    문서 대상: 공장 장비/PC 관리 담당자 &nbsp;·&nbsp; 작성일: 2026-06-22 (2026-07-02 정정)<br>
+    대상 프로그램: ResourceAgent (자원 모니터링 에이전트) — CPU 사용률 값 차이 안내
+  </footer>
+
+</div>
+</body>
+</html>
