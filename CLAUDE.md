@@ -126,6 +126,16 @@ D:\EARS\EEGAgent\                         ← basePath (ManagerAgent FTP home)
 - `github.com/rs/zerolog` - 구조화된 로깅
 - `golang.org/x/sys/windows/svc` - Windows 서비스 지원
 
+## 문서 작성 규칙
+
+문서를 새로 만들거나 문서 구조를 다룰 때는 **`docs/README.md`(문서 인덱스)를 먼저 참조**합니다.
+
+- **배치**: 인덱스 상단의 "문서 배치 규칙" 표에 따라 폴더 결정 (reference/ runbooks/ issues/ field/ plans/ research/ archive/)
+- **명명**: 레퍼런스 = `UPPERCASE.md`, 그 외 = `kebab-case.md`, 아카이브 = `YYYY-MM-DD-kebab.md`
+- **인덱스 갱신**: 문서 추가/이동/삭제 시 `docs/README.md`에 반드시 반영 (상태 태그 🟢🔵⚫ 포함)
+- **이동 금지**: `runbooks/`, `issues/`는 Go 코드와 이 파일이 경로를 직접 참조하므로 함부로 옮기지 않음
+- **완료 처리**: 계획(plans/)·검토 문서가 완료되면 날짜 prefix를 붙여 `archive/`로 이동
+
 ## 구현 가이드
 
 ### 새 Collector 추가 방법
